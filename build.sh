@@ -25,11 +25,28 @@ cat $SRC/tail.html              >> "$OUT"
 
 echo "✓ Built $OUT ($(wc -l < "$OUT") lines)"
 
+# === Build Falo 3D-2 (native ES modules — sync source into public) ===
+# v2 lives at the top level of src/ (game.js + aliens/map/player/shared).
+# It loads THREE from a CDN via an import map, so there is no bundling step —
+# we just mirror the source into public/ so it ships as static assets.
+V2_SRC=src
+V2_OUT=public/falo3d-2
+
+rm -rf "$V2_OUT"
+mkdir -p "$V2_OUT"
+cp "$V2_SRC/game.js" "$V2_OUT/game.js"
+cp -R "$V2_SRC/aliens" "$V2_SRC/bosses" "$V2_SRC/map" "$V2_SRC/player" "$V2_SRC/shared" "$V2_OUT/"
+cp "$V2_SRC/falo3d-2.html" public/falo3d-2.html
+find "$V2_OUT" -name '.DS_Store' -delete
+
+echo "✓ Built falo3d-2 ($(find "$V2_OUT" -name '*.js' | wc -l | tr -d ' ') modules)"
+
 # === Build index.html from template ===
-GAMES=$(ls public/*.html 2>/dev/null | grep -cv 'index\.html')
+GAMES=$(ls public/*.html 2>/dev/null | grep -cv 'index\.html' || echo 0)
 LINES=0
-for f in src/falo3d/*; do LINES=$((LINES + $(wc -l < "$f"))); done
-for f in public/falo.html; do [ -f "$f" ] && LINES=$((LINES + $(wc -l < "$f"))); done
+for f in src/falo3d/* src/game.js src/aliens/* src/bosses/* src/map/* src/player/* src/shared/* public/falo.html; do
+  [ -f "$f" ] && LINES=$((LINES + $(wc -l < "$f")))
+done
 
 LINE_DISPLAY=$(echo "$LINES" | rev | sed 's/.\{3\}/&,/g' | rev | sed 's/^,//')+
 

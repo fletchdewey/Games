@@ -108,6 +108,45 @@
     padding: 4px 12px; border-radius: 4px;
     pointer-events: none; z-index: 10;
   }
+
+  /* Boss HUD */
+  #boss-hud {
+    display: none;
+    position: fixed; top: 44px; left: 50%;
+    transform: translateX(-50%);
+    width: 340px; text-align: center;
+    pointer-events: none; z-index: 11;
+    font-family: 'Courier New', monospace;
+  }
+  #boss-name {
+    font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
+    color: #ff88aa; margin-bottom: 5px;
+    text-shadow: 0 0 6px rgba(0,0,0,0.8);
+  }
+  #boss-bar-wrap {
+    height: 10px; width: 100%;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 5px; overflow: hidden;
+  }
+  #boss-bar {
+    height: 100%; width: 100%;
+    background: #ff2244; border-radius: 5px;
+    transition: width 0.15s, background 0.2s;
+  }
+  #boss-banner {
+    display: none;
+    position: fixed; inset: 0;
+    align-items: center; justify-content: center;
+    pointer-events: none; z-index: 22;
+    font-family: 'Courier New', monospace;
+  }
+  #boss-banner .inner { text-align: center; }
+  #boss-banner h1 {
+    font-size: 34px; letter-spacing: 6px; color: #44ff88;
+    text-shadow: 0 0 16px rgba(68,255,136,0.6);
+  }
+  #boss-banner p { font-size: 12px; color: #88aa99; margin-top: 8px; letter-spacing: 2px; }
 </style>
 <script type="importmap">
 {
@@ -130,6 +169,15 @@
   <div id="room-label">Loading Bay</div>
   <div id="damage-flash"></div>
 
+  <div id="boss-hud">
+    <div id="boss-name">The Puppet Master</div>
+    <div id="boss-bar-wrap"><div id="boss-bar"></div></div>
+  </div>
+
+  <div id="boss-banner">
+    <div class="inner"><h1>BOSS DEFEATED</h1><p>The Puppet Master falls.</p></div>
+  </div>
+
   <div id="death-screen">
     <div class="inner"><h1>DEAD</h1><p>Respawning...</p></div>
   </div>
@@ -140,7 +188,8 @@
       <div class="sub">Space Station Crawler</div>
       <div class="play">Click to Play</div>
       <div class="controls">
-        WASD — move · Mouse — look · Left click — shoot · Space — jump · Esc — pause
+        WASD — move · Mouse — look · Left click — shoot · Space — jump · Esc — pause<br>
+        🎮 Xbox controller: left stick move · right stick look · A jump · RT shoot
       </div>
     </div>
   </div>

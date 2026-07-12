@@ -56,8 +56,11 @@ function splitWall(wMin, wMax, gaps) {
   return segs;
 }
 
-// Draw wall segments with gaps for doorways
-function drawWallSegs(segs, axis, wallPos, rotY, mat, scene) {
+// Draw wall segments with gaps for doorways.
+// Also records each solid segment into `walls` for player collision.
+// axis 'x' → the wall sits at a constant X (wallPos) and spans Z ∈ [min,max].
+// axis 'z' → the wall sits at a constant Z (wallPos) and spans X ∈ [min,max].
+function drawWallSegs(segs, axis, wallPos, rotY, mat, scene, walls) {
   for (const [sMin, sMax] of segs) {
     const len = sMax - sMin;
     if (len < 0.05) continue;
@@ -71,16 +74,20 @@ function drawWallSegs(segs, axis, wallPos, rotY, mat, scene) {
     }
     mesh.rotation.y = rotY;
     scene.add(mesh);
+    if (walls) walls.push({ axis, pos: wallPos, min: sMin, max: sMax });
   }
 }
 
 /**
- * Builds the entire map and returns collision bounds.
+ * Builds the entire map.
  * @param {THREE.Scene} scene
- * @returns {Array} Array of {x0, x1, z0, z1, id} for collision
+ * @returns {{ bounds: Array, walls: Array }}
+ *   bounds — room AABBs {x0,x1,z0,z1,id} used for the room label.
+ *   walls  — solid wall segments {axis,pos,min,max} used for player collision.
  */
 export function buildMap(scene) {
   const allBounds = ROOMS.map(roomBounds);
+  const walls = [];
 
   ROOMS.forEach((r, ri) => {
     const b = allBounds[ri];
@@ -118,10 +125,10 @@ export function buildMap(scene) {
     const wGaps = findGaps('x', x0, z0, z1, allBounds, r.id);
     const eGaps = findGaps('x', x1, z0, z1, allBounds, r.id);
 
-    drawWallSegs(splitWall(x0, x1, nGaps), 'z', z0, 0, wallMat, scene);
-    drawWallSegs(splitWall(x0, x1, sGaps), 'z', z1, Math.PI, wallMat, scene);
-    drawWallSegs(splitWall(z0, z1, wGaps), 'x', x0, Math.PI / 2, wallMat, scene);
-    drawWallSegs(splitWall(z0, z1, eGaps), 'x', x1, -Math.PI / 2, wallMat, scene);
+    drawWallSegs(splitWall(x0, x1, nGaps), 'z', z0, 0, wallMat, scene, walls);
+    drawWallSegs(splitWall(x0, x1, sGaps), 'z', z1, Math.PI, wallMat, scene, walls);
+    drawWallSegs(splitWall(z0, z1, wGaps), 'x', x0, Math.PI / 2, wallMat, scene, walls);
+    drawWallSegs(splitWall(z0, z1, eGaps), 'x', x1, -Math.PI / 2, wallMat, scene, walls);
 
     // Eye-height stripes (same gap logic)
     const stMat = new THREE.MeshBasicMaterial({ color: r.stripe, transparent: true, opacity: 0.4 });
@@ -162,7 +169,7 @@ export function buildMap(scene) {
   // Ambient
   scene.add(new THREE.AmbientLight(0x667788, 0.7));
 
-  return allBounds;
+  return { bounds: allBounds, walls };
 }
 
 /**

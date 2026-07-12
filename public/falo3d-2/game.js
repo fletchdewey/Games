@@ -29,6 +29,10 @@ import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killB
 // === Player ===
 import { createController, updateController } from './player/controller.js';
 
+// === Boss ===
+import { createPuppetMaster } from './bosses/puppet_master.js';
+import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster } from './bosses/puppet_master_ai.js';
+
 // === Map ===
 import { buildMap, getCurrentRoom } from './map/builder.js';
 
@@ -42,6 +46,9 @@ const ALIEN_TYPES = {
     hit: hitCrawler, kill: killCrawler,
     hp: 3, baseY: 0.25, attackType: 'melee', attackRange: 2.5,
     attackDmg: 8, attackCD: 1.5, speed: 0.04,
+    // States where the idle walk cycle should play (see aliens/crawler.js).
+    // During action states (pounce/recover/hurt) the AI drives the pose.
+    idleStates: ['patrol', 'chase'],
   },
   floater: {
     build: buildFloater, animate: animateFloater,
@@ -50,6 +57,7 @@ const ALIEN_TYPES = {
     hp: 2, baseY: 1.5, attackType: 'ranged', attackRange: 10,
     attackDmg: 12, attackCD: 2.0, speed: 0.025,
     projSpeed: 6, projColor: 0xff44cc,
+    idleStates: ['hover', 'chase'],
   },
   spire: {
     build: buildSpire, animate: animateSpire,
@@ -58,6 +66,7 @@ const ALIEN_TYPES = {
     hp: 3, baseY: 0.3, attackType: 'ranged', attackRange: 12,
     attackDmg: 10, attackCD: 2.5, speed: 0.02,
     projSpeed: 5, projColor: 0xffaa22,
+    idleStates: ['patrol', 'stalk'],
   },
   brute: {
     build: buildBrute, animate: animateBrute,
@@ -65,6 +74,7 @@ const ALIEN_TYPES = {
     hit: hitBrute, kill: killBrute,
     hp: 6, baseY: 0.3, attackType: 'melee', attackRange: 3.5,
     attackDmg: 15, attackCD: 2.0, speed: 0.035,
+    idleStates: ['patrol', 'chase'],
   },
 };
 
@@ -188,6 +198,26 @@ function spawnAliens(scene) {
   return aliens;
 }
 
+// ─── SPAWN BOSS ─────────────────────────────────────────────
+// One Puppet Master waits in the Control Room. The fight begins when
+// the player first steps into that room.
+function spawnBoss(scene) {
+  const roomDef = ROOMS.find(r => r.id === 'control_room');
+  const model = createPuppetMaster();
+  // Stand toward the back of the room, facing the entrance.
+  model.position.set(roomDef.pos[0], 0, roomDef.pos[1] - 3);
+  initPuppetMaster(model);
+  scene.add(model);
+
+  return {
+    model,
+    roomId: 'control_room',
+    active: false,      // has the fight started?
+    defeated: false,    // pilot killed?
+    pilotDetached: false,
+  };
+}
+
 // ─── INIT ───────────────────────────────────────────────────
 const canvas = document.getElementById('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -202,10 +232,33 @@ scene.fog = new THREE.FogExp2(0x060608, 0.012);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
 scene.add(camera);
 
-const bounds = buildMap(scene);
+const { bounds, walls } = buildMap(scene);
 const ctrl = createController(camera, canvas);
+
+// ─── PLAYER WALL COLLISION ──────────────────────────────────
+// The controller moves the camera without knowing about walls
+// (by design). Here we push the player back out of any solid wall
+// segment, resolving X and Z independently so you slide along walls
+// and still pass cleanly through doorways.
+const PLAYER_RADIUS = 0.35;
+
+function hitsWall(x, z) {
+  for (const w of walls) {
+    if (w.axis === 'x') {
+      // Constant-X wall spanning Z ∈ [min,max]
+      if (Math.abs(x - w.pos) < PLAYER_RADIUS &&
+          z >= w.min - PLAYER_RADIUS && z <= w.max + PLAYER_RADIUS) return true;
+    } else {
+      // Constant-Z wall spanning X ∈ [min,max]
+      if (Math.abs(z - w.pos) < PLAYER_RADIUS &&
+          x >= w.min - PLAYER_RADIUS && x <= w.max + PLAYER_RADIUS) return true;
+    }
+  }
+  return false;
+}
 const gun = createGun(camera);
 const aliens = spawnAliens(scene);
+const boss = spawnBoss(scene);
 const raycaster = new THREE.Raycaster();
 const screenCenter = new THREE.Vector2(0, 0);
 
@@ -225,6 +278,12 @@ const roomLabelEl = document.getElementById('room-label');
 const dmgFlashEl = document.getElementById('damage-flash');
 const deathScreen = document.getElementById('death-screen');
 const startOverlay = document.getElementById('start-overlay');
+
+// Boss HUD (added to the page markup)
+const bossHudEl = document.getElementById('boss-hud');
+const bossNameEl = document.getElementById('boss-name');
+const bossBarEl = document.getElementById('boss-bar');
+const bossBannerEl = document.getElementById('boss-banner');
 
 function updateHUD() {
   healthBar.style.width = playerHp + '%';
@@ -253,6 +312,116 @@ function damagePlayer(amount) {
       ctrl.pitch = 0;
       updateHUD();
     }, 2000);
+  }
+}
+
+// ─── BOSS ────────────────────────────────────────────────────
+function playerInRoom(roomId) {
+  const b = bounds.find(bb => bb.id === roomId);
+  if (!b) return false;
+  const p = ctrl.position;
+  return p.x > b.x0 && p.x < b.x1 && p.z > b.z0 && p.z < b.z1;
+}
+
+// White hit-flash: tint the matching hit-part meshes bright for a few
+// frames after they're shot (the AI leaves a `flashFrames` counter).
+function stepBossFlash(group, part) {
+  const f = group.userData.flashFrames || 0;
+  if (f > 0) {
+    group.userData.flashFrames = f - 1;
+    group.userData._flashing = true;
+    group.traverse((o) => {
+      if (o.isMesh && o.material.emissive && o.userData.hitPart === part) {
+        o.material.emissive.setScalar(0.7);
+      }
+    });
+  } else if (group.userData._flashing) {
+    group.userData._flashing = false;
+    group.traverse((o) => {
+      if (o.isMesh && o.material.emissive && o.userData.hitPart === part) {
+        o.material.emissive.setScalar(0);
+      }
+    });
+  }
+}
+
+function updateBoss(dt) {
+  const d = boss.model.userData;
+
+  // The fight starts when the player steps into the Control Room.
+  if (!boss.active && playerInRoom(boss.roomId)) boss.active = true;
+  if (!boss.active) return;
+
+  if (!boss.defeated) {
+    // The boss brain counts time in frames, so hand it dt in frames.
+    const dtF = Math.min(dt * 60, 3);
+    updatePuppetMaster(boss.model, ctrl.position, dtF);
+
+    // Pilot ejects (phase 3): lift it out of the body to scene level so
+    // it can scurry around on its own, near the collapsed wreck.
+    if (d.phase === 'ejected' && !boss.pilotDetached) {
+      scene.add(d.pilotGroup);
+      d.pilotGroup.position.set(boss.model.position.x, 1.3, boss.model.position.z + 0.4);
+      d.pilotGroup.rotation.set(0, 0, 0);
+      boss.pilotDetached = true;
+    }
+
+    // Body topples when it dies (the AI flags it; we animate the fall).
+    if (d.bodyCollapsing) {
+      d.bodyCollapseFrame = (d.bodyCollapseFrame || 0) + dt * 60;
+      const t = Math.min(1, d.bodyCollapseFrame / 60);
+      boss.model.rotation.x = t * 1.3;
+      boss.model.position.y = -t * 0.3;
+      if (t >= 1) d.bodyCollapsing = false;
+    }
+
+    // Apply whatever attack the brain queued this frame.
+    const atk = d.currentAttack;
+    if (atk) {
+      if (atk.type === 'body_slam') {
+        if (boss.model.position.distanceTo(ctrl.position) <= d.attackRange + 1) {
+          damagePlayer(atk.damage);
+        }
+      } else if (atk.type === 'pilot_throw') {
+        projectiles.push(createAlienProjectile(scene, atk.origin, atk.target, 0x44ff88, 6));
+      }
+      d.currentAttack = null;
+    }
+
+    // Victory — the pilot is dead.
+    if (d.isDead) {
+      boss.defeated = true;
+      killCount++;
+      updateHUD();
+      if (bossBannerEl) bossBannerEl.style.display = 'flex';
+    }
+  } else if (d.pilotGroup) {
+    // Pilot death flop.
+    d.pilotGroup.rotation.z = Math.min(Math.PI / 2, (d.pilotGroup.rotation.z || 0) + dt * 3);
+  }
+
+  // Hit flashes.
+  stepBossFlash(boss.model, 'body');
+  stepBossFlash(d.pilotGroup, 'pilot');
+
+  // HUD.
+  if (bossHudEl) {
+    bossHudEl.style.display = 'block';
+    const bodyPct = Math.max(0, d.bodyHp / d.bodyHpMax) * 100;
+    const pilotPct = Math.max(0, d.pilotHp / d.pilotHpMax) * 100;
+    if (boss.defeated) {
+      bossNameEl.textContent = 'PUPPET MASTER — DOWN';
+      bossBarEl.style.width = '0%';
+    } else if (d.phase === 'ejected') {
+      bossNameEl.textContent = 'PILOT — SHOOT IT!';
+      bossBarEl.style.width = pilotPct + '%';
+      bossBarEl.style.background = '#44ff88';
+    } else {
+      const exposed = d.pilotExposed;
+      bossNameEl.textContent = exposed ? 'PILOT EXPOSED — SHOOT IT!' : 'THE PUPPET MASTER';
+      bossBarEl.style.width = (exposed ? pilotPct : bodyPct) + '%';
+      bossBarEl.style.background = exposed ? '#44ff88' : '#ff2244';
+    }
   }
 }
 
@@ -293,12 +462,15 @@ function gameLoop(now) {
 
   // --- Player ---
   if (!isDead) {
+    const prevX = ctrl.position.x, prevZ = ctrl.position.z;
     updateController(ctrl, dt);
 
-    // Wall collision (same as map test — check X and Z independently)
+    // Wall collision — resolve X and Z independently so the player
+    // slides along walls instead of sticking, and doorways stay open.
     const pos = ctrl.position;
-    // Already handled in controller for room bounds, but we need
-    // to clamp to map bounds here since controller doesn't know about rooms
+    if (hitsWall(pos.x, prevZ)) pos.x = prevX;
+    if (hitsWall(pos.x, pos.z)) pos.z = prevZ;
+    camera.position.copy(pos);
   }
   updateGun(gun, dt);
 
@@ -319,6 +491,12 @@ function gameLoop(now) {
       aliens.forEach((a) => {
         if (a.alive) a.model.traverse((c) => { if (c.isMesh) hitMeshes.push(c); });
       });
+      // Boss meshes (body under boss.model; pilot may have ejected to the
+      // scene, so traverse the pilot group separately to still catch it).
+      if (boss.active && !boss.defeated) {
+        boss.model.traverse((c) => { if (c.isMesh && c.visible) hitMeshes.push(c); });
+        boss.model.userData.pilotGroup.traverse((c) => { if (c.isMesh && c.visible) hitMeshes.push(c); });
+      }
 
       const hits = raycaster.intersectObjects(hitMeshes);
       const from = camera.position.clone().add(
@@ -329,6 +507,12 @@ function gameLoop(now) {
       if (hits.length > 0) {
         to = hits[0].point;
         const hitObj = hits[0].object;
+
+        // Boss hit takes priority (its meshes carry a hitPart tag).
+        if (boss.active && !boss.defeated && hitObj.userData.hitPart) {
+          const part = hitObj.userData.hitPart;
+          damagePuppetMaster(boss.model, 1, part);
+        } else {
         for (const alien of aliens) {
           let found = false;
           alien.model.traverse((c) => { if (c === hitObj) found = true; });
@@ -345,6 +529,7 @@ function gameLoop(now) {
             }
             break;
           }
+        }
         }
       } else {
         const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
@@ -388,6 +573,14 @@ function gameLoop(now) {
     // Run AI
     a.reg.updateAI(a.model, a.ai, ctrl.position, dt);
 
+    // Idle animation — the same walk cycles / pulses / throbs shown in
+    // the Alien Workshop. Only played during locomotion/idle states so
+    // it doesn't overwrite the AI's action poses (pounce, charge, slam,
+    // aim, etc.). This is what makes the aliens look alive in-game.
+    if (a.reg.idleStates.includes(a.ai.state)) {
+      a.reg.animate(a.model, time);
+    }
+
     // Simple attack logic on top of AI
     a.attackTimer -= dt;
     const dist = a.model.position.distanceTo(ctrl.position);
@@ -406,6 +599,9 @@ function gameLoop(now) {
       }
     }
   });
+
+  // --- Update boss ---
+  if (!isDead) updateBoss(dt);
 
   // --- Update projectiles ---
   projectiles = projectiles.filter((p) => {

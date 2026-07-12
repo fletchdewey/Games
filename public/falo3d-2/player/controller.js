@@ -68,6 +68,11 @@ export function createController(camera, domElement) {
     // Mouse sensitivity
     sensitivity: 0.002,
 
+    // Gamepad (Xbox) tuning
+    padLookSpeed: 2.6,      // right-stick turn speed (radians/sec)
+    padDeadzone: 0.18,      // ignore tiny stick drift near center
+    padShootPrev: false,    // was the trigger held last frame?
+
     // Pointer lock state
     locked: false,
 
@@ -175,6 +180,50 @@ export function updateController(ctrl, dt) {
   if (ctrl.keys.left)     moveDir.x -= 1;
   if (ctrl.keys.right)    moveDir.x += 1;
 
+  // ─── GAMEPAD (Xbox) ─────────────────────────────────────────
+  //
+  // The browser exposes controllers through navigator.getGamepads().
+  // We poll it every frame and blend it with keyboard/mouse, so you
+  // can use either (or both). This is the "standard mapping" every
+  // Xbox-style pad reports:
+  //   Left stick  = move        (axes 0,1)
+  //   Right stick = look        (axes 2,3)
+  //   A button    = jump        (button 0)
+  //   Right trigger / bumper = shoot (buttons 7 / 5)
+
+  let padJump = false;
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let gp = null;
+  for (const p of pads) { if (p) { gp = p; break; } }  // first connected pad
+
+  if (gp) {
+    // Deadzone: sticks never rest at exactly 0, so ignore tiny values.
+    const dz = (v) => (Math.abs(v) < ctrl.padDeadzone ? 0 : v);
+    const lx = dz(gp.axes[0] || 0);
+    const ly = dz(gp.axes[1] || 0);
+    const rx = dz(gp.axes[2] || 0);
+    const ry = dz(gp.axes[3] || 0);
+
+    // Move — pushing the stick up (ly = -1) means forward (z -= 1).
+    moveDir.x += lx;
+    moveDir.z += ly;
+
+    // Look — scaled by dt so it turns at the same rate on any framerate.
+    ctrl.yaw   -= rx * ctrl.padLookSpeed * dt;
+    ctrl.pitch -= ry * ctrl.padLookSpeed * dt;
+    ctrl.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, ctrl.pitch));
+
+    // Jump — A button. OR'd with the spacebar below.
+    if (gp.buttons[0] && gp.buttons[0].pressed) padJump = true;
+
+    // Shoot — right trigger or right bumper. Fire once per pull (edge
+    // detected) so holding it down doesn't machine-gun every frame.
+    const trigger = (gp.buttons[7] && gp.buttons[7].pressed) ||
+                    (gp.buttons[5] && gp.buttons[5].pressed);
+    if (trigger && !ctrl.padShootPrev) ctrl.shootRequested = true;
+    ctrl.padShootPrev = trigger;
+  }
+
   // Normalize so diagonal movement isn't faster than straight.
   // Without this, pressing W+D makes you move at 1.41x speed.
   if (moveDir.lengthSq() > 0) moveDir.normalize();
@@ -189,7 +238,7 @@ export function updateController(ctrl, dt) {
 
   // ─── JUMP + GRAVITY ─────────────────────────────────────────
 
-  if (ctrl.keys.jump && ctrl.onGround) {
+  if ((ctrl.keys.jump || padJump) && ctrl.onGround) {
     ctrl.velocity.y = ctrl.jumpForce;
     ctrl.onGround = false;
   }
