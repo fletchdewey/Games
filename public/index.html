@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fletcher Dewey — Game Library</title>
+<meta name="description" content="Games by Fletcher Dewey. Play FALO, FALO 3D, and FALO 3D-2.">
+<meta property="og:image" content="/falo-hero.png">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #08090a;
+    --surface: #0e1012;
+    --border: #1a1c1e;
+    --accent: #ff6622;
+    --accent-dim: #aa4411;
+    --green: #5a8c3c;
+    --green-bright: #8fbc5a;
+    --gold: #d4a520;
+    --red: #cc3333;
+    --text: #c8c4be;
+    --text-dim: #5a5650;
+    --text-faint: #2a2825;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanlines */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: repeating-linear-gradient(
+      transparent 0px, transparent 2px,
+      rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* === HERO SECTION === */
+  .hero {
+    position: relative;
+    width: 100%;
+    height: 75vh;
+    min-height: 500px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+
+  .hero-bg {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: url('falo-hero.png') center top / cover no-repeat;
+    filter: brightness(0.3);
+    z-index: 0;
+  }
+
+  .hero-fade {
+    position: absolute;
+    bottom: 0; left: 0; width: 100%; height: 50%;
+    background: linear-gradient(transparent, var(--bg));
+    z-index: 1;
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+  }
+
+  .hero-name {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(16px, 3vw, 22px);
+    font-weight: 400;
+    letter-spacing: 12px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    animation: fadeSlideDown 0.8s ease-out;
+  }
+
+  .hero-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(48px, 8vw, 90px);
+    font-weight: 700;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    color: #fff;
+    line-height: 0.95;
+    animation: fadeSlideDown 0.8s ease-out 0.15s both;
+  }
+
+  .hero-title span {
+    background: linear-gradient(180deg, #fff 40%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(11px, 1.5vw, 14px);
+    letter-spacing: 4px;
+    color: var(--text-dim);
+    margin-top: 16px;
+    animation: fadeSlideDown 0.8s ease-out 0.3s both;
+  }
+
+  /* === LIBRARY SECTION === */
+  .library {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 60px 30px 100px;
+  }
+
+  .section-label {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 30px;
+    padding-left: 2px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* === GAME CARDS === */
+  .games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 24px;
+  }
+
+  .game-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    transition: border-color 0.3s, transform 0.3s;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    position: relative;
+  }
+
+  .game-card:hover {
+    border-color: var(--accent-dim);
+    transform: translateY(-4px);
+  }
+
+  .game-card:hover .card-play {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .game-card:hover .card-thumb {
+    filter: brightness(0.8);
+  }
+
+  .card-thumb-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16/9;
+    overflow: hidden;
+    background: #0a0a0a;
+  }
+
+  .card-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: filter 0.3s;
+  }
+
+  /* Canvas-rendered thumbnails */
+  .card-thumb-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .card-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: rgba(255, 102, 34, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 3;
+  }
+
+  .card-play::after {
+    content: '';
+    display: block;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 12px 0 12px 22px;
+    border-color: transparent transparent transparent #fff;
+    margin-left: 4px;
+  }
+
+  .card-info {
+    padding: 20px 22px;
+  }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+  }
+
+  .card-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #fff;
+  }
+
+  .card-badge {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 2px;
+    border: 1px solid;
+    white-space: nowrap;
+    margin-top: 4px;
+  }
+
+  .badge-2d {
+    color: var(--green-bright);
+    border-color: var(--green);
+  }
+
+  .badge-3d {
+    color: var(--accent);
+    border-color: var(--accent-dim);
+  }
+
+  .badge-3d2 {
+    color: #cc44ff;
+    border-color: #8822aa;
+  }
+
+  .card-3d2::before { background: #cc44ff; }
+
+  .card-desc {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+
+  .card-tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .tag {
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--text-dim);
+  }
+
+  /* Version stripe on left */
+  .game-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    z-index: 2;
+  }
+
+  .card-2d::before { background: var(--green-bright); }
+  .card-3d::before { background: var(--accent); }
+
+  /* === FOOTER === */
+  .footer {
+    border-top: 1px solid var(--border);
+    padding: 30px;
+    text-align: center;
+  }
+
+  .footer-text {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+  }
+
+  .footer-text a {
+    color: var(--text-dim);
+    text-decoration: none;
+  }
+
+  /* === STATS BAR === */
+  .stats-bar {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    padding: 20px 30px;
+    margin-bottom: 10px;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat-num {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .stat-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  /* === ANIMATIONS === */
+  @keyframes fadeSlideDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .game-card {
+    animation: fadeIn 0.6s ease-out both;
+  }
+
+  .game-card:nth-child(1) { animation-delay: 0.4s; }
+  .game-card:nth-child(2) { animation-delay: 0.55s; }
+  .game-card:nth-child(3) { animation-delay: 0.7s; }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 500px) {
+    .games-grid { grid-template-columns: 1fr; }
+    .hero { height: 45vh; min-height: 300px; }
+    .stats-bar { gap: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-fade"></div>
+  <div class="hero-content">
+    <h1 class="hero-title"><span>Game Library</span></h1>
+    <div class="hero-sub">BUILT WITH JAVASCRIPT &nbsp;·&nbsp; HOSTED ON CLOUDFLARE &nbsp;·&nbsp; ALL CODE, NO ENGINE</div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stat">
+    <div class="stat-num">3</div>
+    <div class="stat-label">Games</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">7,191+</div>
+    <div class="stat-label">Lines of Code</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">0</div>
+    <div class="stat-label">Game Engines</div>
+  </div>
+</div>
+
+<!-- GAME LIBRARY -->
+<section class="library">
+  <div class="section-label">Games</div>
+
+  <div class="games-grid">
+
+    <!-- FALO 3D -->
+    <a href="/falo3d" class="game-card card-3d">
+      <div class="card-thumb-wrap">
+        <canvas class="card-thumb-canvas" id="thumb-3d"></canvas>
+        <div class="card-play"></div>
+      </div>
+      <div class="card-info">
+        <div class="card-top">
+          <div class="card-title">Falo 3D</div>
+          <span class="card-badge badge-3d">3D FPS</span>
+        </div>
+        <div class="card-desc">
+          First-person shooter. Fight through a burning city with your marine squad. Kill the King Alien. Reach the extraction helicopter. Controller supported.
+        </div>
+        <div class="card-tags">
+          <span class="tag">Three.js</span>
+          <span class="tag">Web Audio</span>
+          <span class="tag">Gamepad API</span>
+          <span class="tag">Squad AI</span>
+          <span class="tag">Boss Fight</span>
+        </div>
+      </div>
+    </a>
+
+    <!-- FALO 3D-2 -->
+    <a href="/falo3d-2" class="game-card card-3d2">
+      <div class="card-thumb-wrap">
+        <canvas class="card-thumb-canvas" id="thumb-3d2"></canvas>
+        <div class="card-play"></div>
+      </div>
+      <div class="card-info">
+        <div class="card-top">
+          <div class="card-title">Falo 3D-2</div>
+          <span class="card-badge badge-3d2">3D FPS</span>
+        </div>
+        <div class="card-desc">
+          Space station crawler. Fight through 15 rooms against 4 alien species. Clear all outposts to unlock the control room. Reach the helicopter to escape.
+        </div>
+        <div class="card-tags">
+          <span class="tag">Three.js</span>
+          <span class="tag">ES Modules</span>
+          <span class="tag">4 Alien Types</span>
+          <span class="tag">Boss Fights</span>
+          <span class="tag">15 Rooms</span>
+        </div>
+      </div>
+    </a>
+
+    <!-- FALO 2D -->
+    <a href="/falo" class="game-card card-2d">
+      <div class="card-thumb-wrap">
+        <canvas class="card-thumb-canvas" id="thumb-2d"></canvas>
+        <div class="card-play"></div>
+      </div>
+      <div class="card-info">
+        <div class="card-top">
+          <div class="card-title">Falo</div>
+          <span class="card-badge badge-2d">2D Side-Scroller</span>
+        </div>
+        <div class="card-desc">
+          The original. Side-scrolling pixel art shooter. Arrow keys to move, spacebar to shoot. Kill all aliens and reach the escape ship.
+        </div>
+        <div class="card-tags">
+          <span class="tag">Canvas 2D</span>
+          <span class="tag">Pixel Art</span>
+          <span class="tag">Platformer</span>
+        </div>
+      </div>
+    </a>
+
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-text">Fletcher Dewey &nbsp;·&nbsp; fletcherdewey.com &nbsp;·&nbsp; 2026</div>
+</footer>
+
+<!-- THUMBNAIL RENDERERS -->
+<script>
+// Render stylized thumbnails directly on canvas (no image files needed)
+
+// === FALO 3D THUMBNAIL ===
+(function() {
+  const c = document.getElementById('thumb-3d');
+  const ctx = c.getContext('2d');
+  c.width = 640; c.height = 360;
+
+  // Dark sky
+  const grad = ctx.createLinearGradient(0, 0, 0, c.height);
+  grad.addColorStop(0, '#1a1008');
+  grad.addColorStop(1, '#0a0604');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, c.width, c.height);
+
+  // Fire glow at horizon
+  const fireGrad = ctx.createRadialGradient(c.width/2, c.height * 0.75, 20, c.width/2, c.height * 0.75, c.width * 0.6);
+  fireGrad.addColorStop(0, 'rgba(255,80,20,0.4)');
+  fireGrad.addColorStop(0.5, 'rgba(200,50,10,0.15)');
+  fireGrad.addColorStop(1, 'transparent');
+  ctx.fillStyle = fireGrad;
+  ctx.fillRect(0, 0, c.width, c.height);
+
+  // Buildings
+  for (let i = 0; i < 20; i++) {
+    const bx = i * 35 - 10;
+    const bh = 60 + Math.random() * 140;
+    ctx.fillStyle = `rgb(${12 + Math.random()*8}, ${10 + Math.random()*6}, ${8 + Math.random()*5})`;
+    ctx.fillRect(bx, c.height - bh, 30, bh);
+    // Windows
+    for (let wy = c.height - bh + 8; wy < c.height - 5; wy += 12) {
+      for (let wx = bx + 4; wx < bx + 26; wx += 8) {
+        if (Math.random() > 0.6) {
+          ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,${60+Math.random()*60},10,${0.3+Math.random()*0.5})` : '#080808';
+          ctx.fillRect(wx, wy, 4, 6);
+        }
+      }
+    }
+  }
+
+  // Ground fire
+  ctx.fillStyle = 'rgba(255,100,20,0.25)';
+  ctx.fillRect(0, c.height - 20, c.width, 20);
+
+  // Embers
+  for (let i = 0; i < 60; i++) {
+    ctx.fillStyle = `rgba(255,${100+Math.random()*100},20,${0.3+Math.random()*0.7})`;
+    ctx.fillRect(Math.random() * c.width, Math.random() * c.height, 1 + Math.random(), 1 + Math.random());
+  }
+
+  // "3D" crosshair center
+  ctx.strokeStyle = 'rgba(200,255,100,0.4)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(c.width/2 - 12, c.height/2); ctx.lineTo(c.width/2 + 12, c.height/2);
+  ctx.moveTo(c.width/2, c.height/2 - 12); ctx.lineTo(c.width/2, c.height/2 + 12);
+  ctx.stroke();
+
+  // Tracers
+  ctx.strokeStyle = 'rgba(255,200,50,0.5)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(c.width/2, c.height/2); ctx.lineTo(400, 200); ctx.stroke();
+  ctx.strokeStyle = 'rgba(100,255,60,0.4)';
+  ctx.beginPath(); ctx.moveTo(200, 300); ctx.lineTo(420, 220); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,40,40,0.5)';
+  ctx.beginPath(); ctx.moveTo(450, 230); ctx.lineTo(300, 290); ctx.stroke();
+
+  // Alien eyes
+  [[420,210],[460,240],[500,200]].forEach(([ex,ey]) => {
+    ctx.fillStyle = '#cc2222';
+    ctx.beginPath(); ctx.arc(ex-4, ey, 2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex+4, ey, 2, 0, Math.PI*2); ctx.fill();
+  });
+
+  // HUD elements
+  ctx.fillStyle = 'rgba(100,200,100,0.15)';
+  ctx.fillRect(15, c.height - 35, 100, 10);
+  ctx.fillStyle = 'rgba(100,200,100,0.5)';
+  ctx.fillRect(15, c.height - 35, 70, 10);
+  ctx.fillStyle = 'rgba(200,170,50,0.4)';
+  ctx.font = '10px monospace';
+  ctx.fillText('AMMO: 24', c.width - 80, c.height - 25);
+})();
+
+// === FALO 2D THUMBNAIL ===
+(function() {
+  const c = document.getElementById('thumb-2d');
+  const ctx = c.getContext('2d');
+  c.width = 640; c.height = 360;
+
+  // Sky
+  const grad = ctx.createLinearGradient(0, 0, 0, c.height);
+  grad.addColorStop(0, '#4a7a9b');
+  grad.addColorStop(1, '#6b9dbd');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, c.width, c.height);
+
+  // Mountains
+  ctx.fillStyle = '#5a7a5a';
+  for (let i = 0; i < 6; i++) {
+    const mx = i * 120;
+    ctx.beginPath();
+    ctx.moveTo(mx, c.height - 80);
+    ctx.lineTo(mx + 60, c.height - 80 - 40 - Math.random()*30);
+    ctx.lineTo(mx + 120, c.height - 80);
+    ctx.fill();
+  }
+
+  // Ground
+  ctx.fillStyle = '#5a8c3c';
+  ctx.fillRect(0, c.height - 80, c.width, 6);
+  ctx.fillStyle = '#6ea04a';
+  ctx.fillRect(0, c.height - 77, c.width, 3);
+  ctx.fillStyle = '#8b6b4a';
+  ctx.fillRect(0, c.height - 74, c.width, 74);
+
+  // Platforms
+  ctx.fillStyle = '#7a7a7a';
+  [[150, c.height-140, 80], [320, c.height-160, 60], [480, c.height-130, 90]].forEach(([px,py,pw]) => {
+    ctx.fillRect(px, py, pw, 12);
+    ctx.fillStyle = '#9a9a9a';
+    ctx.fillRect(px+2, py, pw-4, 4);
+    ctx.fillStyle = '#7a7a7a';
+  });
+
+  // Master Chief (pixel-ish)
+  const cx = 200, cy = c.height - 105;
+  // Body
+  ctx.fillStyle = '#5b7a2e';
+  ctx.fillRect(cx-8, cy-20, 16, 16);
+  // Head
+  ctx.fillStyle = '#7a9b3e';
+  ctx.fillRect(cx-6, cy-30, 12, 10);
+  // Visor
+  ctx.fillStyle = '#d4a520';
+  ctx.fillRect(cx-4, cy-28, 8, 4);
+  // Legs
+  ctx.fillRect(cx-6, cy-4, 5, 10);
+  ctx.fillRect(cx+1, cy-4, 5, 10);
+
+  // Aliens
+  [[380, c.height-100], [450, c.height-170], [550, c.height-100]].forEach(([ax,ay]) => {
+    ctx.fillStyle = '#8844aa';
+    ctx.fillRect(ax-6, ay-16, 12, 12);
+    ctx.fillStyle = '#aa66cc';
+    ctx.fillRect(ax-5, ay-24, 10, 8);
+    ctx.fillStyle = '#ff3333';
+    ctx.fillRect(ax-3, ay-22, 2, 2);
+    ctx.fillRect(ax+1, ay-22, 2, 2);
+  });
+
+  // Bullets
+  ctx.fillStyle = '#ffdd33';
+  [[240, cy-18], [260, cy-20], [280, cy-16]].forEach(([bx,by]) => {
+    ctx.fillRect(bx, by, 6, 3);
+  });
+
+  // Alien bullets
+  ctx.fillStyle = '#ff3333';
+  [[360, c.height-110], [340, c.height-100]].forEach(([bx,by]) => {
+    ctx.fillRect(bx, by, 4, 4);
+  });
+
+  // HUD mockup
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(10, 10, 110, 16);
+  ctx.fillStyle = '#44cc44';
+  ctx.fillRect(11, 11, 80, 14);
+  ctx.fillStyle = '#ccaa22';
+  ctx.font = '10px monospace';
+  ctx.fillText('AMMO: 30', 10, 42);
+})();
+
+// === FALO 3D-2 THUMBNAIL ===
+(function() {
+  const c = document.getElementById('thumb-3d2');
+  const ctx = c.getContext('2d');
+  c.width = 640; c.height = 360;
+
+  // Dark station interior
+  const grad = ctx.createLinearGradient(0, 0, 0, c.height);
+  grad.addColorStop(0, '#0a0812');
+  grad.addColorStop(1, '#08060e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, c.width, c.height);
+
+  // Corridor walls (perspective lines)
+  ctx.strokeStyle = 'rgba(100,80,140,0.15)';
+  ctx.lineWidth = 2;
+  const cx = c.width / 2, cy = c.height / 2;
+  // Left wall
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(cx - 100, cy - 40); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, c.height); ctx.lineTo(cx - 100, cy + 60); ctx.stroke();
+  // Right wall
+  ctx.beginPath(); ctx.moveTo(c.width, 0); ctx.lineTo(cx + 100, cy - 40); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(c.width, c.height); ctx.lineTo(cx + 100, cy + 60); ctx.stroke();
+
+  // Wall panels
+  ctx.fillStyle = 'rgba(40,30,60,0.3)';
+  ctx.fillRect(cx - 100, cy - 40, 200, 100);
+
+  // Floor grid
+  ctx.strokeStyle = 'rgba(80,60,120,0.12)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 8; i++) {
+    const y = cy + 60 + i * 20;
+    const spread = 50 + i * 40;
+    ctx.beginPath(); ctx.moveTo(cx - spread, y); ctx.lineTo(cx + spread, y); ctx.stroke();
+  }
+
+  // Eye-height stripe (purple accent)
+  ctx.fillStyle = 'rgba(200,60,255,0.2)';
+  ctx.fillRect(0, cy - 5, c.width, 4);
+
+  // Alien glows
+  [[cx + 60, cy + 10, '#ff44cc', 0.6],  // Floater
+   [cx - 80, cy + 40, '#44ff88', 0.5],   // Crawler
+   [cx + 120, cy - 10, '#ffaa22', 0.4],   // Spire
+  ].forEach(([x, y, color, a]) => {
+    const glow = ctx.createRadialGradient(x, y, 2, x, y, 30);
+    glow.addColorStop(0, color);
+    glow.addColorStop(1, 'transparent');
+    ctx.globalAlpha = a;
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - 30, y - 30, 60, 60);
+    ctx.globalAlpha = 1;
+    // Eyes
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x - 4, y - 3, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 4, y - 3, 2, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // Crosshair
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - 12, cy); ctx.lineTo(cx + 12, cy);
+  ctx.moveTo(cx, cy - 12); ctx.lineTo(cx, cy + 12);
+  ctx.stroke();
+
+  // Bullet tracer
+  ctx.strokeStyle = 'rgba(255,220,68,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx + 40, cy + 30); ctx.lineTo(cx + 60, cy + 10); ctx.stroke();
+
+  // Gun silhouette (bottom right)
+  ctx.fillStyle = 'rgba(50,50,60,0.7)';
+  ctx.fillRect(c.width - 100, c.height - 60, 60, 25);
+  ctx.fillRect(c.width - 80, c.height - 40, 20, 30);
+
+  // HUD health bar
+  ctx.fillStyle = 'rgba(68,255,136,0.15)';
+  ctx.fillRect(cx - 60, c.height - 30, 120, 6);
+  ctx.fillStyle = 'rgba(68,255,136,0.5)';
+  ctx.fillRect(cx - 60, c.height - 30, 85, 6);
+
+  // Room label
+  ctx.fillStyle = 'rgba(200,200,220,0.3)';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('OUTPOST 2', cx, 22);
+  ctx.textAlign = 'left';
+
+  // Kill counter
+  ctx.fillStyle = 'rgba(255,170,34,0.4)';
+  ctx.fillText('KILLS: 7', c.width - 80, 22);
+})();
+</script>
+</body>
+</html>

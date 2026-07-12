@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FALO 3D</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; font-family: monospace; }
+  canvas { display: block; }
+
+  #hud {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 10;
+  }
+
+  /* Crosshair */
+  #crosshair {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    z-index: 11; pointer-events: none;
+  }
+  #crosshair div {
+    position: absolute; background: rgba(200,255,100,0.8);
+  }
+  #crosshair .h { width: 20px; height: 2px; top: -1px; left: -10px; }
+  #crosshair .v { width: 2px; height: 20px; top: -10px; left: -1px; }
+  #crosshair .dot { width: 4px; height: 4px; border-radius: 50%; top: -2px; left: -2px; background: rgba(255,255,100,0.9); }
+
+  /* Health bar */
+  #health-bar-wrap {
+    position: fixed; bottom: 40px; left: 40px; z-index: 11; pointer-events: none;
+  }
+  #health-label { color: #8fbc5a; font-size: 12px; letter-spacing: 2px; margin-bottom: 4px; }
+  #health-bg { width: 220px; height: 16px; background: #1a1a1a; border: 1px solid #444; }
+  #health-fill { height: 100%; background: #44cc44; transition: width 0.2s; }
+
+  /* Ammo */
+  #ammo-display {
+    position: fixed; bottom: 40px; right: 40px; z-index: 11; pointer-events: none;
+    color: #ccaa22; font-size: 28px; letter-spacing: 3px; text-align: right;
+  }
+  #ammo-label { font-size: 11px; color: #888; letter-spacing: 2px; }
+
+  /* Alien count */
+  #alien-count {
+    position: fixed; top: 30px; right: 40px; z-index: 11; pointer-events: none;
+    color: #aa66cc; font-size: 16px; letter-spacing: 2px;
+  }
+
+  /* Ship distance */
+  #ship-dist {
+    position: fixed; top: 30px; left: 40px; z-index: 11; pointer-events: none;
+    color: #4488cc; font-size: 14px; letter-spacing: 1px;
+  }
+
+  /* Damage flash */
+  #damage-flash {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255,0,0,0); z-index: 9; pointer-events: none;
+    transition: background 0.1s;
+  }
+
+  /* Screens */
+  .screen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 20; background: rgba(0,0,0,0.85);
+  }
+  .screen h1 { font-size: 80px; letter-spacing: 12px; margin-bottom: 10px; }
+  .screen h2 { font-size: 18px; letter-spacing: 4px; margin-bottom: 40px; }
+  .screen p { font-size: 14px; color: #999; margin: 6px 0; letter-spacing: 2px; }
+  .screen .start-btn, .screen .menu-btn {
+    margin-top: 10px; padding: 14px 40px; font-size: 18px; font-family: monospace;
+    background: none; border: 2px solid #8fbc5a; color: #8fbc5a; cursor: pointer;
+    letter-spacing: 4px; pointer-events: all; transition: all 0.2s; width: 280px;
+    text-align: center;
+  }
+  .screen .start-btn:hover, .screen .menu-btn:hover { background: #8fbc5a; color: #000; }
+  .screen .menu-btn.secondary { border-color: #555; color: #999; }
+  .screen .menu-btn.secondary:hover { background: #555; color: #000; }
+  .hidden { display: none !important; }
+
+  /* Title screen */
+  #title-screen {
+    background: rgba(0,0,0,0.85);
+  }
+
+  #menu-buttons { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+
+  /* Sub-menus */
+  .submenu {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 25; background: rgba(5,5,5,0.95);
+  }
+  .submenu h2 {
+    font-family: monospace; font-size: 28px; color: #ff6622;
+    letter-spacing: 6px; margin-bottom: 30px;
+  }
+  .submenu-content {
+    max-width: 600px; width: 90%; text-align: left;
+  }
+  .submenu-section {
+    margin-bottom: 20px;
+  }
+  .submenu-section h3 {
+    font-family: monospace; font-size: 14px; color: #ff6622;
+    letter-spacing: 3px; margin-bottom: 8px; text-transform: uppercase;
+  }
+  .submenu-section p, .submenu-section label {
+    font-family: monospace; font-size: 13px; color: #888;
+    letter-spacing: 1px; margin: 4px 0; line-height: 1.6;
+  }
+  .submenu-section .key { color: #ccaa22; }
+  .submenu-section .ctrl { color: #4488cc; }
+  .submenu-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin: 8px 0; font-family: monospace; font-size: 13px; color: #888;
+  }
+  .submenu-row input[type="range"] {
+    width: 120px; accent-color: #ff6622;
+  }
+  .submenu-row select {
+    background: #1a1a1a; color: #ccc; border: 1px solid #333;
+    padding: 4px 8px; font-family: monospace; font-size: 12px;
+  }
+  .submenu .back-btn {
+    margin-top: 30px; padding: 12px 40px; font-size: 16px; font-family: monospace;
+    background: none; border: 2px solid #555; color: #999; cursor: pointer;
+    letter-spacing: 4px; transition: all 0.2s;
+  }
+  .submenu .back-btn:hover { background: #555; color: #000; }
+
+  #win-screen h1 { color: #8fbc5a; }
+  #death-screen h1 { color: #cc3333; }
+
+  /* Sound Mixer Panel */
+  #sound-panel {
+    position: fixed; top: 0; right: 0;
+    width: 340px; height: 100vh;
+    background: rgba(10,12,14,0.95);
+    border-left: 1px solid #1e2426;
+    z-index: 50;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    font-family: monospace;
+    pointer-events: all;
+  }
+  #sound-panel.open { transform: translateX(0); }
+  #sound-panel::-webkit-scrollbar { width: 4px; }
+  #sound-panel::-webkit-scrollbar-thumb { background: #2a2a2a; }
+
+  .sp-header {
+    padding: 16px 18px;
+    border-bottom: 1px solid #1e2426;
+    display: flex; justify-content: space-between; align-items: center;
+    position: sticky; top: 0; background: rgba(10,12,14,0.98); z-index: 1;
+  }
+  .sp-title { color: #ff6622; font-size: 14px; letter-spacing: 3px; font-weight: bold; }
+  .sp-close {
+    background: none; border: 1px solid #333; color: #888;
+    font-family: monospace; font-size: 11px; padding: 4px 10px;
+    cursor: pointer; letter-spacing: 1px;
+  }
+  .sp-close:hover { border-color: #666; color: #ccc; }
+
+  .sp-group {
+    padding: 12px 18px;
+    border-bottom: 1px solid #141819;
+  }
+  .sp-group-title {
+    font-size: 11px; color: #ff6622; letter-spacing: 2px;
+    margin-bottom: 10px; text-transform: uppercase;
+  }
+  .sp-group.impact .sp-group-title { color: #ccaa22; }
+  .sp-group.move .sp-group-title { color: #44cc44; }
+  .sp-group.ambient .sp-group-title { color: #4488cc; }
+
+  .sp-row {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 6px;
+  }
+  .sp-label {
+    font-size: 10px; color: #666; letter-spacing: 1px;
+    min-width: 62px; text-transform: uppercase;
+  }
+  .sp-row input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    flex: 1; height: 3px; background: #1e2426;
+    border-radius: 2px; outline: none;
+  }
+  .sp-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px; height: 10px; background: #888;
+    border-radius: 2px; cursor: pointer;
+  }
+  .sp-row input[type="range"]::-webkit-slider-thumb:hover { background: #ccc; }
+  .sp-val {
+    font-size: 10px; color: #999; min-width: 34px; text-align: right;
+  }
+  .sp-play {
+    margin-top: 6px; margin-bottom: 4px;
+    background: none; border: 1px solid #333; color: #888;
+    font-family: monospace; font-size: 10px; letter-spacing: 2px;
+    padding: 4px 12px; cursor: pointer; width: 100%;
+  }
+  .sp-play:hover { border-color: #ff6622; color: #ff6622; }
+  .sp-play:active { background: rgba(255,102,34,0.1); }
+
+  /* JSON export */
+  .sp-export {
+    padding: 12px 18px;
+    border-top: 1px solid #1e2426;
+  }
+  .sp-export-title {
+    font-size: 11px; color: #ff6622; letter-spacing: 2px; margin-bottom: 8px;
+  }
+  .sp-export-btns { display: flex; gap: 8px; margin-bottom: 8px; }
+  .sp-export-btn {
+    flex: 1; background: none; border: 1px solid #333; color: #888;
+    font-family: monospace; font-size: 10px; letter-spacing: 2px;
+    padding: 6px; cursor: pointer;
+  }
+  .sp-export-btn:hover { border-color: #666; color: #ccc; }
+  .sp-export-btn.copied { border-color: #44cc44; color: #44cc44; }
+  #sp-json {
+    width: 100%; height: 140px; resize: vertical;
+    background: #0a0c0d; border: 1px solid #1e2426;
+    color: #999; font-family: monospace; font-size: 10px;
+    padding: 8px; outline: none; line-height: 1.5;
+  }
+
+  /* Toggle hint */
+  #mixer-hint {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    z-index: 11; pointer-events: none;
+    color: #444; font-size: 11px; letter-spacing: 2px; font-family: monospace;
+  }
+  /* Difficulty Select Screen */
+  #diff-screen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 22; background: rgba(0,0,0,0.95);
+  }
+  #diff-screen h2 {
+    font-family: monospace; font-size: 16px; color: #666;
+    letter-spacing: 6px; text-transform: uppercase; margin-bottom: 30px;
+  }
+  .diff-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 14px; max-width: 760px; width: 90%;
+  }
+  @media (max-width: 700px) { .diff-grid { grid-template-columns: repeat(2, 1fr); } }
+  .diff-card {
+    background: rgba(255,255,255,0.02); border: 1px solid #1a1a1a;
+    padding: 22px 14px 18px; text-align: center; cursor: pointer;
+    transition: all 0.25s; position: relative; overflow: hidden;
+  }
+  .diff-card:hover { transform: translateY(-4px); }
+  .diff-card:hover .diff-icon { transform: scale(1.1); }
+  .diff-card.dc-easy { border-color: #2a4a2a; }
+  .diff-card.dc-easy:hover { border-color: #44cc44; background: rgba(68,204,68,0.05); box-shadow: 0 0 30px rgba(68,204,68,0.1); }
+  .diff-card.dc-normal { border-color: #3a3a2a; }
+  .diff-card.dc-normal:hover { border-color: #ccaa22; background: rgba(204,170,34,0.05); box-shadow: 0 0 30px rgba(204,170,34,0.1); }
+  .diff-card.dc-hard { border-color: #4a2a1a; }
+  .diff-card.dc-hard:hover { border-color: #ff6622; background: rgba(255,102,34,0.05); box-shadow: 0 0 30px rgba(255,102,34,0.1); }
+  .diff-card.dc-nightmare { border-color: #4a1a1a; }
+  .diff-card.dc-nightmare:hover { border-color: #ff2233; background: rgba(255,34,51,0.05); box-shadow: 0 0 30px rgba(255,34,51,0.15); }
+  .diff-icon { width: 64px; height: 64px; margin: 0 auto 14px; transition: transform 0.25s; }
+  .diff-label {
+    font-family: monospace; font-size: 14px; letter-spacing: 3px;
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  .dc-easy .diff-label { color: #44cc44; }
+  .dc-normal .diff-label { color: #ccaa22; }
+  .dc-hard .diff-label { color: #ff6622; }
+  .dc-nightmare .diff-label { color: #ff2233; }
+  .diff-desc {
+    font-family: monospace; font-size: 10px; letter-spacing: 1px;
+    color: #555; line-height: 1.5;
+  }
+  .diff-card::after {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px;
+  }
+  .dc-easy::after { background: linear-gradient(90deg, transparent, #44cc44, transparent); }
+  .dc-normal::after { background: linear-gradient(90deg, transparent, #ccaa22, transparent); }
+  .dc-hard::after { background: linear-gradient(90deg, transparent, #ff6622, transparent); }
+  .dc-nightmare::after { background: linear-gradient(90deg, transparent, #ff2233, transparent); }
+  .diff-card.diff-locked {
+    opacity: 0.25; pointer-events: none; filter: grayscale(0.8);
+  }
+  .diff-card.diff-locked:hover { transform: none; }
+  .diff-locked-label {
+    font-family: monospace; font-size: 9px; letter-spacing: 2px;
+    color: #555; margin-top: 8px; display: none;
+  }
+  .diff-card.diff-locked .diff-locked-label { display: block; }
+  .diff-card.diff-locked .diff-desc { display: none; }
+  /* Character Select */
+  .char-submenu {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 25; background: rgba(5,5,5,0.95);
+  }
+  .char-submenu h2 {
+    font-family: monospace; font-size: 16px; color: #666;
+    letter-spacing: 6px; text-transform: uppercase; margin-bottom: 24px;
+  }
+  .char-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; max-width: 800px; width: 92%;
+  }
+  @media (max-width: 700px) { .char-grid { grid-template-columns: repeat(2, 1fr); } }
+  .char-card {
+    background: rgba(255,255,255,0.02); border: 1px solid #1a1a1a;
+    padding: 18px 12px 14px; text-align: center; cursor: pointer;
+    transition: all 0.25s; position: relative; overflow: hidden;
+  }
+  .char-card:hover { transform: translateY(-3px); }
+  .char-card.char-selected { border-width: 2px; }
+  .char-card::after {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px;
+  }
+  .char-icon { width: 56px; height: 56px; margin: 0 auto 10px; }
+  .char-name {
+    font-family: monospace; font-size: 13px; letter-spacing: 3px;
+    text-transform: uppercase; margin-bottom: 10px;
+  }
+  .char-stats { text-align: left; padding: 0 4px; }
+  .char-stat-row {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 5px; font-family: monospace; font-size: 10px;
+    color: #555; letter-spacing: 1px;
+  }
+  .char-stat-label { min-width: 48px; text-transform: uppercase; }
+  .char-stat-bar-bg {
+    flex: 1; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;
+  }
+  .char-stat-bar { height: 100%; border-radius: 2px; transition: width 0.3s; }
+  .char-back {
+    margin-top: 24px; padding: 10px 36px; font-size: 14px; font-family: monospace;
+    background: none; border: 1px solid #333; color: #666; cursor: pointer;
+    letter-spacing: 3px; transition: all 0.2s;
+  }
+  .char-back:hover { border-color: #666; color: #ccc; }
+  .char-selected-name {
+    font-family: monospace; font-size: 11px; letter-spacing: 2px;
+    color: #444; margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<!-- HUD -->
+<div id="crosshair"><div class="h"></div><div class="v"></div><div class="dot"></div></div>
+<div id="health-bar-wrap">
+  <div id="health-label">SHIELD</div>
+  <div id="health-bg"><div id="health-fill" style="width:100%"></div></div>
+</div>
+<div id="ammo-display"><div id="ammo-label">AMMO</div><span id="ammo-val">30</span></div>
+<div id="alien-count">ALIENS: <span id="alien-val">0</span></div>
+<div id="boss-bar-wrap" style="position:fixed; top:60px; left:50%; transform:translateX(-50%); z-index:11; pointer-events:none; text-align:center; display:none;">
+  <div style="color:#ff2244; font-size:14px; letter-spacing:4px; font-family:monospace; margin-bottom:4px;">&#9760; KING ALIEN &#9760;</div>
+  <div style="width:300px; height:12px; background:#1a1a1a; border:1px solid #442222; margin:0 auto;">
+    <div id="boss-fill" style="height:100%; background:#ff2244; width:100%; transition:width 0.2s;"></div>
+  </div>
+</div>
+<div id="squad-status" style="position:fixed; top:55px; right:40px; z-index:11; pointer-events:none; color:#88ff44; font-size:13px; letter-spacing:1px; font-family:monospace; line-height:1.6;"></div>
+<div id="ship-dist">HELO: <span id="ship-val">---</span>m</div>
+<div id="damage-flash"></div>
+<div id="extraction-hud" style="position:fixed; top:50%; left:50%; transform:translate(-50%,-60%); z-index:15; pointer-events:none; text-align:center; font-family:monospace; display:none;">
+  <div id="extraction-label" style="font-size:16px; letter-spacing:6px; color:#ff4444; text-transform:uppercase; text-shadow:0 0 20px rgba(255,68,68,0.5);">GET TO THE HELICOPTER</div>
+  <div id="extraction-timer" style="font-size:72px; font-weight:bold; color:#ff2233; letter-spacing:4px; text-shadow:0 0 40px rgba(255,34,51,0.6); margin-top:4px;">20</div>
+  <div id="extraction-bar-bg" style="width:300px; height:4px; background:rgba(255,255,255,0.1); margin:12px auto 0;">
+    <div id="extraction-bar" style="height:100%; background:#ff2233; width:100%; transition:width 0.1s;"></div>
+  </div>
+</div>
+<div id="easter-msg" style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:12; pointer-events:none; text-align:center; font-family:monospace; display:none;">
+  <div id="easter-msg-text" style="font-size:22px; letter-spacing:3px; color:#fff; text-shadow: 0 0 20px rgba(255,255,255,0.5);"></div>
+  <div id="easter-msg-sub" style="font-size:14px; letter-spacing:2px; color:#888; margin-top:8px;"></div>
+</div>
+
+<!-- Title -->
+<div class="screen" id="title-screen">
+  <h1>FALO</h1>
+  <h2>BY FLETCHER DEWEY</h2>
+  <div id="menu-buttons">
+    <button class="start-btn" id="start-btn">START MISSION</button>
+    <button class="menu-btn secondary" id="btn-character">CHARACTER</button>
+    <button class="menu-btn secondary" id="btn-controls">CONTROLS</button>
+    <button class="menu-btn secondary" id="btn-settings">SETTINGS</button>
+  </div>
+  <div class="char-selected-name" id="char-current">CLASS: ASSAULT</div>
+</div>
+
+<!-- Character Select -->
+<div class="char-submenu hidden" id="char-menu">
+  <h2>Select Class</h2>
+  <div class="char-grid">
+
+    <div class="char-card char-selected" data-char="assault" style="border-color:#ccaa22;">
+      <div class="char-icon">
+        <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="20" y="8" width="16" height="12" rx="2" stroke="#ccaa22" stroke-width="1.5"/>
+          <rect x="16" y="22" width="24" height="18" rx="1" stroke="#ccaa22" stroke-width="1.5" fill="rgba(204,170,34,0.08)"/>
+          <line x1="28" y1="26" x2="28" y2="36" stroke="#ccaa22" stroke-width="1"/>
+          <line x1="23" y1="31" x2="33" y2="31" stroke="#ccaa22" stroke-width="1"/>
+          <rect x="18" y="42" width="8" height="12" rx="1" stroke="#ccaa22" stroke-width="1.2"/>
+          <rect x="30" y="42" width="8" height="12" rx="1" stroke="#ccaa22" stroke-width="1.2"/>
+          <line x1="40" y1="28" x2="52" y2="24" stroke="#ccaa22" stroke-width="1.5"/>
+          <line x1="4" y1="28" x2="16" y2="32" stroke="#ccaa22" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="char-name" style="color:#ccaa22;">Assault</div>
+      <div class="char-stats">
+        <div class="char-stat-row"><span class="char-stat-label">Speed</span><div class="char-stat-bar-bg"><div class="char-stat-bar" style="width:50%; background:#ccaa22;"></div></div></div>
+        <div class="char-stat-row"><span class="char-stat-label">Damage</span><div class="char-stat-bar-bg"><div class="char-stat-bar" style="width:50%; background:#ccaa22;"></div></div></div>
+        <div class="char-stat-row"><span class="char-stat-label">Fire Rate</span><div class="char-stat-bar-bg"><div class="char-stat-bar" style="width:50%; background:#ccaa22;"></div></div></div>
+      </div>
+    </div>
+
+    <div class="char-card" data-char="recon" style="border-color:#1a2a2a;">
+      <div class="char-icon">
+        <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M28 6 L22 14 h12 Z" stroke="#44ccff" stroke-width="1.2" fill="rgba(68,204,255,0.08)"/>
+          <ellipse cx="28" cy="14" rx="8" ry="5" stroke="#44ccff" stroke-width="1.5"/>
+          <rect x="18" y="20" width="20" height="14" rx="1" stroke="#44ccff" stroke-width="1.2"/>
+          <rect x="20" y="36" width="6" height="14" rx="1" stroke="#44ccff" stroke-width="1"/>
+          <rect x="30" y="36" width="6" height="14" rx="1" stroke="#44ccff" stroke-width="1"/>
+          <path d="M10 22 L18 26" stroke="#44ccff" stroke-width="1.2"/>
+          <path d="M46 22 L38 26" stroke="#44ccff" stroke-width="1.2"/>
+          <circle cx="10" cy="22" r="2" fill="#44ccff" opacity="0.4"/>
+          <circle cx="46" cy="22" r="2" fill="#44ccff" opacity="0.4"/>
+          <path d="M24 38 L20 50" stroke="#44ccff" stroke-width="0.8" stroke-dasharray="2 2"/>
+          <path d="M32 38 L36 50" stroke="#44ccff" stroke-width="0.8" stroke-dasharray="2 2"/>
+        </svg>
+      </div>
+      <div class="char-name" style="color:#44ccff;">Recon</div>
+      <div class="char-stats">
+        <div class="char-stat-row"><span class="char-stat-label">Speed</span><div class="char-stat-bar-bg"><div class="char-stat-bar" style="width:85%; background:#44ccff;"></div></div></div>
+        <div class="char-stat-row"><span class="char-stat-label">Damage</span><div class="char-stat-bar-bg"><div class="char-stat-bar" style="width:30%; background:#44ccff;"></div></div></div>
+        <div class="char-stat-row"><span class="char-stat-label">Fire Rate</span><div class="char-stat-bar-bg"><div class="char-stat-bar" style="width:80%; background:#44ccff;"></div></div></div>
+      </div>
+    </div>
+
+    <div class="char-card" data-char="demo" style="border-color:#2a1a0a;">
+      <div class="char-icon">
+        <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="16" y="10" width="24" height="14" rx="2" stroke="#ff6622" stroke-width="1.5" fill="rgba(255,102,34,0.08)"/>
+          <rect x="14" y="26" width="28" height="20" rx="1" stroke="#ff6622" stroke-width="1.5"/>
+          <rect x="16" y="48" width="10" height="8" rx="1" stroke="#ff6622" stroke-width="1.3"/>
+          <rect x="30" y="48" width="10" height="8" rx="1" stroke="#ff6622" stroke-width="1.3"/>
+          <rect x="18" y="30" width="20" height="8" rx="1" stroke="#ff6622" stroke-width="0.8" fill="rgba(255,102,34,0.06)"/>
+          <line x1="6" y1="32" x2="14" y2="34" stroke="#ff6622" stroke-width="2"/>
+          <line x1="42" y1="32" x2="50" y2="34" stroke="#ff6622" stroke-width="2"/>
+          <circle cx="28" cy="34" r="3" stroke="#ff6622" stroke-width="1" fill="rgba(255,102,34,0.15)"/>
+          <path d="M24 4 L28 10 L32 4" stroke="#ff6622" stroke-width="0.8" opacity="0.5"/>
+        </svg>
+      </div>
+      <div class="char-name" style="color:#ff6622;">Demolitions</div>
+      <div class="char-stats">
+        <div class="char-stat-row"><span class="char-stat-label">Speed</span><div class="char-stat-bar-bg"><div class="char-stat-bar" style="width:28%; background:#ff6622;"></div></div></div>
+        <div class="char-stat-row"><span class="char-stat-label">Damage</span><div class="char-stat-bar-bg"><div class="char-stat-bar" style="width:88%; background:#ff6622;"></div></div></div>
+        <div class="char-stat-row"><span class="char-stat-label">Fire Rate</span><div class="char-stat-bar-bg"><div class="char-stat-bar" style="width:22%; background:#ff6622;"></div></div></div>
+      </div>
+    </div>
+
+    <div class="char-card" data-char="marksman" style="border-color:#2a1a2a;">
+      <div class="char-icon">
+        <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="28" cy="16" r="8" stroke="#aa44ff" stroke-width="1.2"/>
+          <circle cx="28" cy="16" r="4" stroke="#aa44ff" stroke-width="0.8" opacity="0.5"/>
+          <circle cx="28" cy="16" r="1.5" fill="#aa44ff"/>
+          <line x1="28" y1="4" x2="28" y2="10" stroke="#aa44ff" stroke-width="0.8"/>
+          <line x1="28" y1="22" x2="28" y2="28" stroke="#aa44ff" stroke-width="0.8"/>
+          <line x1="18" y1="16" x2="22" y2="16" stroke="#aa44ff" stroke-width="0.8"/>
+          <line x1="34" y1="16" x2="38" y2="16" stroke="#aa44ff" stroke-width="0.8"/>
+          <rect x="18" y="28" width="20" height="14" rx="1" stroke="#aa44ff" stroke-width="1.2"/>
+          <rect x="20" y="44" width="6" height="10" rx="1" stroke="#aa44ff" stroke-width="1"/>
+          <rect x="30" y="44" width="6" height="10" rx="1" stroke="#aa44ff" stroke-width="1"/>
+          <line x1="38" y1="30" x2="54" y2="26" stroke="#aa44ff" stroke-width="1.5"/>
+          <circle cx="54" cy="26" r="2" stroke="#aa44ff" stroke-width="0.8" fill="rgba(170,68,255,0.2)"/>
+        </svg>
+      </div>
+      <div class="char-name" style="color:#aa44ff;">Marksman</div>
+      <div class="char-stats">
+        <div class="char-stat-row"><span class="char-stat-label">Speed</span><div class="char-stat-bar-bg"><div class="char-stat-bar" style="width:50%; background:#aa44ff;"></div></div></div>
+        <div class="char-stat-row"><span class="char-stat-label">Damage</span><div class="char-stat-bar-bg"><div class="char-stat-bar" style="width:100%; background:#aa44ff;"></div></div></div>
+        <div class="char-stat-row"><span class="char-stat-label">Fire Rate</span><div class="char-stat-bar-bg"><div class="char-stat-bar" style="width:15%; background:#aa44ff;"></div></div></div>
+      </div>
+    </div>
+
+  </div>
+  <button class="char-back" id="char-back">BACK</button>
+</div>
+
+<!-- Difficulty Select -->
+<div class="screen hidden" id="diff-screen">
+  <h2>Select Difficulty</h2>
+  <div class="diff-grid">
+
+    <div class="diff-card dc-easy" data-diff="easy">
+      <div class="diff-icon">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M32 4L6 20v24l26 16 26-16V20L32 4z" stroke="#44cc44" stroke-width="1.5" fill="none"/>
+          <path d="M32 10L12 22v20l20 12 20-12V22L32 10z" stroke="#44cc44" stroke-width="0.5" opacity="0.4"/>
+          <path d="M32 18L20 26v12l12 7 12-7V26L32 18z" fill="rgba(68,204,68,0.1)" stroke="#44cc44" stroke-width="1"/>
+          <path d="M28 32l4 4 8-10" stroke="#44cc44" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="diff-label">Easy</div>
+      <div class="diff-desc">Extra health and ammo. Fewer, weaker aliens. Tough marines.</div>
+      <div class="diff-locked-label">LOCKED</div>
+    </div>
+
+    <div class="diff-card dc-normal" data-diff="normal">
+      <div class="diff-icon">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="32" cy="32" r="26" stroke="#ccaa22" stroke-width="1.5"/>
+          <circle cx="32" cy="32" r="18" stroke="#ccaa22" stroke-width="0.5" opacity="0.4"/>
+          <circle cx="32" cy="32" r="10" stroke="#ccaa22" stroke-width="1" fill="rgba(204,170,34,0.08)"/>
+          <circle cx="32" cy="32" r="2.5" fill="#ccaa22"/>
+          <line x1="32" y1="2" x2="32" y2="14" stroke="#ccaa22" stroke-width="1.5"/>
+          <line x1="32" y1="50" x2="32" y2="62" stroke="#ccaa22" stroke-width="1.5"/>
+          <line x1="2" y1="32" x2="14" y2="32" stroke="#ccaa22" stroke-width="1.5"/>
+          <line x1="50" y1="32" x2="62" y2="32" stroke="#ccaa22" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="diff-label">Normal</div>
+      <div class="diff-desc">Balanced combat. The way it was meant to be played.</div>
+      <div class="diff-locked-label">LOCKED</div>
+    </div>
+
+    <div class="diff-card dc-hard" data-diff="hard">
+      <div class="diff-icon">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M32 6C20 6 12 16 12 25c0 12 20 33 20 33s20-21 20-33C52 16 44 6 32 6z" stroke="#ff6622" stroke-width="1.5" fill="rgba(255,102,34,0.06)"/>
+          <circle cx="24" cy="24" r="4" fill="none" stroke="#ff6622" stroke-width="1.5"/>
+          <circle cx="40" cy="24" r="4" fill="none" stroke="#ff6622" stroke-width="1.5"/>
+          <circle cx="24" cy="24" r="1.5" fill="#ff6622"/>
+          <circle cx="40" cy="24" r="1.5" fill="#ff6622"/>
+          <path d="M24 34 h16" stroke="#ff6622" stroke-width="1.5"/>
+          <line x1="28" y1="30" x2="28" y2="38" stroke="#ff6622" stroke-width="1"/>
+          <line x1="32" y1="30" x2="32" y2="38" stroke="#ff6622" stroke-width="1"/>
+          <line x1="36" y1="30" x2="36" y2="38" stroke="#ff6622" stroke-width="1"/>
+        </svg>
+      </div>
+      <div class="diff-label">Hard</div>
+      <div class="diff-desc">Less ammo. Faster, tougher aliens. Your squad won't last.</div>
+      <div class="diff-locked-label">LOCKED</div>
+    </div>
+
+    <div class="diff-card dc-nightmare" data-diff="nightmare">
+      <div class="diff-icon">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18 8 L14 2 L20 6" stroke="#ff2233" stroke-width="1" opacity="0.7"/>
+          <path d="M46 8 L50 2 L44 6" stroke="#ff2233" stroke-width="1" opacity="0.7"/>
+          <path d="M10 12 L4 10 L10 14" stroke="#ff2233" stroke-width="1" opacity="0.5"/>
+          <path d="M54 12 L60 10 L54 14" stroke="#ff2233" stroke-width="1" opacity="0.5"/>
+          <path d="M32 6C20 6 12 16 12 25c0 12 20 33 20 33s20-21 20-33C52 16 44 6 32 6z" stroke="#ff2233" stroke-width="1.5" fill="rgba(255,34,51,0.08)"/>
+          <path d="M20 22 Q24 18 28 22 Q30 24 28 27 L24 25 Z" fill="#ff2233"/>
+          <path d="M44 22 Q40 18 36 22 Q34 24 36 27 L40 25 Z" fill="#ff2233"/>
+          <path d="M22 34 l3-3 3 3 4-3 4 3 3-3 3 3" stroke="#ff2233" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="26" y1="2" x2="24" y2="8" stroke="#ff2233" stroke-width="0.8" opacity="0.4"/>
+          <line x1="38" y1="2" x2="40" y2="8" stroke="#ff2233" stroke-width="0.8" opacity="0.4"/>
+          <line x1="32" y1="0" x2="32" y2="6" stroke="#ff2233" stroke-width="0.8" opacity="0.4"/>
+        </svg>
+      </div>
+      <div class="diff-label">Nightmare</div>
+      <div class="diff-desc">Pure chaos. Everything wants you dead. Good luck.</div>
+      <div class="diff-locked-label">LOCKED</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Controls Sub-menu -->
+<div class="submenu hidden" id="controls-menu">
+  <h2>CONTROLS</h2>
+  <div class="submenu-content">
+    <div class="submenu-section">
+      <h3>Keyboard + Mouse</h3>
+      <p><span class="key">ARROWS</span> &mdash; Move (fixed world directions)</p>
+      <p><span class="key">WASD</span> &mdash; Move (camera-relative)</p>
+      <p><span class="key">MOUSE</span> &mdash; Aim</p>
+      <p><span class="key">CLICK / SPACE</span> &mdash; Shoot</p>
+      <p><span class="key">SHIFT</span> &mdash; Jump</p>
+      <p><span class="key">C</span> &mdash; Crouch</p>
+      <p><span class="key">ESC</span> &mdash; Pause</p>
+      <p><span class="key">M</span> &mdash; Sound Mixer</p>
+      <p><span class="key">I</span> &mdash; Invert Stick Y</p>
+    </div>
+    <div class="submenu-section">
+      <h3>Controller (Xbox / Switch Pro)</h3>
+      <p><span class="ctrl">LEFT STICK</span> &mdash; Move</p>
+      <p><span class="ctrl">RIGHT STICK</span> &mdash; Aim</p>
+      <p><span class="ctrl">RT</span> &mdash; Shoot</p>
+      <p><span class="ctrl">A</span> &mdash; Jump</p>
+      <p><span class="ctrl">B / LB</span> &mdash; Crouch</p>
+      <p><span class="ctrl">START</span> &mdash; Start / Resume</p>
+    </div>
+    <div class="submenu-section">
+      <h3>Mission</h3>
+      <p style="color:#ff6633;">Fight through the burning city. Kill the King Alien. Reach the extraction helicopter.</p>
+      <p style="color:#88ff44;">Your squad of 4 marines has your back. They can go down &mdash; another marine can revive them.</p>
+    </div>
+  </div>
+  <button class="back-btn" id="back-controls">BACK</button>
+</div>
+
+<!-- Settings Sub-menu -->
+<div class="submenu hidden" id="settings-menu">
+  <h2>SETTINGS</h2>
+  <div class="submenu-content">
+    <div class="submenu-section">
+      <h3>Audio</h3>
+      <div class="submenu-row">
+        <span>Master Volume</span>
+        <input type="range" id="setting-master-vol" min="0" max="100" value="80">
+        <span id="val-master-vol">80%</span>
+      </div>
+      <div class="submenu-row">
+        <span>SFX Volume</span>
+        <input type="range" id="setting-sfx-vol" min="0" max="100" value="100">
+        <span id="val-sfx-vol">100%</span>
+      </div>
+      <div class="submenu-row">
+        <span>Ambient Volume</span>
+        <input type="range" id="setting-ambient-vol" min="0" max="100" value="70">
+        <span id="val-ambient-vol">70%</span>
+      </div>
+    </div>
+    <div class="submenu-section">
+      <h3>Controller</h3>
+      <div class="submenu-row">
+        <span>Stick Sensitivity</span>
+        <input type="range" id="setting-stick-sens" min="1" max="20" value="6">
+        <span id="val-stick-sens">6</span>
+      </div>
+      <div class="submenu-row">
+        <span>Invert Y Axis</span>
+        <select id="setting-invert-y">
+          <option value="no">Normal</option>
+          <option value="yes">Inverted</option>
+        </select>
+      </div>
+      <div class="submenu-row">
+        <span>Deadzone</span>
+        <input type="range" id="setting-deadzone" min="5" max="40" value="20">
+        <span id="val-deadzone">0.20</span>
+      </div>
+    </div>
+    <div class="submenu-section">
+      <h3>Graphics</h3>
+      <div class="submenu-row">
+        <span>Particles</span>
+        <select id="setting-particles">
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+      <div class="submenu-row">
+        <span>Screen Shake</span>
+        <select id="setting-screenshake">
+          <option value="full">Full</option>
+          <option value="reduced">Reduced</option>
+          <option value="off">Off</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <button class="back-btn" id="back-settings">BACK</button>
+</div>
+
+<!-- Win -->
+<div class="screen hidden" id="win-screen">
+  <h1>ESCAPED!</h1>
+  <h2>THE KING IS DEAD. YOU MADE IT OUT.</h2>
+  <button class="start-btn" id="restart-win">PLAY AGAIN</button>
+</div>
+
+<!-- Death -->
+<div class="screen hidden" id="death-screen">
+  <h1>K.I.A.</h1>
+  <h2>LOST IN THE RUINS. TRY AGAIN, SPARTAN.</h2>
+  <button class="start-btn" id="restart-death">TRY AGAIN</button>
+</div>
+
+<div class="screen hidden" id="pause-screen" style="background:rgba(0,0,0,0.7); cursor:pointer; pointer-events:all;">
+  <h1 style="color:#cccccc; font-size:60px;">PAUSED</h1>
+  <div style="display:flex; flex-direction:column; gap:8px; align-items:center; margin-top:20px;">
+    <button class="start-btn" id="resume-btn" style="pointer-events:all;">RESUME</button>
+    <button class="menu-btn secondary" id="pause-controls" style="pointer-events:all;">CONTROLS</button>
+    <button class="menu-btn secondary" id="pause-settings" style="pointer-events:all;">SETTINGS</button>
+  </div>
+</div>
+
+<!-- Sound Mixer Panel -->
+<div id="sound-panel"></div>
+<div id="mixer-hint">M = SOUND MIXER</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

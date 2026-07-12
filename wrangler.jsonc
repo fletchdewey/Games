@@ -1,0 +1,13 @@
+{
+  "name": "fletcherdewey",
+  "compatibility_date": "2025-01-01",
+  "main": "./worker.js",
+  "routes": [
+    { "pattern": "fletcherdewey.com/*", "zone_name": "fletcherdewey.com" }
+  ],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  }
+}

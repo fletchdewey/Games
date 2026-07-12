@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Falo 3D-2</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  /* Crosshair */
+  #crosshair {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none; z-index: 10;
+  }
+  #crosshair .v { position: absolute; width: 2px; height: 16px; background: rgba(255,255,255,0.5); top: -8px; left: -1px; }
+  #crosshair .h { position: absolute; width: 16px; height: 2px; background: rgba(255,255,255,0.5); top: -1px; left: -8px; }
+
+  /* HUD */
+  #hud {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    pointer-events: none; z-index: 10;
+    font-family: 'Courier New', monospace;
+  }
+  #health-bar-wrap {
+    position: absolute; bottom: 30px; left: 50%;
+    transform: translateX(-50%);
+    width: 200px; height: 8px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px; overflow: hidden;
+  }
+  #health-bar {
+    height: 100%; width: 100%;
+    background: #44ff88; border-radius: 4px;
+    transition: width 0.15s, background 0.15s;
+  }
+  #health-text {
+    position: absolute; bottom: 12px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px; color: #44ff88;
+  }
+  #kills {
+    position: fixed; top: 12px; right: 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 14px; color: #ffaa22;
+    background: rgba(0,0,0,0.4);
+    padding: 6px 12px; border-radius: 4px;
+    pointer-events: none; z-index: 10;
+  }
+  #room-label {
+    position: fixed; top: 12px; left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Courier New', monospace;
+    font-size: 14px; color: #dde;
+    letter-spacing: 2px; text-transform: uppercase;
+    background: rgba(0,0,0,0.5);
+    padding: 6px 16px; border-radius: 4px;
+    pointer-events: none; z-index: 10;
+  }
+  #damage-flash {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 9;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(200,0,0,0.5) 100%);
+    opacity: 0; transition: opacity 0.05s;
+  }
+  #death-screen {
+    position: fixed; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(100,0,0,0.4);
+    pointer-events: none; z-index: 20;
+    font-family: 'Courier New', monospace;
+  }
+  #death-screen .inner { text-align: center; }
+  #death-screen h1 { font-size: 32px; color: #ff2244; letter-spacing: 6px; }
+  #death-screen p { font-size: 12px; color: #aa6666; margin-top: 8px; }
+
+  /* Click-to-play overlay */
+  #start-overlay {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.6);
+    z-index: 30; cursor: pointer;
+    font-family: 'Courier New', monospace; color: #c8c8d8;
+  }
+  #start-overlay .title {
+    font-size: 28px; font-weight: 700; letter-spacing: 4px;
+    text-transform: uppercase; color: #e8e8f0; margin-bottom: 16px;
+  }
+  #start-overlay .sub { font-size: 13px; color: #889; margin-bottom: 24px; }
+  #start-overlay .play {
+    font-size: 16px; color: #ffaa22;
+    padding: 12px 24px;
+    border: 1px solid rgba(255,170,34,0.25);
+    border-radius: 8px;
+    background: rgba(255,170,34,0.05);
+  }
+  #start-overlay .controls { font-size: 11px; color: #556; margin-top: 16px; line-height: 1.8; }
+
+  #controls-hint {
+    position: fixed; bottom: 8px; left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Courier New', monospace;
+    font-size: 10px; color: #445;
+    background: rgba(0,0,0,0.4);
+    padding: 4px 12px; border-radius: 4px;
+    pointer-events: none; z-index: 10;
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.min.js"
+  }
+}
+</script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="crosshair"><div class="v"></div><div class="h"></div></div>
+
+  <div id="hud">
+    <div id="health-bar-wrap"><div id="health-bar"></div></div>
+    <div id="health-text">HP 100</div>
+  </div>
+  <div id="kills">KILLS: 0</div>
+  <div id="room-label">Loading Bay</div>
+  <div id="damage-flash"></div>
+
+  <div id="death-screen">
+    <div class="inner"><h1>DEAD</h1><p>Respawning...</p></div>
+  </div>
+
+  <div id="start-overlay">
+    <div style="text-align:center">
+      <div class="title">Falo 3D-2</div>
+      <div class="sub">Space Station Crawler</div>
+      <div class="play">Click to Play</div>
+      <div class="controls">
+        WASD — move · Mouse — look · Left click — shoot · Space — jump · Esc — pause
+      </div>
+    </div>
+  </div>
+
+  <div id="controls-hint">WASD move · mouse look · click shoot · space jump · esc pause</div>
+
+  <script type="module" src="falo3d-2/game.js"></script>
+</body>
+</html>
