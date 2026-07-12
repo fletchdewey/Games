@@ -18,23 +18,23 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=09b9b82554';
+import { PALETTE, getMaterial } from './shared/materials.js?v=72fce17f30';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=09b9b82554';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=09b9b82554';
-import { buildSpire, animateSpire, createSpireAI, updateSpireAI, hitSpire, killSpire } from './aliens/spire.js?v=09b9b82554';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=09b9b82554';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=72fce17f30';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=72fce17f30';
+import { buildSpire, animateSpire, createSpireAI, updateSpireAI, hitSpire, killSpire } from './aliens/spire.js?v=72fce17f30';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=72fce17f30';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=09b9b82554';
+import { createController, updateController } from './player/controller.js?v=72fce17f30';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=09b9b82554';
-import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster } from './bosses/puppet_master_ai.js?v=09b9b82554';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=72fce17f30';
+import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster } from './bosses/puppet_master_ai.js?v=72fce17f30';
 
 // === Map ===
-import { buildMap, getCurrentRoom } from './map/builder.js?v=09b9b82554';
+import { buildMap, getCurrentRoom } from './map/builder.js?v=72fce17f30';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -129,7 +129,10 @@ function updateGun(gun, dt) {
 // It's a bright sphere with its own light — a ball reads the same from
 // every angle, so (unlike a thin cylinder aimed down your view axis) it's
 // never edge-on and invisible. It flies straight out along the crosshair.
-function createBullet(scene, from, dir) {
+function createBullet(scene, from, to) {
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const maxDist = Math.max(0.2, dir.length());
+  dir.normalize();
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(0.1, 10, 10),
     new THREE.MeshBasicMaterial({ color: 0xffee66, transparent: true, opacity: 1 })
@@ -138,7 +141,7 @@ function createBullet(scene, from, dir) {
   const light = new THREE.PointLight(0xffcc44, 3, 8);
   mesh.add(light);
   scene.add(mesh);
-  return { mesh, dir: dir.clone(), speed: 22, life: 1.0 };
+  return { mesh, dir, speed: 35, life: 1.2, traveled: 0, maxDist };
 }
 
 function createFlash(scene, pos) {
@@ -177,7 +180,7 @@ function disposeModel(model) {
 }
 
 // ─── SPAWN ALIENS ───────────────────────────────────────────
-import { ROOMS } from './map/layout.js?v=09b9b82554';
+import { ROOMS } from './map/layout.js?v=72fce17f30';
 
 function spawnAliens(scene) {
   const aliens = [];
@@ -251,7 +254,7 @@ scene.fog = new THREE.FogExp2(0x060608, 0.012);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
 scene.add(camera);
 
-const { bounds, walls } = buildMap(scene);
+const { bounds, walls, wallMeshes } = buildMap(scene);
 const ctrl = createController(camera, canvas);
 
 // ─── PLAYER WALL COLLISION ──────────────────────────────────
@@ -516,6 +519,9 @@ function gameLoop(now) {
         boss.model.traverse((c) => { if (c.isMesh && c.visible) hitMeshes.push(c); });
         boss.model.userData.pilotGroup.traverse((c) => { if (c.isMesh && c.visible) hitMeshes.push(c); });
       }
+      // Walls too, so a shot stops at the nearest surface — it can't punch
+      // through a wall (which used to hide the tracer) or hit an enemy behind one.
+      for (const wm of wallMeshes) hitMeshes.push(wm);
 
       const hits = raycaster.intersectObjects(hitMeshes);
       const from = camera.position.clone().add(
@@ -527,40 +533,37 @@ function gameLoop(now) {
         to = hits[0].point;
         const hitObj = hits[0].object;
 
-        // Boss hit takes priority (its meshes carry a hitPart tag).
-        if (boss.active && !boss.defeated && hitObj.userData.hitPart) {
-          const part = hitObj.userData.hitPart;
-          damagePuppetMaster(boss.model, 1, part);
+        if (hitObj.userData.isWall) {
+          // Shot blocked by a wall — no damage, tracer stops here.
+        } else if (boss.active && !boss.defeated && hitObj.userData.hitPart) {
+          // Boss hit (its meshes carry a hitPart tag).
+          damagePuppetMaster(boss.model, 1, hitObj.userData.hitPart);
         } else {
-        for (const alien of aliens) {
-          let found = false;
-          alien.model.traverse((c) => { if (c === hitObj) found = true; });
-          if (found && alien.alive) {
-            alien.hp--;
-            alien.flashTimer = 0.12;
-            alien.reg.hit(alien.ai);
-            if (alien.hp <= 0) {
-              alien.alive = false;
-              alien.deathTimer = 0;
-              alien.reg.kill(alien.ai);
-              killCount++;
-              updateHUD();
+          for (const alien of aliens) {
+            let found = false;
+            alien.model.traverse((c) => { if (c === hitObj) found = true; });
+            if (found && alien.alive) {
+              alien.hp--;
+              alien.flashTimer = 0.12;
+              alien.reg.hit(alien.ai);
+              if (alien.hp <= 0) {
+                alien.alive = false;
+                alien.deathTimer = 0;
+                alien.reg.kill(alien.ai);
+                killCount++;
+                updateHUD();
+              }
+              break;
             }
-            break;
           }
-        }
         }
       } else {
         const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
         to = from.clone().add(dir.multiplyScalar(30));
       }
 
-      // Fire a visible tracer bolt straight out along the crosshair
-      // (camera forward — unambiguously the way you're aiming).
-      const shotDir = new THREE.Vector3(0, 0, -1)
-        .applyQuaternion(camera.quaternion)
-        .normalize();
-      bullets.push(createBullet(scene, from, shotDir));
+      // Fire a visible tracer bolt from the muzzle to the impact point.
+      bullets.push(createBullet(scene, from, to));
       flashes.push(createFlash(scene, from));
     }
   }
@@ -652,17 +655,21 @@ function gameLoop(now) {
     return true;
   });
 
-  // --- Fly & fade tracer rounds ---
+  // --- Fly tracer rounds toward their impact point ---
   bullets = bullets.filter((b) => {
     b.life -= dt;
-    if (b.life <= 0) {
+    const step = b.speed * dt;
+    b.traveled += step;
+    b.mesh.position.addScaledVector(b.dir, step);
+    const arrived = b.traveled >= b.maxDist;
+    if (arrived || b.life <= 0) {
+      // A little spark of light where it hits.
+      if (arrived) flashes.push(createFlash(scene, b.mesh.position.clone()));
       scene.remove(b.mesh);
       b.mesh.geometry.dispose();
       b.mesh.material.dispose();
       return false;
     }
-    b.mesh.position.addScaledVector(b.dir, b.speed * dt);
-    b.mesh.material.opacity = Math.min(1, b.life / 0.25);  // fade out over the last 0.25s
     return true;
   });
   flashes = flashes.filter((f) => {
