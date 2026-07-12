@@ -36,8 +36,11 @@ export function buildFloater() {
   const g = new THREE.Group();
 
   // Grab shared materials. skin2 is the Floater's purple tone.
-  const skinMat  = getMaterial(PALETTE.skin2, { transparent: true, opacity: 0.7 });
-  const coreMat  = getMaterial(PALETTE.glowPurple, { type: 'basic' });
+  // dome (skinMat) has its color/opacity mutated in HURT and death, and the
+  // core color flickers every frame — so each Floater owns its own copies,
+  // or one dying Floater fades every Floater's dome.
+  const skinMat  = getMaterial(PALETTE.skin2, { transparent: true, opacity: 0.7 }).clone();
+  const coreMat  = getMaterial(PALETTE.glowPurple, { type: 'basic' }).clone();
   const tentMat  = getMaterial(PALETTE.skin2);
   const foldMat  = getMaterial(0x4a2850);
   const eyeMat   = getMaterial(PALETTE.eyePink, { type: 'basic' });

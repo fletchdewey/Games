@@ -95,7 +95,9 @@ export function buildSpire() {
   // like how a frog's throat puffs out before it croaks.
   const sacGeo = new THREE.SphereGeometry(0.15, 6, 5);
   sacGeo.scale(0.8, 1.2, 1);
-  const sacMat = getMaterial(PALETTE.glowOrange, { transparent: true, opacity: 0.6 });
+  // The venom sac's opacity is faded out on death, so give each Spire its
+  // own copy — otherwise a dying Spire makes every Spire's sac transparent.
+  const sacMat = getMaterial(PALETTE.glowOrange, { transparent: true, opacity: 0.6 }).clone();
   const sac = new THREE.Mesh(sacGeo, sacMat);
   sac.position.set(0, 1.9, 0.35);
   g.add(sac);
@@ -482,8 +484,9 @@ export function updateSpireAI(model, ai, playerPos, dt) {
     toPlayer.y = 0;
     model.rotation.y = Math.atan2(toPlayer.x, toPlayer.z);
 
-    // Strafe to a new angle (change direction)
-    ai.strafeDir *= -1;
+    // Strafe to a new angle — flip direction ONCE on entering cooldown,
+    // not every frame (which would just vibrate in place).
+    if (ai.stateTimer === 1) ai.strafeDir *= -1;
     const right = new THREE.Vector3(-toPlayer.z, 0, toPlayer.x).normalize();
     pos.add(right.multiplyScalar(ai.strafeDir * 0.02 * dt * 60));
 

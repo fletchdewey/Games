@@ -35,9 +35,12 @@ export function buildCrawler() {
   // This way all Crawlers in the scene share the same material objects.
   const skinMat  = getMaterial(PALETTE.skin1);
   const boneMat  = getMaterial(PALETTE.bone);
-  const glowMat  = getMaterial(PALETTE.glowGreen, { type: 'basic' });
   const eyeMat   = getMaterial(PALETTE.eyeRed, { type: 'basic' });
-  const armorMat = getMaterial(PALETTE.armor);
+  // These two get recolored during the HURT flash, so each Crawler needs
+  // its own copy — otherwise hurting one flashes every Crawler (and every
+  // Brute, which shares the armor material).
+  const glowMat  = getMaterial(PALETTE.glowGreen, { type: 'basic' }).clone();
+  const armorMat = getMaterial(PALETTE.armor).clone();
 
   // --- Body ---
   // A squished sphere — wide and flat like a crab shell.

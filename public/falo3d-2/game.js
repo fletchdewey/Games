@@ -124,17 +124,22 @@ function updateGun(gun, dt) {
 }
 
 // ─── BULLET TRACERS ─────────────────────────────────────────
-function createTracer(scene, from, to) {
-  const d = new THREE.Vector3().subVectors(to, from);
-  const len = d.length();
-  const geo = new THREE.CylinderGeometry(0.008, 0.008, len, 4);
-  geo.translate(0, len / 2, 0); geo.rotateX(Math.PI / 2);
+// A visible tracer round that actually flies out of the gun. The shot's
+// damage is instant (hitscan raycast); this is the streak you SEE. It's a
+// short bright cylinder pointed along the shot, lit by its own glow, that
+// travels forward for a moment before fading out.
+function createBullet(scene, from, dir) {
+  const geo = new THREE.CylinderGeometry(0.03, 0.03, 0.5, 6);
   const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-    color: 0xffdd44, transparent: true, opacity: 0.8
+    color: 0xffee66, transparent: true, opacity: 0.95
   }));
-  mesh.position.copy(from); mesh.lookAt(to);
+  mesh.position.copy(from);
+  // Cylinder's local +Y axis points along the direction of travel.
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  const light = new THREE.PointLight(0xffcc44, 1, 4);
+  mesh.add(light);
   scene.add(mesh);
-  return { mesh, life: 0.1 };
+  return { mesh, dir: dir.clone(), speed: 60, life: 0.5 };
 }
 
 function createFlash(scene, pos) {
@@ -144,7 +149,7 @@ function createFlash(scene, pos) {
 }
 
 // ─── ALIEN PROJECTILES ──────────────────────────────────────
-function createAlienProjectile(scene, from, to, color, speed) {
+function createAlienProjectile(scene, from, to, color, speed, damage) {
   const dir = new THREE.Vector3().subVectors(to, from).normalize();
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(0.08, 5, 5),
@@ -154,7 +159,22 @@ function createAlienProjectile(scene, from, to, color, speed) {
   const light = new THREE.PointLight(color, 1, 4);
   mesh.add(light);
   scene.add(mesh);
-  return { mesh, dir, speed, life: 4 };
+  return { mesh, dir, speed, life: 4, damage };
+}
+
+// Remove a projectile from the scene and free its GPU resources.
+function removeProjectile(p) {
+  scene.remove(p.mesh);
+  p.mesh.geometry.dispose();
+  p.mesh.material.dispose();
+}
+
+// Free a model's GPU geometry when we throw it away (materials come from
+// the shared cache / per-instance clones and are cheap to leave for GC).
+function disposeModel(model) {
+  model.traverse((o) => {
+    if (o.isMesh && o.geometry) o.geometry.dispose();
+  });
 }
 
 // ─── SPAWN ALIENS ───────────────────────────────────────────
@@ -262,7 +282,7 @@ const boss = spawnBoss(scene);
 const raycaster = new THREE.Raycaster();
 const screenCenter = new THREE.Vector2(0, 0);
 
-let tracers = [];
+let bullets = [];
 let flashes = [];
 let projectiles = [];
 let killCount = 0;
@@ -383,7 +403,7 @@ function updateBoss(dt) {
           damagePlayer(atk.damage);
         }
       } else if (atk.type === 'pilot_throw') {
-        projectiles.push(createAlienProjectile(scene, atk.origin, atk.target, 0x44ff88, 6));
+        projectiles.push(createAlienProjectile(scene, atk.origin, atk.target, 0x44ff88, 6, atk.damage));
       }
       d.currentAttack = null;
     }
@@ -536,7 +556,13 @@ function gameLoop(now) {
         to = from.clone().add(dir.multiplyScalar(30));
       }
 
-      tracers.push(createTracer(scene, from, to));
+      // Fire a visible tracer round toward where the shot landed.
+      const shotDir = new THREE.Vector3().subVectors(to, from);
+      if (shotDir.lengthSq() < 1e-6) {
+        shotDir.set(0, 0, -1).applyQuaternion(camera.quaternion);
+      }
+      shotDir.normalize();
+      bullets.push(createBullet(scene, from, shotDir));
       flashes.push(createFlash(scene, from));
     }
   }
@@ -551,17 +577,25 @@ function gameLoop(now) {
       if (a.deathTimer > 5) {
         a.model.visible = false;
       }
-      // Respawn after 8 seconds
+      // Respawn after 8 seconds — rebuild the model from scratch.
+      // Death animations hide sub-meshes and move parts around; reusing the
+      // old model left aliens "half-rendered". Building fresh guarantees a
+      // clean body. We dispose the old geometry so the GPU doesn't leak.
       if (a.deathTimer > 8) {
+        scene.remove(a.model);
+        disposeModel(a.model);
+
+        const model = a.reg.build();
+        model.position.copy(a.spawnPos);
+        model.userData.baseY = a.reg.baseY;
+        a.ai = a.reg.createAI();
+        model.userData.ai = a.ai;
+        scene.add(model);
+
+        a.model = model;
         a.alive = true;
         a.hp = a.maxHp;
         a.deathTimer = 0;
-        a.model.visible = true;
-        a.model.position.copy(a.spawnPos);
-        a.model.rotation.set(0, 0, 0);
-        a.model.scale.setScalar(1);
-        a.ai = a.reg.createAI();
-        a.model.userData.ai = a.ai;
         a.attackTimer = a.reg.attackCD;
       }
       return;
@@ -594,7 +628,7 @@ function gameLoop(now) {
         from.y += a.type === 'spire' ? 1.3 : a.type === 'floater' ? 0.5 : 0.5;
         const to = ctrl.position.clone(); to.y = 1.2;
         projectiles.push(createAlienProjectile(
-          scene, from, to, a.reg.projColor, a.reg.projSpeed
+          scene, from, to, a.reg.projColor, a.reg.projSpeed, a.reg.attackDmg
         ));
       }
     }
@@ -606,25 +640,31 @@ function gameLoop(now) {
   // --- Update projectiles ---
   projectiles = projectiles.filter((p) => {
     p.life -= dt;
-    if (p.life <= 0) { scene.remove(p.mesh); return false; }
+    if (p.life <= 0) { removeProjectile(p); return false; }
     p.mesh.position.addScaledVector(p.dir, p.speed * dt);
     // Hit player?
     if (p.mesh.position.distanceTo(ctrl.position) < 0.6) {
-      damagePlayer(12);
-      scene.remove(p.mesh);
+      damagePlayer(p.damage != null ? p.damage : 10);
+      removeProjectile(p);
       return false;
     }
     // Hit wall?
     const pp = p.mesh.position;
-    if (pp.y < 0 || pp.y > 4) { scene.remove(p.mesh); return false; }
+    if (pp.y < 0 || pp.y > 4) { removeProjectile(p); return false; }
     return true;
   });
 
-  // --- Decay tracers & flashes ---
-  tracers = tracers.filter((t) => {
-    t.life -= dt;
-    if (t.life <= 0) { scene.remove(t.mesh); t.mesh.geometry.dispose(); return false; }
-    t.mesh.material.opacity = t.life / 0.1;
+  // --- Fly & fade tracer rounds ---
+  bullets = bullets.filter((b) => {
+    b.life -= dt;
+    if (b.life <= 0) {
+      scene.remove(b.mesh);
+      b.mesh.geometry.dispose();
+      b.mesh.material.dispose();
+      return false;
+    }
+    b.mesh.position.addScaledVector(b.dir, b.speed * dt);
+    b.mesh.material.opacity = Math.min(1, b.life / 0.25);  // fade out over the last 0.25s
     return true;
   });
   flashes = flashes.filter((f) => {
