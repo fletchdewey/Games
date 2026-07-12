@@ -125,21 +125,20 @@ function updateGun(gun, dt) {
 
 // ─── BULLET TRACERS ─────────────────────────────────────────
 // A visible tracer round that actually flies out of the gun. The shot's
-// damage is instant (hitscan raycast); this is the streak you SEE. It's a
-// short bright cylinder pointed along the shot, lit by its own glow, that
-// travels forward for a moment before fading out.
+// damage is instant (hitscan raycast); this is the glowing bolt you SEE.
+// It's a bright sphere with its own light — a ball reads the same from
+// every angle, so (unlike a thin cylinder aimed down your view axis) it's
+// never edge-on and invisible. It flies straight out along the crosshair.
 function createBullet(scene, from, dir) {
-  const geo = new THREE.CylinderGeometry(0.03, 0.03, 0.5, 6);
-  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-    color: 0xffee66, transparent: true, opacity: 0.95
-  }));
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.06, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffee66, transparent: true, opacity: 1 })
+  );
   mesh.position.copy(from);
-  // Cylinder's local +Y axis points along the direction of travel.
-  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-  const light = new THREE.PointLight(0xffcc44, 1, 4);
+  const light = new THREE.PointLight(0xffcc44, 2, 6);
   mesh.add(light);
   scene.add(mesh);
-  return { mesh, dir: dir.clone(), speed: 60, life: 0.5 };
+  return { mesh, dir: dir.clone(), speed: 45, life: 0.6 };
 }
 
 function createFlash(scene, pos) {
@@ -556,12 +555,11 @@ function gameLoop(now) {
         to = from.clone().add(dir.multiplyScalar(30));
       }
 
-      // Fire a visible tracer round toward where the shot landed.
-      const shotDir = new THREE.Vector3().subVectors(to, from);
-      if (shotDir.lengthSq() < 1e-6) {
-        shotDir.set(0, 0, -1).applyQuaternion(camera.quaternion);
-      }
-      shotDir.normalize();
+      // Fire a visible tracer bolt straight out along the crosshair
+      // (camera forward — unambiguously the way you're aiming).
+      const shotDir = new THREE.Vector3(0, 0, -1)
+        .applyQuaternion(camera.quaternion)
+        .normalize();
       bullets.push(createBullet(scene, from, shotDir));
       flashes.push(createFlash(scene, from));
     }
