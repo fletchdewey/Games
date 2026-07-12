@@ -39,7 +39,22 @@ cp -R "$V2_SRC/aliens" "$V2_SRC/bosses" "$V2_SRC/map" "$V2_SRC/player" "$V2_SRC/
 cp "$V2_SRC/falo3d-2.html" public/falo3d-2.html
 find "$V2_OUT" -name '.DS_Store' -delete
 
-echo "✓ Built falo3d-2 ($(find "$V2_OUT" -name '*.js' | wc -l | tr -d ' ') modules)"
+# --- Cache-busting -----------------------------------------------------
+# Browsers cache ES modules aggressively, so a redeploy can keep serving
+# stale code even after a normal reload. We derive a version hash from the
+# v2 source and stamp it onto every module URL (?v=HASH). The hash only
+# changes when the source changes, so this doesn't churn the build output
+# on unrelated commits, but any real change gets brand-new URLs that a
+# browser cannot have cached. (The server ignores the query for static
+# files, so the same game.js is still served.)
+V2_VER=$(cat "$V2_OUT"/game.js $(find "$V2_OUT" -name '*.js' ! -name game.js | sort) | shasum | cut -c1-10)
+find "$V2_OUT" -name '*.js' | while read -r f; do
+  sed -E "s#(from '\.[^']*\.js)'#\1?v=$V2_VER'#g" "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+done
+sed -E "s#(src=\"falo3d-2/game.js)\"#\1?v=$V2_VER\"#" public/falo3d-2.html > public/falo3d-2.html.tmp \
+  && mv public/falo3d-2.html.tmp public/falo3d-2.html
+
+echo "✓ Built falo3d-2 ($(find "$V2_OUT" -name '*.js' | wc -l | tr -d ' ') modules, v=$V2_VER)"
 
 # === Build index.html from template ===
 GAMES=$(ls public/*.html 2>/dev/null | grep -cv 'index\.html' || echo 0)

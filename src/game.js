@@ -131,14 +131,14 @@ function updateGun(gun, dt) {
 // never edge-on and invisible. It flies straight out along the crosshair.
 function createBullet(scene, from, dir) {
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.06, 8, 8),
+    new THREE.SphereGeometry(0.1, 10, 10),
     new THREE.MeshBasicMaterial({ color: 0xffee66, transparent: true, opacity: 1 })
   );
   mesh.position.copy(from);
-  const light = new THREE.PointLight(0xffcc44, 2, 6);
+  const light = new THREE.PointLight(0xffcc44, 3, 8);
   mesh.add(light);
   scene.add(mesh);
-  return { mesh, dir: dir.clone(), speed: 45, life: 0.6 };
+  return { mesh, dir: dir.clone(), speed: 22, life: 1.0 };
 }
 
 function createFlash(scene, pos) {
