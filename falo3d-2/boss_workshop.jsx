@@ -724,37 +724,105 @@ function buildTwins() {
   const bn = new THREE.MeshLambertMaterial({ color: PAL.bone });
   const ey = new THREE.MeshBasicMaterial({ color: PAL.eye });
   const gl = new THREE.MeshBasicMaterial({ color: PAL.glow });
-  const tethMat = new THREE.MeshBasicMaterial({ color: PAL.glowPurple });
 
-  function buildTwin(skinMat, xOff, facingZ) {
+  // HIP_Y is where the legs hang from, and everything above it is placed
+  // relative to that rather than to the floor.
+  //
+  // The legs used to hang off y 0.3 while the torso's underside was at 0.45,
+  // so they were visibly detached — and worse, the chain is 0.9 long, which
+  // put the feet 0.55 BELOW the floor. It was never standing on anything.
+  //
+  // Rather than stubbing the legs to reach up to a low torso, the body is
+  // lifted to sit on top of them. They're lanky aliens; long legs suit them,
+  // and it brings them to about 2.3 tall, in line with the other bosses
+  // instead of being the smallest thing in the game.
+  const HIP_Y = 0.9;            // = the leg chain's reach, so toes touch 0
+  const TORSO_Y = HIP_Y + 0.55; // half the torso's height above the hips
+
+  // `scale` makes one twin bigger than the other. Scaling the whole group is
+  // safe here because the model's origin is on the floor between its feet —
+  // it grows upward and outward from the ground rather than sinking or
+  // lifting off it, so no heights need touching to compensate.
+  // Cool grey plate on a warm brown body. PAL.armor is near-black and would
+  // vanish into these two — armorLt is light enough to read as worn armour
+  // rather than as a darker patch of the same creature.
+  const plateMat = new THREE.MeshLambertMaterial({ color: PAL.armorLt });
+
+  // An alien blaster: a bulbous organic body, a bone barrel, and a lit muzzle.
+  // Built along -Y so it hangs from the hand the way the forearm does, with
+  // the muzzle leading.
+  function buildBlaster() {
+    const b = new THREE.Group();
+    const bodyGeo = new THREE.SphereGeometry(0.1, 6, 5);
+    bodyGeo.scale(0.8, 0.85, 1.5);
+    b.add(new THREE.Mesh(bodyGeo, new THREE.MeshLambertMaterial({ color: PAL.armorLt })));
+
+    const barrel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.045, 0.3, 6), bn);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.z = 0.2;
+    b.add(barrel);
+
+    const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), gl);
+    muzzle.position.z = 0.35;
+    b.add(muzzle);
+
+    // Vents along the top, so it reads as a thing that gets hot.
+    for (const vz of [-0.02, 0.06, 0.14]) {
+      const v = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.02, 0.04), gl);
+      v.position.set(0, 0.07, vz);
+      b.add(v);
+    }
+
+    // Grip, running back under the body into the hand.
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.06),
+      new THREE.MeshLambertMaterial({ color: PAL.armor }));
+    grip.position.set(0, -0.08, -0.06);
+    b.add(grip);
+    return b;
+  }
+
+  function buildTwin(skinMat, xOff, facingZ, scale = 1, armored = false,
+                     blaster = false) {
     const twin = new THREE.Group();
 
     // Torso
     const tG = new THREE.SphereGeometry(0.5, 7, 6); tG.scale(1, 1.1, 0.85);
     const torso = new THREE.Mesh(tG, skinMat);
-    torso.position.y = 1.0; torso.rotation.x = facingZ > 0 ? 0.2 : -0.2;
+    torso.position.y = TORSO_Y; torso.rotation.x = facingZ > 0 ? 0.2 : -0.2;
     twin.add(torso);
+
+    if (armored) {
+      // Breastplate. A child of the torso, so it leans with the body instead
+      // of hanging in front of it. The torso's squash is baked into its
+      // GEOMETRY rather than its scale, so this doesn't inherit the distortion.
+      const chestGeo = new THREE.SphereGeometry(0.32, 7, 6);
+      chestGeo.scale(1.25, 1.35, 0.6);
+      const chest = new THREE.Mesh(chestGeo, plateMat);
+      chest.position.set(0, 0.04, facingZ * 0.26);
+      torso.add(chest);
+    }
 
     // Head
     const hG = new THREE.SphereGeometry(0.28, 6, 5); hG.scale(0.85, 0.9, 1.2);
     const head = new THREE.Mesh(hG, skinMat);
-    head.position.set(0, 1.65, facingZ * 0.15); twin.add(head);
+    head.position.set(0, TORSO_Y + 0.65, facingZ * 0.15); twin.add(head);
 
     // Brow
     twin.add(cfg(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.07, 0.18),
       new THREE.MeshLambertMaterial({ color: PAL.armor })),
-      { position: new THREE.Vector3(0, 1.72, facingZ * 0.35) }));
+      { position: new THREE.Vector3(0, TORSO_Y + 0.72, facingZ * 0.35) }));
 
     // Eyes
     for (const ex of [-0.12, 0.12]) {
       const e = new THREE.Mesh(new THREE.SphereGeometry(0.04, 4, 4), ey);
-      e.position.set(ex, 1.65, facingZ * 0.4); twin.add(e);
+      e.position.set(ex, TORSO_Y + 0.65, facingZ * 0.4); twin.add(e);
     }
 
     // Mandibles
     for (const mx of [-0.1, 0.1]) {
       const m = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.2, 4), bn);
-      m.position.set(mx, 1.45, facingZ * 0.4);
+      m.position.set(mx, TORSO_Y + 0.45, facingZ * 0.4);
       m.rotation.x = facingZ > 0 ? 0.4 : -0.4;
       m.rotation.z = mx > 0 ? -0.3 : 0.3; twin.add(m);
     }
@@ -762,59 +830,90 @@ function buildTwins() {
     // Arms
     const arms = [];
     for (const side of [-1, 1]) {
-      const sp = new THREE.Group(); sp.position.set(side * 0.5, 1.3, 0); twin.add(sp);
+      const sp = new THREE.Group(); sp.position.set(side * 0.5, TORSO_Y + 0.3, 0); twin.add(sp);
       sp.add(new THREE.Mesh(new THREE.SphereGeometry(0.13, 5, 5), skinMat));
+      if (armored) {
+        const pGeo = new THREE.SphereGeometry(0.2, 6, 5);
+        pGeo.scale(1.05, 0.8, 1.05);
+        const pauldron = new THREE.Mesh(pGeo, plateMat);
+        pauldron.position.set(side * 0.05, 0.04, 0);
+        sp.add(pauldron);
+      }
       const uG = new THREE.CylinderGeometry(0.07, 0.06, 0.55, 5); uG.translate(0, -0.28, 0);
       const u = new THREE.Mesh(uG, skinMat); u.rotation.z = side * 0.35; sp.add(u);
       const ep = new THREE.Group(); ep.position.y = -0.55; u.add(ep);
       ep.add(new THREE.Mesh(new THREE.SphereGeometry(0.06, 4, 4), skinMat));
       const fG = new THREE.CylinderGeometry(0.06, 0.04, 0.5, 5); fG.translate(0, -0.25, 0);
-      ep.add(cfg(new THREE.Mesh(fG, skinMat), { rotation: new THREE.Euler(-0.3, 0, 0) }));
-      arms.push({ shoulderPivot: sp, elbowPivot: ep, side });
+      // Mirrored with the twin. This was a fixed -0.3 for both of them, so
+      // the one facing the other way had its forearm bending backwards.
+      const fore = new THREE.Mesh(fG, skinMat);
+      fore.rotation.x = facingZ > 0 ? -0.3 : 0.3;
+      ep.add(fore);
+
+      // Blaster in the right hand. Parented to the forearm, so it tracks the
+      // arm through the walk swing instead of hanging in the air beside it.
+      if (blaster && side === 1) {
+        const gun = buildBlaster();
+        gun.position.set(0, -0.5, facingZ * 0.08);
+        gun.rotation.y = facingZ > 0 ? 0 : Math.PI;
+        gun.rotation.x = 0.3;
+        fore.add(gun);
+      }
+      arms.push({ shoulderPivot: sp, elbowPivot: ep, fore, side });
     }
 
     // Legs
     const legs = [];
     for (const lx of [-0.2, 0.2]) {
-      const hip = new THREE.Group(); hip.position.set(lx, 0.3, 0); twin.add(hip);
+      const hip = new THREE.Group(); hip.position.set(lx, HIP_Y, 0); twin.add(hip);
       const uG = new THREE.CylinderGeometry(0.08, 0.06, 0.45, 5); uG.translate(0, -0.23, 0);
-      const upper = new THREE.Mesh(uG, skinMat); upper.rotation.x = facingZ > 0 ? 0.2 : -0.2; hip.add(upper);
+      // Knee forward, shin back under the body. The signs were inverted, which
+      // read as the legs being on backwards on BOTH twins — the mirroring
+      // between them was right, the base direction wasn't.
+      const upTilt = facingZ > 0 ? -0.2 : 0.2;
+      const loTilt = facingZ > 0 ? 0.35 : -0.35;
+      const upper = new THREE.Mesh(uG, skinMat); upper.rotation.x = upTilt; hip.add(upper);
       const knee = new THREE.Group(); knee.position.y = -0.45; upper.add(knee);
       knee.add(new THREE.Mesh(new THREE.SphereGeometry(0.06, 4, 4), skinMat));
+      if (armored) {
+        const kGeo = new THREE.SphereGeometry(0.1, 6, 5);
+        kGeo.scale(1.1, 0.95, 1.05);
+        const cap = new THREE.Mesh(kGeo, plateMat);
+        cap.position.set(0, 0, facingZ * 0.03);
+        knee.add(cap);
+      }
       const lG = new THREE.CylinderGeometry(0.05, 0.04, 0.4, 5); lG.translate(0, -0.2, 0);
-      const lower = new THREE.Mesh(lG, skinMat); lower.rotation.x = facingZ > 0 ? -0.35 : 0.35; knee.add(lower);
+      const lower = new THREE.Mesh(lG, skinMat); lower.rotation.x = loTilt; knee.add(lower);
       const fg = new THREE.Group(); fg.position.y = -0.4; lower.add(fg);
+      // The toe follows the leg: it was a fixed -0.5 and pointed backwards
+      // on whichever twin the leg didn't happen to suit.
       fg.add(cfg(new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12, 4), bn),
-        { rotation: new THREE.Euler(-0.5, 0, 0) }));
-      legs.push({ hip, upper, lower, baseUpper: facingZ > 0 ? 0.2 : -0.2, baseLower: facingZ > 0 ? -0.35 : 0.35 });
+        { rotation: new THREE.Euler(facingZ > 0 ? 0.5 : -0.5, 0, 0) }));
+      legs.push({ hip, upper, lower, baseUpper: upTilt, baseLower: loTilt });
     }
 
     twin.position.x = xOff;
+    twin.scale.setScalar(scale);
     return { group: twin, arms, legs };
   }
 
-  const twin1 = buildTwin(sk1, -0.6, 1);
-  const twin2 = buildTwin(sk2, 0.6, -1);
+  // The brown one is the bigger of the pair. The blue is untouched — same
+  // height, same width as before.
+  //
+  // It stands further out than the blue does: at 1.25 its torso and arms
+  // reach back across the centre line far enough to overlap its twin at the
+  // old 0.6, so the extra girth has to be given somewhere to go.
+  const twin1 = buildTwin(sk1, -0.6, 1, 1, false, true);
+  const twin2 = buildTwin(sk2, 0.82, -1, 1.25, true);
   g.add(twin1.group);
   g.add(twin2.group);
 
-  // Energy tether between them
-  const tether = [];
-  for (let s = 0; s < 8; s++) {
-    const t = s / 7;
-    const x = -0.6 + t * 1.2;
-    const tG = new THREE.SphereGeometry(0.04 + Math.sin(t * Math.PI) * 0.03, 4, 4);
-    const tM = new THREE.Mesh(tG, tethMat);
-    tM.position.set(x, 1.0, 0);
-    g.add(tM);
-    tether.push({ mesh: tM, baseX: x, t });
-  }
-
-  const tetherLight = new THREE.PointLight(0xff44cc, 1.5, 5);
-  tetherLight.position.set(0, 1.0, 0); g.add(tetherLight);
   g.add(new THREE.PointLight(0xff2244, 1, 6));
 
-  g.userData = { type: "twins", twin1, twin2, tether, tetherLight };
+  // No tether. The animation still checks for one, so the keys stay present
+  // and empty rather than being deleted — otherwise animateBoss reaches into
+  // undefined the first frame it runs.
+  g.userData = { type: "twins", twin1, twin2, tether: [], tetherLight: null };
   return g;
 }
 
@@ -934,10 +1033,13 @@ function animateBoss(model, time) {
   }
 
   if (d.type === "twins") {
-    walkLegs(d.twin1.legs, 3.5, 0.18);
-    walkLegs(d.twin2.legs, 3.5, 0.18);
-    swingArms(d.twin1.arms, 2.5);
-    swingArms(d.twin2.arms, 2.5);
+    // The blue one is the fast, lightly built twin; the brown one is the
+    // heavy. The gait is the only place that reads at a glance before the
+    // fight's mechanics exist.
+    walkLegs(d.twin1.legs, 6.0, 0.26);
+    walkLegs(d.twin2.legs, 2.6, 0.15);
+    swingArms(d.twin1.arms, 4.5);
+    swingArms(d.twin2.arms, 1.9);
     // Tether pulses and waves
     if (d.tether) d.tether.forEach(t => {
       t.mesh.position.y = 1.0 + Math.sin(time * 3 + t.t * Math.PI * 2) * 0.12;
@@ -964,7 +1066,7 @@ const WILDCARDS = [
   { name: "The Mimic", desc: "Your own silhouette made of alien flesh. Wrong proportions, too-long arms. Uncanny valley horror.", build: buildMimic, meshCount: "~55", color: "#ff1122", accent: "#440022" },
   { name: "Burrower", desc: "Giant worm. Only segments arc above floor. Burrows and re-emerges. You fight it in pieces.", build: buildBurrower, meshCount: "~60", color: "#ff2244", accent: "#ff6644" },
   { name: "The Trojan", desc: "Looks like a supply crate until eyes peek out and legs unfold. Ambush boss.", build: buildTrojan, meshCount: "~50", color: "#ffaa22", accent: "#ffaa22" },
-  { name: "The Twins", desc: "Two aliens tethered by energy. Kill one, the other revives it. Must damage both simultaneously.", build: buildTwins, meshCount: "~75", color: "#ff44cc", accent: "#ff44cc" },
+  { name: "The Twins", desc: "Two aliens that share a life. Kill one, the other revives it. Must damage both simultaneously.", build: buildTwins, meshCount: "~65", color: "#ff44cc", accent: "#ff44cc" },
 ];
 
 function BossViewer({ boss, index }) {
