@@ -316,7 +316,7 @@ function placeAlien(aliens, scene, reg, plan, x, z) {
     model, ai, type: plan.type, reg,
     room: plan.room,          // used to park aliens in rooms you're not in
     hp: reg.hp, maxHp: reg.hp,
-    alive: true, flashTimer: 0, deathTimer: 0,
+    alive: true, gone: false, flashTimer: 0, deathTimer: 0,
     spawnPos: new THREE.Vector3(x, reg.baseY, z),
     attackTimer: reg.attackCD * (0.5 + Math.random()),
   });
@@ -853,12 +853,18 @@ function resetRun() {
   for (const p of projectiles) removeProjectile(p);
   projectiles.length = 0;
 
-  // Aliens. Rebuilt rather than revived, for the same reason the respawn in
-  // the game loop rebuilds them: a death animation hides sub-meshes and moves
-  // parts about, so reusing the body gives you a half-rendered alien.
+  // Aliens. Every one of them, including the ones you killed — this is a new
+  // run, and within a run death is permanent, so this is the ONLY thing that
+  // ever brings them back. Clearing `gone` is what does it; miss that and a
+  // second playthrough starts with holes where your first one's kills were.
+  //
+  // Rebuilt rather than revived: a death animation hides sub-meshes and moves
+  // parts about, so reusing the body gives you a half-rendered alien. A body
+  // that has already been taken out of the scene is simply replaced the same
+  // way as any other.
   for (const a of aliens) {
     scene.remove(a.model);
-    disposeModel(a.model);
+    if (!a.gone) disposeModel(a.model);   // already freed when it went
 
     const model = a.reg.build();
     model.position.copy(a.spawnPos);
@@ -869,6 +875,7 @@ function resetRun() {
 
     a.model = model;
     a.alive = true;
+    a.gone = false;
     a.hp = a.maxHp;
     a.deathTimer = 0;
     a.flashTimer = 0;
@@ -1244,7 +1251,7 @@ function gameLoop(now) {
       // across the level. (The boss code below already guards this way.)
       const hitMeshes = [];
       aliens.forEach((a) => {
-        if (a.alive && a.model.visible) {
+        if (!a.gone && a.alive && a.model.visible) {
           a.model.traverse((c) => { if (c.isMesh && c.visible) hitMeshes.push(c); });
         }
       });
@@ -1316,9 +1323,13 @@ function gameLoop(now) {
   const playerRoom = currentRoomId();
 
   aliens.forEach((a) => {
+    // Dead for good. Nothing left to do with it — no body, no brain, and
+    // nothing to shoot. See below for why it stays in the list.
+    if (a.gone) return;
+
     if (!a.alive) {
-      // Corpses wait with everyone else — their clear-up and respawn clocks
-      // should not run down behind a menu.
+      // Corpses wait with everyone else — their clear-up clock should not
+      // run down behind a menu.
       if (!live) return;
       a.deathTimer += dt;
       // Let the AI module handle the death animation
@@ -1327,33 +1338,25 @@ function gameLoop(now) {
       if (a.deathTimer > 5) {
         a.model.visible = false;
       }
-      // Respawn after 8 seconds — rebuild the model from scratch.
-      // Death animations hide sub-meshes and move parts around; reusing the
-      // old model left aliens "half-rendered". Building fresh guarantees a
-      // clean body. We dispose the old geometry so the GPU doesn't leak.
+      // And after 8, it is gone — the body comes out of the scene and its
+      // geometry is freed. It does NOT come back: clearing a room is meant
+      // to stay cleared, so what you killed stays killed for the rest of the
+      // run. Starting a new run rebuilds the lot (see resetRun).
+      //
+      // The entry stays in `aliens` rather than being spliced out, because
+      // resetRun needs the spawn point, the type and the registry to put this
+      // one back when you play again. `gone` is what makes it inert.
       if (a.deathTimer > 8) {
         scene.remove(a.model);
         disposeModel(a.model);
-
-        const model = a.reg.build();
-        model.position.copy(a.spawnPos);
-        model.userData.baseY = a.reg.baseY;
-        a.ai = a.reg.createAI();
-        model.userData.ai = a.ai;
-        scene.add(model);
-
-        a.model = model;
-        a.alive = true;
-        a.hp = a.maxHp;
-        a.deathTimer = 0;
-        a.attackTimer = a.reg.attackCD;
+        a.gone = true;
       }
       return;
     }
 
     // Park anything outside the player's room. Dead aliens are deliberately
-    // left out of this (they return above) — their timers have to keep running
-    // or a corpse in another room would never clear or respawn.
+    // left out of this (they return above) — their clear-up timer has to keep
+    // running or a corpse in another room would never clear.
     const dist = a.model.position.distanceTo(ctrl.position);
     const active = a.room === playerRoom || dist < ACTIVE_RADIUS;
     if (a.model.visible !== active) a.model.visible = active;
