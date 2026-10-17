@@ -12,12 +12,15 @@
 
 import * as THREE from 'three';
 import { roomIdAt, WALL_HEIGHT as WALL_H,
-         SURFACE_WHITE } from './grid_map.js?v=0ba5483f36';
+         SURFACE_WHITE } from './grid_map.js?v=0579c96020';
 // Specimens for the pods room. These come from workshop_models.js — the
 // current models, straight out of the Alien Workshop — not from the older
 // crawler/floater/brute modules the fightable aliens are still built from.
 import { buildCrawler, buildFloater, buildBrute, buildWatcher }
-  from '../aliens/workshop_models.js?v=0ba5483f36';
+  from '../aliens/workshop_models.js?v=0579c96020';
+// The control room's map screen is drawn from the same painted cells the
+// level itself is built from.
+import { GRID } from './grid_data.js?v=0579c96020';
 
 // Deterministic jitter, so the wreck looks scattered but lands in the same
 // place every run. Math.random() here would move the bodies on every reload.
@@ -2738,6 +2741,464 @@ export function buildStudyScreen(scene, room) {
   group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
   scene.add(group);
   return { group, colliders: [{ x: room.x0 + 6.0, z: room.z1 - 0.5, r: 0.6 }] };
+}
+
+
+// ─── THE CONTROL ROOM ───────────────────────────────────────
+// You come through the Locked Door heading east, so the wall you walk at is
+// the room's 24m unbroken east run. A window onto space along the top of it,
+// the station's main control station filling the whole wall underneath, and
+// three command chairs at the middle of it with their crew still in them.
+
+// A screen, drawn as text on a canvas. Everything else in the level is built
+// from boxes, but a readout has to be read.
+function crtPanel(w, h, draw) {
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  const x = cv.getContext('2d');
+  x.fillStyle = '#04130c';
+  x.fillRect(0, 0, w, h);
+  draw(x, w, h);
+  x.fillStyle = 'rgba(0,0,0,0.16)';
+  for (let sy = 0; sy < h; sy += 4) x.fillRect(0, sy, w, 2);
+  const tex = new THREE.CanvasTexture(cv);
+  // Non power-of-two: without these it comes back resized or blank.
+  tex.minFilter = tex.magFilter = THREE.LinearFilter;
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.generateMipmaps = false;
+  return tex;
+}
+
+const GREEN = '#6effa8', DIM = '#2f8f5c', WARN = '#ffb347', BAD = '#ff6b5e';
+
+function readoutPanel(title, rows) {
+  return crtPanel(512, 320, (x, w) => {
+    x.fillStyle = '#0c2f1d';
+    x.fillRect(0, 0, w, 36);
+    x.fillStyle = GREEN;
+    x.font = 'bold 20px "Courier New", monospace';
+    x.fillText(title, 14, 25);
+    let y = 72;
+    for (const [label, value, state] of rows) {
+      x.font = '17px "Courier New", monospace';
+      x.fillStyle = DIM;
+      x.fillText(label, 14, y);
+      x.fillStyle = state === 'bad' ? BAD : state === 'warn' ? WARN : GREEN;
+      x.textAlign = 'right';
+      x.fillText(value, w - 14, y);
+      x.textAlign = 'left';
+      y += 30;
+    }
+  });
+}
+
+// A plan of the station, drawn from the same painted cells the level is built
+// from — so it is a true map of everywhere you have walked, not a drawing of
+// one.
+function stationMapPanel() {
+  return crtPanel(512, 384, (x, w, h) => {
+    const cells = GRID.cells;
+    let ix0 = Infinity, ix1 = -Infinity, iz0 = Infinity, iz1 = -Infinity;
+    for (const [cx, cz] of cells) {
+      if (cx < ix0) ix0 = cx; if (cx > ix1) ix1 = cx;
+      if (cz < iz0) iz0 = cz; if (cz > iz1) iz1 = cz;
+    }
+    x.fillStyle = '#0c2f1d';
+    x.fillRect(0, 0, w, 32);
+    x.fillStyle = GREEN;
+    x.font = 'bold 18px "Courier New", monospace';
+    x.fillText('STATION PLAN', 12, 22);
+
+    // The map is drawn with x across and z DOWN the panel, the way you'd hold
+    // a plan — north is up, which is -z in the world.
+    const PAD = 16, TOP = 44;
+    const s = Math.min((w - PAD * 2) / (ix1 - ix0 + 1),
+                       (h - TOP - PAD) / (iz1 - iz0 + 1));
+    const ox = (w - (ix1 - ix0 + 1) * s) / 2;
+    const oy = TOP + ((h - TOP - PAD) - (iz1 - iz0 + 1) * s) / 2;
+    const px = (cx) => ox + (cx - ix0) * s;
+    const py = (cz) => oy + (iz1 - cz) * s;
+
+    x.fillStyle = '#17482f';
+    for (const [cx, cz] of cells) x.fillRect(px(cx), py(cz), s + 0.6, s + 0.6);
+
+    // This room picked out, and a caret on it.
+    for (const r of GRID.rooms || []) {
+      if (r.id !== 'room9') continue;
+      x.fillStyle = '#6effa8';
+      for (const [cx, cz] of r.cells) x.fillRect(px(cx), py(cz), s + 0.6, s + 0.6);
+      const mx = r.cells.reduce((a, c) => a + c[0], 0) / r.cells.length;
+      const mz = r.cells.reduce((a, c) => a + c[1], 0) / r.cells.length;
+      x.fillStyle = '#04130c';
+      x.font = 'bold 11px "Courier New", monospace';
+      x.textAlign = 'center';
+      x.fillText('CTRL', px(mx) + s / 2, py(mz) + s / 2);
+      x.textAlign = 'left';
+    }
+  });
+}
+
+// A command chair: pedestal, seat, high back, arms. Built facing +X, which is
+// the way the whole console faces.
+function commandChair(big) {
+  const g = new THREE.Group();
+  const frame = M.hullDk(), pad = big ? M.pilot() : M.metal();
+  const SEAT = 0.46, BW = big ? 0.6 : 0.54;
+
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.4, 0.06, 10), frame);
+  foot.position.y = 0.03;
+  g.add(foot);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, SEAT - 0.1, 8), frame);
+  stem.position.y = SEAT / 2;
+  g.add(stem);
+
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.12, BW), pad);
+  seat.position.y = SEAT;
+  g.add(seat);
+  const back = new THREE.Mesh(
+    new THREE.BoxGeometry(0.13, big ? 0.82 : 0.68, BW), pad);
+  back.position.set(-0.24, SEAT + (big ? 0.44 : 0.37), 0);
+  back.rotation.z = -0.12;                   // reclined, not upright
+  g.add(back);
+  if (big) {
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 0.36), pad);
+    head.position.set(-0.33, SEAT + 0.95, 0);
+    head.rotation.z = -0.12;
+    g.add(head);
+  }
+  for (const side of [-1, 1]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.07, 0.09), frame);
+    arm.position.set(0.04, SEAT + 0.26, side * (BW / 2 + 0.02));
+    g.add(arm);
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.26, 0.07), frame);
+    post.position.set(-0.16, SEAT + 0.13, side * (BW / 2 + 0.02));
+    g.add(post);
+  }
+  return g;
+}
+
+// Someone still in their chair. Built facing +X like the chair.
+//
+// `lean` tips the upper body forward over the console (negative is forward,
+// since rotating +Y about Z carries it to +X), `roll` tips it sideways. The
+// whole upper body hangs off one pivot at the hip so the head, arms and
+// shoulders all go with it instead of being posed one at a time.
+function seatedBody({ cloth, capMat, lean, roll, armDrop, seed }) {
+  const g = new THREE.Group();
+  const rand = rng(seed);
+  const skin = M.flesh();
+  const SEAT = 0.46;
+
+  const hips = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.22, 0.44), cloth);
+  hips.position.set(-0.02, SEAT + 0.13, 0);
+  g.add(hips);
+
+  // Thighs forward off the seat, shins down to the floor.
+  for (const side of [-1, 1]) {
+    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.09, 0.5, 6), cloth);
+    thigh.position.set(0.22, SEAT + 0.11, side * 0.14);
+    thigh.rotation.z = Math.PI / 2;
+    g.add(thigh);
+    const knee = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 5), cloth);
+    knee.position.set(0.45, SEAT + 0.08, side * 0.15);
+    g.add(knee);
+    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.07, 0.48, 6), cloth);
+    shin.position.set(0.45, SEAT - 0.17, side * 0.15);
+    shin.rotation.z = 0.12;
+    g.add(shin);
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.15), M.hullDk());
+    boot.position.set(0.52, 0.06, side * 0.15);
+    g.add(boot);
+  }
+
+  const upper = new THREE.Group();
+  upper.position.set(-0.02, SEAT + 0.2, 0);
+  upper.rotation.x = roll;
+  upper.rotation.z = lean;
+  g.add(upper);
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.56, 0.46), cloth);
+  torso.position.y = 0.28;
+  upper.add(torso);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), skin);
+  head.position.set(0.02, 0.68, 0);
+  upper.add(head);
+  if (capMat) {
+    const cap = new THREE.Mesh(
+      new THREE.SphereGeometry(0.17, 9, 5, 0, Math.PI * 2, 0, Math.PI * 0.5), capMat);
+    cap.position.set(0.02, 0.7, 0);
+    upper.add(cap);
+    const peak = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.025, 0.26), capMat);
+    peak.position.set(0.18, 0.69, 0);
+    upper.add(peak);
+  }
+  // One arm on the rest, one hanging off it.
+  for (const side of [-1, 1]) {
+    const drop = side === armDrop;
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.56, 6), cloth);
+    if (drop) {
+      arm.position.set(-0.04, 0.16, side * 0.3);
+      arm.rotation.x = side * 0.25;
+    } else {
+      arm.position.set(0.2, 0.3, side * 0.26);
+      arm.rotation.z = Math.PI / 2 - 0.3;
+    }
+    upper.add(arm);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.07, 5, 4), skin);
+    hand.position.copy(arm.position);
+    hand.position.x += drop ? 0.0 : 0.26;
+    hand.position.y += drop ? -0.3 : -0.08;
+    hand.position.z += drop ? side * 0.07 : 0;
+    upper.add(hand);
+  }
+  // Rank bars on the shoulders for the one wearing the cap.
+  if (capMat) {
+    for (const side of [-1, 1]) {
+      for (let b = 0; b < 2; b++) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.015, 0.03), M.brass());
+        bar.position.set(0.02 + b * 0.05, 0.53, side * 0.2);
+        upper.add(bar);
+      }
+    }
+  }
+  return g;
+}
+
+export function buildControlRoom(scene, room, seed = 4040) {
+  const rand = rng(seed);
+  const group = new THREE.Group();
+  const colliders = [];
+  const shell = M.metal(), dark = M.hullDk(), trim = M.bar();
+
+  const WX = room.x1;                       // the wall you walk at
+  // How far the pilots sit out from the general. At a couple of metres the
+  // three of them read as one clump rather than as a crew working a wall.
+  const CREW_SPREAD = 4.4;
+  const Z0 = room.z0 + 0.5, Z1 = room.z1 - 0.5, ZL = Z1 - Z0, ZC = (Z0 + Z1) / 2;
+  const CREW_Z = [ZC + CREW_SPREAD, ZC, ZC - CREW_SPREAD];
+
+  // ── THE WINDOW ────────────────────────────────────────────
+  // Built like the Hangar's breach but intact: void, stars in front of it,
+  // then a planet in front of those so it occludes them the way a world
+  // would. A plane faces +Z, so everything turns a quarter to face back down
+  // the room at -X.
+  const SILL = 2.02, HEAD = 3.56, WH = HEAD - SILL, WY = (SILL + HEAD) / 2;
+  const GZ0 = room.z0 + 1.2, GZ1 = room.z1 - 1.2, GW = GZ1 - GZ0, GZC = (GZ0 + GZ1) / 2;
+  {
+    const faceOut = (mesh, inset) => {
+      mesh.position.set(WX - inset, WY, GZC);
+      mesh.rotation.y = -Math.PI / 2;
+      group.add(mesh);
+    };
+    faceOut(new THREE.Mesh(new THREE.PlaneGeometry(GW, WH),
+      new THREE.MeshBasicMaterial({ color: 0x03040a, side: THREE.DoubleSide })), 0.04);
+
+    const pts = [], cols = [];
+    for (let i = 0; i < 900; i++) {
+      const b = 0.3 + rand() * 0.7, t = rand();
+      pts.push(WX - 0.1,
+               WY + (rand() - 0.5) * WH * 0.99,
+               GZC + (rand() - 0.5) * GW * 0.99);
+      cols.push(b * (t > 0.85 ? 1 : 0.9), b * (t > 0.85 ? 0.86 : 0.96),
+                b * (t > 0.85 ? 0.7 : 1));
+    }
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    sg.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    group.add(new THREE.Points(sg, new THREE.PointsMaterial({
+      size: 0.055, sizeAttenuation: true, vertexColors: true })));
+
+    // A world below, rising past the sill. Its centre has to sit BELOW the
+    // sill by less than its radius, or the top of the disc clears the window
+    // head and all you see is a flat blue band with no curve to it at all.
+    const PR = 2.3, PCY = SILL - 1.15;
+    const planet = new THREE.Mesh(new THREE.CircleGeometry(PR, 44),
+      new THREE.MeshBasicMaterial({ color: 0x16283f }));
+    planet.position.set(WX - 0.14, PCY, GZC + GW * 0.2);
+    planet.rotation.y = -Math.PI / 2;
+    group.add(planet);
+    const limb = new THREE.Mesh(
+      new THREE.RingGeometry(PR - 0.07, PR, 44, 1, 0.6, 1.95),
+      new THREE.MeshBasicMaterial({ color: 0x6f9fd4, side: THREE.DoubleSide }));
+    limb.position.set(WX - 0.145, PCY, GZC + GW * 0.2);
+    limb.rotation.y = -Math.PI / 2;
+    group.add(limb);
+
+    // Frame: sill, head, and mullions splitting it into panes.
+    for (const [fy, fh] of [[SILL - 0.09, 0.18], [HEAD + 0.09, 0.18]]) {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.3, fh, GW + 0.36), shell);
+      bar.position.set(WX - 0.15, fy, GZC);
+      group.add(bar);
+    }
+    const PANES = 7;
+    for (let i = 0; i <= PANES; i++) {
+      const mz = GZ0 + (i / PANES) * GW;
+      const mull = new THREE.Mesh(new THREE.BoxGeometry(0.26, WH + 0.1, 0.16), shell);
+      mull.position.set(WX - 0.13, WY, mz);
+      group.add(mull);
+    }
+    // The glass itself: barely there, but it catches the room's light and
+    // stops the window reading as an open hole like the Hangar's breach.
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(GW, WH),
+      new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true,
+        opacity: 0.05, side: THREE.DoubleSide, depthWrite: false }));
+    glass.position.set(WX - 0.2, WY, GZC);
+    glass.rotation.y = -Math.PI / 2;
+    glass.renderOrder = 3;
+    group.add(glass);
+  }
+
+  // ── THE CONTROL STATION ───────────────────────────────────
+  // One run the whole length of the wall: cabinet, desk, a panel raked up off
+  // the back of it, and an upright bank of screens above that.
+  const DD = 1.0;                              // desk depth
+  const DX = WX - DD / 2 - 0.06;               // desk centre
+  const DESK_Y = 0.78;
+  {
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(DD - 0.18, DESK_Y - 0.08, ZL), dark);
+    cab.position.set(DX + 0.05, (DESK_Y - 0.08) / 2, ZC);
+    group.add(cab);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(DD, 0.08, ZL), shell);
+    top.position.set(DX, DESK_Y, ZC);
+    group.add(top);
+
+    // The raked panel. Rotating about Z tips it up at the back; the height it
+    // then stands is what the upright bank above has to start from.
+    const RAKE = 0.62, RL = 0.56;
+    const rake = new THREE.Mesh(new THREE.BoxGeometry(RL, 0.07, ZL), shell);
+    rake.position.set(WX - 0.3, DESK_Y + 0.21, ZC);
+    rake.rotation.z = RAKE;
+    group.add(rake);
+
+    const BANK_Y0 = 1.08, BANK_H = SILL - BANK_Y0, BANK_YC = BANK_Y0 + BANK_H / 2;
+    const bank = new THREE.Mesh(new THREE.BoxGeometry(0.16, BANK_H, ZL), dark);
+    bank.position.set(WX - 0.1, BANK_YC, ZC);
+    group.add(bank);
+
+    // Switch banks and indicator lights across the raked panel, merged.
+    const keys = [], lamps = [], warnLamps = [];
+    for (let z = Z0 + 0.4; z < Z1 - 0.3; z += 0.42) {
+      // Thin the switchgear out where someone is sitting, at whichever three
+      // places along the wall the crew actually ended up.
+      const atCrew = CREW_Z.some((cz) => Math.abs(z - cz) < 1.1);
+      if (atCrew && rand() < 0.5) continue;
+      for (let k = 0; k < 4; k++) {
+        pushBox(keys, WX - 0.52 + k * 0.025, DESK_Y + 0.3 + k * 0.1, z,
+                0.05, 0.02, 0.26);
+      }
+      const bucket = rand() < 0.18 ? warnLamps : lamps;
+      for (let k = 0; k < 3; k++) {
+        pushBox(bucket, WX - 0.33, DESK_Y + 0.57, z - 0.1 + k * 0.1,
+                0.03, 0.02, 0.04);
+      }
+    }
+    for (const [arr, col] of [[keys, 0x9aa3ad], [lamps, 0x6effa8], [warnLamps, 0xffb347]]) {
+      const bg = new THREE.BufferGeometry();
+      bg.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+      bg.computeVertexNormals();
+      group.add(new THREE.Mesh(bg, col === 0x9aa3ad
+        ? new THREE.MeshLambertMaterial({ color: col })
+        : new THREE.MeshBasicMaterial({ color: col })));
+    }
+
+    // Screens along the upright bank. The map is the middle one, over the
+    // general's chair, because that is the one you walk at.
+    const PANELS = [
+      readoutPanel('REACTOR', [['CORE OUTPUT', '12%', 'bad'], ['COOLANT', 'HOLDING'],
+                               ['VENT 3', 'FAULT', 'warn'], ['SCRAM', 'ARMED', 'warn']]),
+      readoutPanel('LIFE SUPPORT', [['BAY 4', 'SEALED', 'warn'], ['HANGAR', 'VACUUM', 'bad'],
+                                    ['O2 RESERVE', '31%', 'warn'], ['SCRUBBERS', 'ONLINE']]),
+      stationMapPanel(),
+      readoutPanel('DOOR CONTROL', [['SECTOR 1-3', 'OPEN'], ['PRISON BLOCK', 'OPEN', 'warn'],
+                                    ['CONTROL', 'LOCKED', 'bad'], ['OVERRIDE', 'THIS PANEL']]),
+      readoutPanel('CONTACTS', [['BAY 4', '4 HELD', 'warn'], ['BAY 4', '0 HELD', 'bad'],
+                                ['STATION', 'UNKNOWN', 'bad'], ['BEACON', 'NO REPLY', 'bad']]),
+    ];
+    // Seven positions across the wall, cycling the five readouts, with the
+    // station plan put dead centre over the general's chair — that is the one
+    // you walk straight at coming through the door.
+    // Fit each screen between the bank's bottom edge and the underside of the
+    // window sill. Sized off the bank's own height instead, the sill's frame
+    // bar laid across the top 10cm of every one — which is exactly where the
+    // title of each readout is.
+    const SCR_TOP = SILL - 0.22, SCR_BOT = BANK_Y0 + 0.06;
+    const SH = SCR_TOP - SCR_BOT, SCR_Y = (SCR_TOP + SCR_BOT) / 2;
+    const SLOTS = 7;
+    for (let i = 0; i < SLOTS; i++) {
+      const sz = Z0 + (i + 0.5) * (ZL / SLOTS);
+      const tex = i === (SLOTS - 1) / 2 ? PANELS[2]
+                                        : PANELS[(i * 2 + 1) % PANELS.length];
+      const sw = SH * (tex.image.width / tex.image.height);
+      const scr = new THREE.Mesh(new THREE.PlaneGeometry(sw, SH),
+        new THREE.MeshBasicMaterial({ map: tex }));
+      scr.position.set(WX - 0.19, SCR_Y, sz);
+      scr.rotation.y = -Math.PI / 2;
+      group.add(scr);
+      const bez = new THREE.Mesh(
+        new THREE.BoxGeometry(0.07, SH + 0.08, sw + 0.08), dark);
+      bez.position.set(WX - 0.15, SCR_Y, sz);
+      group.add(bez);
+    }
+
+    for (let z = Z0; z <= Z1; z += 0.7) colliders.push({ x: DX, z, r: 0.62 });
+  }
+
+  // ── THE CREW ──────────────────────────────────────────────
+  // General in the middle with the map over his head, a pilot either side.
+  // Each one slumped differently: three identical poses read as a glitch.
+  //
+  // `yaw` swivels the chair and whoever is in it together. Square-on to the
+  // console, all you see walking in is three chair backs. The general's is
+  // turned furthest: he came off the console to face the door.
+  const CREW = [
+    { z: CREW_Z[0], big: false, cloth: M.pilot(), cap: null, yaw: 0.34,
+      lean: -0.95, roll: 0.1, armDrop: 1, seed: 611 },      // forward onto the desk
+    { z: CREW_Z[1], big: true, cloth: M.fatigue(), cap: M.helmet(), yaw: 1.05,
+      lean: 0.16, roll: -0.3, armDrop: -1, seed: 733 },     // back, turned to the door
+    { z: CREW_Z[2], big: false, cloth: M.pilot(), cap: null, yaw: -0.42,
+      lean: -0.2, roll: 0.55, armDrop: 1, seed: 857 },      // lolled to one side
+  ];
+  for (const c of CREW) {
+    const chair = commandChair(c.big);
+    chair.position.set(DX - 1.15, 0, c.z);
+    chair.rotation.y = c.yaw;
+    group.add(chair);
+    const body = seatedBody({ cloth: c.cloth, capMat: c.cap, lean: c.lean,
+                              roll: c.roll, armDrop: c.armDrop, seed: c.seed });
+    body.position.set(DX - 1.15, 0, c.z);
+    body.rotation.y = c.yaw;
+    group.add(body);
+
+    const pool = bloodPool(0.4 + rand() * 0.18, c.seed + 9);
+    pool.position.set(DX - 0.95, 0, c.z + (rand() - 0.5) * 0.3);
+    group.add(pool);
+    colliders.push({ x: DX - 1.15, z: c.z, r: 0.5 });
+  }
+  // The general bled onto his own console.
+  const smear = bloodPool(0.28, 2929);
+  smear.position.set(DX + 0.1, DESK_Y + 0.05, ZC + 0.1);
+  group.add(smear);
+
+  // ── LIGHT ─────────────────────────────────────────────────
+  // Two fixtures over the console only. Lighting all 32x24 of this room would
+  // cost four or five more point lights on a shader the whole level shares,
+  // and leaving the far end dark puts the eye on the wall you came in facing.
+  for (const lz of [ZC - 4.5, ZC + 4.5]) {
+    const housing = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.1, 0.34), shell);
+    housing.position.set(WX - 1.6, WALL_H - 0.14, lz);
+    group.add(housing);
+    const tube = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.04, 0.24),
+      new THREE.MeshBasicMaterial({ color: 0xdce8ff }));
+    tube.position.set(WX - 1.6, WALL_H - 0.21, lz);
+    group.add(tube);
+    const lamp = new THREE.PointLight(0xcfe0f5, 1.1, 14, 1.4);
+    lamp.position.set(WX - 2.2, WALL_H - 0.7, lz);
+    group.add(lamp);
+  }
+
+  group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
+  scene.add(group);
+  return { group, colliders };
 }
 
 // ─── THE HANGAR CRASH SITE ──────────────────────────────────

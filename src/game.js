@@ -44,7 +44,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
          buildAlienBoard, buildAlienPods,
-         buildStudyScreen } from './map/props.js';
+         buildStudyScreen, buildControlRoom } from './map/props.js';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -331,6 +331,11 @@ propColliders.push(...pods.colliders);
 // the far wall.
 const study = buildStudyScreen(scene, ROOMS.find((r) => r.id === 'room8'));
 propColliders.push(...study.colliders);
+
+// The Control Room: a window onto space along the wall you walk at, the
+// station's control station filling it underneath, and the crew still at it.
+const control = buildControlRoom(scene, ROOMS.find((r) => r.id === 'room9'));
+propColliders.push(...control.colliders);
 
 // Start in the Hangar. The old (0, 1.6, 2) is open space on the painted map.
 const START_POS = (() => {
