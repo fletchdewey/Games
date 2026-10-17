@@ -43,7 +43,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
-         buildAlienBoard } from './map/props.js';
+         buildAlienBoard, buildAlienPods } from './map/props.js';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -320,6 +320,11 @@ buildAlienBoard(scene, { x: 3.88, y: 1.85, z: -24.5, rotY: -Math.PI / 2 });
 // plate a Brute shed in the fight. Its crates block you like the Hangar's do.
 const wreckage = buildOutpostWreckage(scene, ROOMS.find((r) => r.id === 'room7'));
 propColliders.push(...wreckage.colliders);
+
+// The pods room: one of each alien held in a green tank, along the south
+// wall — the room's only solid run, and the wall you face coming in.
+const pods = buildAlienPods(scene, ROOMS.find((r) => r.id === 'room8'));
+propColliders.push(...pods.colliders);
 
 // Start in the Hangar. The old (0, 1.6, 2) is open space on the painted map.
 const START_POS = (() => {

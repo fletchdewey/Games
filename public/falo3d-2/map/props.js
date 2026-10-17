@@ -12,7 +12,12 @@
 
 import * as THREE from 'three';
 import { roomIdAt, WALL_HEIGHT as WALL_H,
-         SURFACE_WHITE } from './grid_map.js?v=a9f045b09a';
+         SURFACE_WHITE } from './grid_map.js?v=831fb32a42';
+// Specimens for the pods room. These come from workshop_models.js — the
+// current models, straight out of the Alien Workshop — not from the older
+// crawler/floater/brute modules the fightable aliens are still built from.
+import { buildCrawler, buildFloater, buildBrute, buildWatcher }
+  from '../aliens/workshop_models.js?v=831fb32a42';
 
 // Deterministic jitter, so the wreck looks scattered but lands in the same
 // place every run. Math.random() here would move the bodies on every reload.
@@ -2405,6 +2410,161 @@ export function buildAlienBoard(scene, at, seed = 2187) {
   group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
   scene.add(group);
   return { group };
+}
+
+
+// ─── THE ALIEN PODS ─────────────────────────────────────────
+// Four specimen tanks along the room's long wall, one of each kind of alien
+// held in green fluid. They face the way you come in, smallest to largest.
+//
+// All four come from the workshop models, including the Watcher, which has no
+// fightable counterpart in the game yet at all.
+
+const POD = { R: 0.62, BASE_H: 0.28, GLASS_H: 2.0, CAP_H: 0.26 };
+
+export function buildAlienPods(scene, room, seed = 8808) {
+  const rand = rng(seed);
+  const group = new THREE.Group();
+  const colliders = [];
+
+  const shell = M.metal(), dark = M.hullDk();
+  // depthWrite off and a late renderOrder: the glass and the specimen inside
+  // it sit at almost the same depth, so left to sort themselves out by
+  // distance the glass flickers in front of and behind the creature.
+  const glassMat = new THREE.MeshLambertMaterial({
+    color: 0x2fbd6a, transparent: true, opacity: 0.3,
+    side: THREE.DoubleSide, depthWrite: false });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0x6effa8 });
+  const fluidMote = new THREE.MeshBasicMaterial({ color: 0x9dffc4 });
+
+  const INNER_H = POD.GLASS_H - 0.3, INNER_W = (POD.R - 0.13) * 2;
+  // Fitting every specimen to the same box would make a Crawler and a Brute
+  // the same size. Each one fills its own fraction of the tank instead, so
+  // the row still reads smallest to largest.
+  const SPECIMENS = [
+    { make: buildCrawler, fill: 0.95 },
+    { make: buildFloater, fill: 0.88 },
+    // The workshop builds the Watcher with its lids sealed and irises them
+    // open in its animation loop. Nothing animates a specimen, so left alone
+    // it reads as a blank ball — and the glowing iris is the only thing that
+    // names it. The workshop's own formula is
+    //   rotation.x = PI/2 - (shutClosed + open * shutterOpen)
+    // with shutClosed 0.3 and shutterOpen 1.15, so this is about 70% open.
+    { make: buildWatcher, fill: 0.95,
+      pose: (m) => m.userData.shutters.forEach((sh) => { sh.rotation.x = 0.47; }) },
+    { make: buildBrute,   fill: 1.0 },
+  ];
+
+  const pz = room.z0 + 1.0;
+  SPECIMENS.forEach((spec, i) => {
+    const px = room.x0 + 1.7 + i * 2.2;
+    const pod = new THREE.Group();
+    pod.position.set(px, 0, pz);
+    group.add(pod);
+
+    const plinth = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.72, 0.78, POD.BASE_H, 12), shell);
+    plinth.position.y = POD.BASE_H / 2;
+    pod.add(plinth);
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.78, 0.72, POD.CAP_H, 12), shell);
+    cap.position.y = POD.BASE_H + POD.GLASS_H + POD.CAP_H / 2;
+    pod.add(cap);
+
+    // Struts on the diagonals, so none of them stands across the front.
+    for (let k = 0; k < 4; k++) {
+      const a = Math.PI / 4 + (k / 4) * Math.PI * 2;
+      const strut = new THREE.Mesh(
+        new THREE.BoxGeometry(0.07, POD.GLASS_H, 0.07), dark);
+      strut.position.set(Math.cos(a) * (POD.R + 0.03), POD.BASE_H + POD.GLASS_H / 2,
+                         Math.sin(a) * (POD.R + 0.03));
+      pod.add(strut);
+    }
+
+    const glass = new THREE.Mesh(
+      new THREE.CylinderGeometry(POD.R, POD.R, POD.GLASS_H, 16, 1, true), glassMat);
+    glass.position.y = POD.BASE_H + POD.GLASS_H / 2;
+    glass.renderOrder = 3;
+    pod.add(glass);
+
+    // Lit from the floor of the tank and again from the lid.
+    for (const [gy, gr] of [[POD.BASE_H + 0.04, 0.56], [POD.BASE_H + POD.GLASS_H - 0.05, 0.5]]) {
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(gr, gr, 0.05, 16), glowMat);
+      ring.position.y = gy;
+      pod.add(ring);
+    }
+
+    // Particulate hanging in the fluid.
+    const motes = [];
+    for (let m = 0; m < 14; m++) {
+      const a = rand() * Math.PI * 2, d = rand() * (POD.R - 0.12);
+      pushBox(motes, Math.cos(a) * d, POD.BASE_H + 0.15 + rand() * (POD.GLASS_H - 0.3),
+              Math.sin(a) * d, 0.022, 0.022, 0.022);
+    }
+    const mg = new THREE.BufferGeometry();
+    mg.setAttribute('position', new THREE.Float32BufferAttribute(motes, 3));
+    mg.computeVertexNormals();
+    pod.add(new THREE.Mesh(mg, fluidMote));
+
+    // The specimen, scaled from its own measured size rather than a guess, so
+    // changing an alien's model can't leave it poking through the glass.
+    const holder = new THREE.Group();
+    const model = spec.make();
+    // Pose before measuring: opening the Watcher's lids changes its extents.
+    if (spec.pose) spec.pose(model);
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const c = box.getCenter(new THREE.Vector3());
+    const k = spec.fill * Math.min(INNER_H / size.y,
+                                   INNER_W / Math.max(size.x, size.z));
+    model.scale.setScalar(k);
+    model.position.set(-c.x * k, -c.y * k, -c.z * k);
+    holder.add(model);
+    holder.position.y = POD.BASE_H + POD.GLASS_H / 2;
+    pod.add(holder);
+
+    // Feed pipes from the lid into the ceiling.
+    for (let k2 = 0; k2 < 3; k2++) {
+      const a = (k2 / 3) * Math.PI * 2 + 0.5;
+      const top = POD.BASE_H + POD.GLASS_H + POD.CAP_H;
+      const pipe = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, WALL_H - top, 6), dark);
+      pipe.position.set(Math.cos(a) * 0.4, (top + WALL_H) / 2, Math.sin(a) * 0.4);
+      pod.add(pipe);
+    }
+
+    // Control panel on the front of the plinth, tipped up to be read.
+    const panel = new THREE.Group();
+    panel.position.set(0, 0.46, 0.66);
+    panel.rotation.x = -0.6;
+    pod.add(panel);
+    panel.add(new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.28, 0.05), dark));
+    const glyphs = [];
+    for (let r = 0; r < 3; r++) {
+      for (let col = 0; col < 3; col++) {
+        if (rand() < 0.3) continue;
+        pushBox(glyphs, -0.13 + col * 0.13, 0.08 - r * 0.08, 0.03,
+                0.04 + rand() * 0.05, 0.02, 0.012);
+      }
+    }
+    const gg = new THREE.BufferGeometry();
+    gg.setAttribute('position', new THREE.Float32BufferAttribute(glyphs, 3));
+    gg.computeVertexNormals();
+    panel.add(new THREE.Mesh(gg, glowMat));
+
+    colliders.push({ x: px, z: pz, r: 0.85 });
+  });
+
+  // One light for the row. The grid lamps are on a 10-cell lattice and this
+  // room falls between them, same as the armory did — and the tanks are the
+  // only thing in here worth seeing.
+  const lamp = new THREE.PointLight(0x8affc0, 1.0, 11, 1.4);
+  lamp.position.set(room.x0 + 5.0, 2.3, pz + 2.0);
+  group.add(lamp);
+
+  group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
+  scene.add(group);
+  return { group, colliders };
 }
 
 // ─── THE HANGAR CRASH SITE ──────────────────────────────────
