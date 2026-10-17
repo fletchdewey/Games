@@ -13,19 +13,62 @@
 
 import { useState, useEffect, useRef } from "react";
 import * as THREE from "three";
-import { createBurrower, SHAPE, bodyY, bodyR, bodyX }
-  from "/src/bosses/burrower.js";
+import { createBurrower, SHAPE } from "/src/bosses/burrower.js";
+import { initBurrower, updateBurrower, damageBurrower, forceBurrowerAttack, FX }
+  from "/src/bosses/burrower_ai.js";
 
 const ACCENT = "#ff6644";
 
 const SHAPE_PARAMS = [
-  { k: "span", label: "length", min: 3, max: 30, step: 0.5, unit: "u" },
-  { k: "rise", label: "arch height", min: 0.5, max: 6, step: 0.1, unit: "u" },
+  { k: "length", label: "length", min: 3, max: 30, step: 0.5, unit: "u" },
   { k: "thick", label: "body thickness", min: 0.15, max: 1.6, step: 0.02, unit: "u" },
   { k: "segments", label: "segments", min: 8, max: 80, step: 1 },
-  { k: "headLift", label: "head rears up", min: 0, max: 1.2, step: 0.05 },
-  { k: "liftStart", label: "rears from", min: 0.4, max: 0.95, step: 0.01 },
-  { k: "taperEnd", label: "stops tapering at", min: 0.5, max: 1, step: 0.01 },
+  { k: "taper", label: "tail taper", min: 0, max: 0.9, step: 0.05 },
+];
+
+const hurtBtn = {
+  flex: 1, background: "rgba(255,255,255,0.06)", color: "#bbb",
+  border: "1px solid #332a24", borderRadius: 5, padding: "7px 0",
+  fontSize: 11, cursor: "pointer", letterSpacing: 1,
+  textTransform: "uppercase",
+};
+
+const MOVE_PARAMS = [
+  { k: "surfaceSpeed", label: "slither speed", min: 0.01, max: 0.2, step: 0.005, unit: "u/f" },
+  { k: "burrowSpeed", label: "burrow speed", min: 0.01, max: 0.3, step: 0.005, unit: "u/f" },
+  { k: "turnRate", label: "turn rate", min: 0.005, max: 0.15, step: 0.005 },
+  { k: "weaveAmp", label: "weave", min: 0, max: 1.6, step: 0.05, unit: "rad" },
+  { k: "weaveRate", label: "weave rate", min: 0.2, max: 5, step: 0.1 },
+];
+
+const BURROW_PARAMS = [
+  { k: "diveBeyond", label: "dives beyond", min: 3, max: 25, step: 0.5, unit: "u" },
+  { k: "diveSpeed", label: "dive speed", min: 0.02, max: 0.3, step: 0.005, unit: "u/f" },
+  { k: "holeLip", label: "hole lip", min: 0.4, max: 4, step: 0.1, unit: "u" },
+  { k: "minSurfaceFrames", label: "min time up", min: 0, max: 600, step: 10, unit: "f" },
+  { k: "maxSurfaceFrames", label: "max time up", min: 60, max: 900, step: 10, unit: "f" },
+  { k: "minUnderFrames", label: "min time under", min: 0, max: 600, step: 10, unit: "f" },
+];
+
+const HURT_PARAMS = [
+  { k: "hp", label: "health", min: 20, max: 500, step: 10 },
+  { k: "flinchAfter", label: "grace before it bolts", min: 0, max: 300, step: 10, unit: "f" },
+  { k: "bloodCount", label: "blood per hit", min: 0, max: 40, step: 1 },
+  { k: "bloodSpeed", label: "blood force", min: 0.01, max: 0.2, step: 0.005, unit: "u/f" },
+  { k: "bloodLife", label: "blood life", min: 5, max: 200, step: 5, unit: "f" },
+  { k: "bloodSize", label: "blood size", min: 0.02, max: 0.3, step: 0.01 },
+  { k: "bloodLift", label: "blood lift", min: 0, max: 3, step: 0.1 },
+];
+
+const ATTACK_PARAMS = [
+  { k: "ambushRadius", label: "comes up at", min: 1, max: 10, step: 0.2, unit: "u" },
+  { k: "tellFrames", label: "warning", min: 0, max: 120, step: 2, unit: "f" },
+  { k: "burstUp", label: "launch", min: 0.08, max: 0.4, step: 0.01, unit: "u/f" },
+  { k: "airGravity", label: "gravity", min: 0.002, max: 0.02, step: 0.0005 },
+  { k: "lungeMax", label: "top lunge speed", min: 0.05, max: 0.4, step: 0.01, unit: "u/f" },
+  { k: "lungeSteer", label: "mid-air steer", min: 0, max: 0.2, step: 0.005 },
+  { k: "slamRange", label: "slam reach", min: 0.5, max: 6, step: 0.1, unit: "u" },
+  { k: "slamDamage", label: "slam damage", min: 0, max: 50, step: 1, unit: "%" },
 ];
 
 const HEAD_PARAMS = [
@@ -37,11 +80,18 @@ const HEAD_PARAMS = [
 export default function BurrowerWorkshop() {
   const mountRef = useRef(null);
   const [shape, setShape] = useState({ ...SHAPE });
+  const [fx, setFx] = useState({ ...FX });
   const [stats, setStats] = useState(null);
-  const [undulate, setUndulate] = useState(true);
+  const [read, setRead] = useState(null);
+  const [chasing, setChasing] = useState(true);
   const api = useRef({});
-  const undRef = useRef(undulate);
-  useEffect(() => { undRef.current = undulate; }, [undulate]);
+  const chaseRef = useRef(chasing);
+  const tally = useRef({ hits: 0, damage: 0, angles: [] });
+  const queued = useRef([]);
+  const [note, setNote] = useState("");
+  const lastMode = useRef("surface");
+  useEffect(() => { chaseRef.current = chasing; }, [chasing]);
+  useEffect(() => { Object.assign(FX, fx); }, [fx]);
   useEffect(() => { if (api.current.rebuild) api.current.rebuild(shape); }, [shape]);
 
   useEffect(() => {
@@ -66,10 +116,11 @@ export default function BurrowerWorkshop() {
     floor.rotation.x = -Math.PI / 2; scene.add(floor);
     scene.add(new THREE.GridHelper(60, 60, 0x9aa2ae, 0xc2c8d0));
 
-    // A person, for scale. 1.8 tall, standing off to one side.
+    // The player it's coming for — 1.8 tall, and it doubles as the scale
+    // reference. Walks at 5 u/s, same as the real one.
     const man = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.8, 0.4),
       new THREE.MeshLambertMaterial({ color: 0x5a6472 }));
-    man.position.set(0, 0.9, 5);
+    man.position.set(0, 0.9, 7);
     scene.add(man);
 
     // The station ceiling. The real rooms are 4 units, and that is the hard
@@ -87,31 +138,21 @@ export default function BurrowerWorkshop() {
       if (boss) {
         scene.remove(boss);
         boss.traverse((o) => {
-          if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); }
+          // isMesh misses the blood Points, which would leak a buffer on
+          // every rebuild. Anything with a geometry gets disposed.
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) o.material.dispose();
         });
       }
       boss = createBurrower({ ...s, segments: Math.round(s.segments),
         outerTeeth: Math.round(s.outerTeeth), innerTeeth: Math.round(s.innerTeeth) });
+      initBurrower(boss, { x: 0, z: -9 });
       scene.add(boss);
       if (typeof window !== "undefined") window.__burrower = boss;
 
       let meshes = 0;
       boss.traverse((o) => { if (o.isMesh) meshes++; });
-      // Measure the WORM, not the group. A box around everything includes
-      // the debris scattered three units around the hole, which reported a
-      // 16-unit "length" for an 11-unit body — and these numbers are what
-      // the size decisions get made from.
-      const box = new THREE.Box3();
-      for (const seg of boss.userData.segments) box.expandByObject(seg.mesh);
-      for (const tooth of boss.userData.teeth) box.expandByObject(tooth);
-      const size = box.getSize(new THREE.Vector3());
-      setStats({
-        meshes,
-        length: size.x, height: box.max.y,
-        clearance: 4 - box.max.y,
-        overCeiling: box.max.y > 4,
-        headY: boss.userData.head.y,
-      });
+      setStats({ meshes, length: s.length, thick: s.thick });
       return boss;
     }
     rebuild(SHAPE);
@@ -148,27 +189,84 @@ export default function BurrowerWorkshop() {
     resize();
     const ro = new ResizeObserver(resize); ro.observe(mount);
 
-    let last = performance.now(), raf = 0;
+    let last = performance.now(), raf = 0, tick = 0;
     function frame() {
       raf = requestAnimationFrame(frame);
       const now = performance.now();
-      last = now;
 
-      // Placeholder motion: a wave running down the body. Not a mechanic,
-      // just enough to see the shape as something alive.
-      if (boss && undRef.current) {
-        const t = now / 1000;
-        for (const s of boss.userData.segments) {
-          s.mesh.position.y = s.baseY + Math.sin(t * 2 - s.t * 7) * 0.09;
-          s.mesh.position.z = Math.cos(t * 1.4 - s.t * 5) * 0.07;
+      const dt = Math.min((now - (last || now)) / 1000, 0.05);
+      if (boss) {
+        // The target walks a circle at the player's real 5 u/s, so "it can't
+        // catch you on the surface" is something you can watch rather than
+        // take on trust.
+        if (chaseRef.current) {
+          const tt = now / 1000, R = 9, w = 5 / R;
+          man.position.set(Math.cos(tt * w) * R, 0.9, Math.sin(tt * w) * R);
         }
-      } else if (boss) {
-        for (const s of boss.userData.segments) {
-          s.mesh.position.y = s.baseY;
-          s.mesh.position.z = 0;
+        updateBurrower(boss, man.position.clone().setY(0), Math.min(dt * 60, 3));
+
+        // Button presses are drained here rather than handled in the click,
+        // because this is the only place the live boss object is in scope.
+        while (queued.current.length) {
+          const what = queued.current.shift();
+          if (what === "hurt") {
+            // A shot lands on a random bit that is actually above ground, the
+            // way a bullet would, rather than always on the nose.
+            const up = boss.userData.segments.filter((sg) => sg.depth < 0.5);
+            const target = up.length
+              ? up[Math.floor(Math.random() * up.length)].mesh.position
+              : boss.userData.head.position;
+            const r = damageBurrower(boss, 10, "body", target);
+            setNote(r === "dead" ? "killed"
+                  : r === null ? "all the way under — nothing to hit"
+                  : "hit — it bolts");
+          } else if (what === "attack") {
+            setNote(forceBurrowerAttack(boss));
+          } else if (what === "kill") {
+            // It can't be hurt while buried, so bring it up first.
+            boss.userData.surfaceAt = 0;
+            damageBurrower(boss, 1e9, "body", boss.userData.head.position);
+            setNote("killed");
+          }
+        }
+
+        // Drain the attack queue the way the game will, so the damage it
+        // deals is something you can watch add up rather than guess at.
+        const dd = boss.userData;
+        while (dd.attacks.length) {
+          const a = dd.attacks.shift();
+          tally.current.hits++;
+          tally.current.damage += a.damage;
+        }
+        if (dd.mode === "tell" && lastMode.current !== "tell") {
+          // Which side of the target it chose, in degrees clockwise from the
+          // direction the target is travelling. Spread over many leaps is how
+          // you tell it really is coming from all angles.
+          const dx = dd.headPos.x - man.position.x;
+          const dz = dd.headPos.z - man.position.z;
+          tally.current.angles.push(
+            Math.round((Math.atan2(dx, dz) * 180 / Math.PI + 360) % 360));
+          if (tally.current.angles.length > 8) tally.current.angles.shift();
+        }
+        lastMode.current = dd.mode;
+
+        if (++tick % 6 === 0) {
+          const d = boss.userData;
+          setRead({
+            mode: d.mode,
+            under: Math.round(d.surfaceAt * 100),
+            dist: Math.hypot(man.position.x - d.headPos.x,
+                             man.position.z - d.headPos.z),
+            hp: Math.round(d.hp),
+            dead: d.isDead,
+            hits: tally.current.hits,
+            damage: tally.current.damage,
+            angles: tally.current.angles.slice(-5),
+          });
         }
       }
 
+      last = now;
       camera.position.set(
         Math.sin(yaw) * Math.cos(pitch) * dist,
         Math.sin(pitch) * dist + 2,
@@ -211,6 +309,7 @@ export default function BurrowerWorkshop() {
     </div>
   );
   const set = (k, v) => setShape((p) => ({ ...p, [k]: v }));
+  const setFxK = (k, v) => setFx((p) => ({ ...p, [k]: v }));
 
   return (
     <div style={{ minHeight: "100vh", background: "#120e0c", color: "#f0e8e2",
@@ -221,9 +320,10 @@ export default function BurrowerWorkshop() {
           Falo 3D-2 — Burrower Workshop
         </h1>
         <div style={{ fontSize: 11, color: "#80706a", marginTop: 5, lineHeight: 1.6 }}>
-          Shape only — no mechanics yet. The body is one curve, so every slider
-          re-derives the whole worm. Grey box is a 1.8m person; the orange plane
-          is the station's 4-unit ceiling. Drag to orbit, scroll to zoom.
+          It slithers at you on the surface, and goes under the floor when it
+          has ground to cover. Only the head is steered — the body rides the
+          trail it already took. Grey box is a 1.8m player moving at a real
+          5 u/s. Drag to orbit, scroll to zoom.
         </div>
       </div>
 
@@ -233,40 +333,120 @@ export default function BurrowerWorkshop() {
                       border: "1px solid #2a241f", borderRadius: 10,
                       overflow: "hidden" }}>
           <div ref={mountRef} style={{ width: "100%", height: "72vh", minHeight: 420 }} />
-          {stats && (
+          {read && (
             <div style={{ position: "absolute", top: 12, left: 12, fontSize: 11,
-                          background: "rgba(0,0,0,0.55)", padding: "9px 12px",
-                          borderRadius: 6, lineHeight: 1.8, color: "#bbb" }}>
-              <div>length <span style={{ color: "#ddd" }}>{stats.length.toFixed(1)}u</span>
-                <span style={{ color: "#6a5c54" }}> · person is 0.5 wide</span></div>
-              <div>peak <span style={{ color: stats.overCeiling ? "#ff6b5e" : "#ddd" }}>
-                {stats.height.toFixed(2)}u</span>
-                <span style={{ color: stats.clearance < 0.5 ? "#ffb347" : "#6a5c54" }}>
-                  {" "}· {stats.clearance.toFixed(2)}u under the ceiling</span></div>
-              <div>head at <span style={{ color: "#ddd" }}>{stats.headY.toFixed(2)}u</span></div>
-              <div>meshes <span style={{ color: "#ddd" }}>{stats.meshes}</span></div>
-              {stats.overCeiling && (
-                <div style={{ color: "#ff6b5e", fontWeight: 700 }}>
-                  THROUGH THE CEILING
-                </div>
+                          background: "rgba(0,0,0,0.6)", padding: "10px 13px",
+                          borderRadius: 6, lineHeight: 1.8, color: "#bbb",
+                          minWidth: 180 }}>
+              <div style={{ color: read.mode === "surface" ? "#44ff88"
+                                 : read.mode === "under" ? "#ffb347" : "#ff8844",
+                            textTransform: "uppercase", letterSpacing: 2,
+                            fontWeight: 700 }}>{read.mode}</div>
+              <div>under <span style={{ color: "#ddd" }}>{read.under}%</span>
+                <span style={{ color: "#6a5c54" }}> of its length</span></div>
+              <div>range <span style={{ color: "#ddd" }}>{read.dist.toFixed(1)}u</span>
+                <span style={{ color: "#6a5c54" }}>
+                  {" "}· dives past {fx.diveBeyond}, ambushes at {fx.ambushRadius}</span></div>
+              <div>its health <span style={{ color: read.dead ? "#ff4422" : "#ddd" }}>
+                {read.hp}</span>
+                <span style={{ color: "#6a5c54" }}> of {fx.hp}
+                  {read.dead ? " · down" : ""}</span></div>
+              <div>leaps landed <span style={{ color: read.hits ? "#ff6644" : "#ddd" }}>
+                {read.hits}</span>
+                <span style={{ color: "#6a5c54" }}> · {read.damage}% taken</span></div>
+              {read.angles.length > 0 && (
+                <div style={{ color: "#6a5c54" }}>from{" "}
+                  <span style={{ color: "#ddd" }}>{read.angles.join("°, ")}°</span></div>
               )}
+              {stats && <div>meshes <span style={{ color: "#ddd" }}>{stats.meshes}</span>
+                <span style={{ color: "#6a5c54" }}> · {stats.length}u long</span></div>}
             </div>
           )}
         </div>
 
         <div>
           <div style={panel}>
-            <h3 style={h3}>Motion</h3>
-            <button onClick={() => setUndulate((v) => !v)} style={{
-              width: "100%", background: undulate ? ACCENT : "rgba(255,255,255,0.06)",
-              color: undulate ? "#180d08" : "#bbb", border: "1px solid #332a24",
+            <h3 style={h3}>The target</h3>
+            <button onClick={() => setChasing((v) => !v)} style={{
+              width: "100%", background: chasing ? ACCENT : "rgba(255,255,255,0.06)",
+              color: chasing ? "#180d08" : "#bbb", border: "1px solid #332a24",
               borderRadius: 5, padding: "7px 0", fontSize: 11, cursor: "pointer",
               letterSpacing: 1, textTransform: "uppercase",
-              fontWeight: undulate ? 700 : 400 }}>
-              {undulate ? "Undulating" : "Still"}
+              fontWeight: chasing ? 700 : 400 }}>
+              {chasing ? "Running (5 u/s)" : "Standing still"}
             </button>
             <div style={{ fontSize: 10, color: "#80706a", marginTop: 7, lineHeight: 1.6 }}>
-              Placeholder — a wave running down the body, not a mechanic.
+              It slithers at 3.3 u/s and burrows at 6.3, against your 5. It
+              cannot catch you on the surface — which is exactly why it goes
+              under. Stand still and it stays up and comes at you.
+            </div>
+          </div>
+
+          <div style={panel}>
+            <h3 style={h3}>Moving</h3>
+            {MOVE_PARAMS.map((s2) =>
+              <Slider key={s2.k} spec={s2} value={fx[s2.k]} onChange={setFxK} />)}
+            <div style={{ fontSize: 10, color: "#80706a", marginTop: 4, lineHeight: 1.6 }}>
+              Only the head is steered. The body sits on the trail it already
+              took, so the weave travels down its length on its own.
+            </div>
+          </div>
+
+          <div style={panel}>
+            <h3 style={h3}>Burrowing</h3>
+            {BURROW_PARAMS.map((s2) =>
+              <Slider key={s2.k} spec={s2} value={fx[s2.k]} onChange={setFxK} />)}
+            <div style={{ fontSize: 10, color: "#80706a", marginTop: 4, lineHeight: 1.6 }}>
+              It digs one hole and feeds itself through it, nose first. The
+              body replays whatever the head did, a moment later.
+            </div>
+          </div>
+
+          <div style={panel}>
+            <h3 style={h3}>Getting shot</h3>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => queued.current.push("hurt")}
+                style={{ ...hurtBtn, background: ACCENT, color: "#180d08",
+                         fontWeight: 700 }}>Hurt</button>
+              <button onClick={() => queued.current.push("attack")}
+                style={hurtBtn}>Attack</button>
+              <button onClick={() => queued.current.push("kill")}
+                style={hurtBtn}>Kill</button>
+              <button onClick={() => { api.current.rebuild && api.current.rebuild(shape);
+                                       tally.current = { hits: 0, damage: 0, angles: [] };
+                                       setNote(""); }}
+                style={hurtBtn}>Reset</button>
+            </div>
+            {note && <div style={{ fontSize: 10, color: ACCENT, marginTop: 7,
+                                   letterSpacing: 1, textTransform: "uppercase" }}>
+              {note}</div>}
+            {HURT_PARAMS.map((s2) =>
+              <Slider key={s2.k} spec={s2} value={fx[s2.k]} onChange={setFxK} />)}
+            <div style={{ fontSize: 10, color: "#80706a", marginTop: 8, lineHeight: 1.6 }}>
+              Hurt lands a shot on a random bit of it that is above ground,
+              throws blood, and sends it back down a fresh hole — once it has
+              been up longer than the grace window, so there is always a
+              moment to shoot it. Attack makes it ambush now; from the surface
+              it has to dive first, because it can't leap from up there.
+            </div>
+          </div>
+
+          <div style={panel}>
+            <h3 style={h3}>The ambush</h3>
+            {ATTACK_PARAMS.map((s2) =>
+              <Slider key={s2.k} spec={s2} value={fx[s2.k]} onChange={setFxK} />)}
+            <button
+              onClick={() => { tally.current = { hits: 0, damage: 0, angles: [] }; }}
+              style={{ width: "100%", background: "rgba(255,255,255,0.06)",
+                       color: "#bbb", border: "1px solid #332a24", borderRadius: 5,
+                       padding: "6px 0", fontSize: 10, cursor: "pointer",
+                       letterSpacing: 1, textTransform: "uppercase",
+                       marginTop: 8 }}>Reset the tally</button>
+            <div style={{ fontSize: 10, color: "#80706a", marginTop: 8, lineHeight: 1.6 }}>
+              Underground it heads for a spot beside the target, not for the
+              target, turning at least a quarter circle off its last approach
+              each time. The floor cracks and spits for the warning, then it
+              erupts and leaps at where the target was when it launched.
             </div>
           </div>
 
@@ -275,8 +455,7 @@ export default function BurrowerWorkshop() {
             {SHAPE_PARAMS.map((s) =>
               <Slider key={s.k} spec={s} value={shape[s.k]} onChange={set} />)}
             <div style={{ fontSize: 10, color: "#80706a", marginTop: 4, lineHeight: 1.6 }}>
-              "Head rears up" at 0 gives a plain arch with both ends in the
-              floor — and then the worm has no front for the mouth to be on.
+              Changing these rebuilds the worm and puts it back at its start.
             </div>
           </div>
 
@@ -293,6 +472,9 @@ export default function BurrowerWorkshop() {
                           whiteSpace: "pre-wrap" }}>
 {`export const SHAPE = {
 ${[...SHAPE_PARAMS, ...HEAD_PARAMS].map((s) => `  ${s.k}: ${shape[s.k]},`).join("\n")}
+};
+export const FX = {
+${[...MOVE_PARAMS, ...BURROW_PARAMS, ...ATTACK_PARAMS, ...HURT_PARAMS].map((s) => `  ${s.k}: ${fx[s.k]},`).join("\n")}
 };`}
             </pre>
           </div>
