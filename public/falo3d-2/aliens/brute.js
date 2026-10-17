@@ -21,9 +21,9 @@
 // while the Brute charges in. That's the strategy.
 
 import * as THREE from 'three';
-import { PALETTE, getMaterial } from '../shared/materials.js?v=72fce17f30';
-import { buildLegChain } from '../shared/geometry.js?v=72fce17f30';
-import { createBehaviorSpec } from '../shared/behavior.js?v=72fce17f30';
+import { PALETTE, getMaterial } from '../shared/materials.js?v=94e56d1ec8';
+import { buildLegChain } from '../shared/geometry.js?v=94e56d1ec8';
+import { createBehaviorSpec } from '../shared/behavior.js?v=94e56d1ec8';
 
 
 // ─── 1. GEOMETRY ────────────────────────────────────────────────
@@ -241,6 +241,9 @@ export function animateBrute(model, time) {
     d.arms.forEach((arm) => {
       const swing = Math.sin(time * speed + (arm.side > 0 ? Math.PI : 0));
       arm.shoulderPivot.rotation.x = swing * 0.2;
+      // Clears the bull-windup flare on any path back to idle (including
+      // getting shot mid-windup, which exits through HURT → CHASE).
+      arm.shoulderPivot.rotation.z = 0;
       arm.elbowPivot.rotation.x = -0.3 + Math.abs(swing) * 0.15;
     });
   }
@@ -270,12 +273,33 @@ export function animateBrute(model, time) {
 const STATE = {
   PATROL:  'patrol',
   CHASE:   'chase',
+  WINDUP:  'windup',
   CHARGE:  'charge',
   SLAM:    'slam',
   RECOVER: 'recover',
   HURT:    'hurt',
   DEAD:    'dead',
 };
+
+// How long the bull windup holds before it launches. Long enough to read and
+// react to, short enough that it doesn't feel like it's waiting for you.
+const WINDUP_FRAMES = 50;   // ~0.8s at 60fps
+
+// How hard the charge is allowed to track you once committed. See CHARGE.
+const CHARGE_STEER = 0.004;
+
+// The slam connects in a CONE in front of the Brute, not a circle around it.
+// A circle cannot distinguish a dodge from a direct hit: the charge always
+// ends when it closes to 2.5 units, so the distance at impact is ~2.2
+// whichever way you went. Only the angle tells you whether it actually hit.
+//
+// Measured against a 5 u/s sidestep, with CHARGE_STEER at 0.004:
+//     stand still        →  0° off-axis   hit
+//     step ~1.0u         → 21° off-axis   hit  (a half-step isn't enough)
+//     step ~1.5u         → 36° off-axis   MISS
+//     step during windup →  0° off-axis   hit  (it re-aims as it launches)
+const SLAM_RANGE = 3.5;
+const SLAM_ARC = Math.PI / 6;   // 30° either side of its nose
 
 export function createBruteAI() {
   return {
@@ -322,20 +346,76 @@ export function updateBruteAI(model, ai, playerPos, dt) {
       pos.add(dir.multiplyScalar(0.035 * dt * 60));
     }
 
-    // Close enough to charge?
+    // Close enough to charge? Wind up first — the charge itself is launched
+    // at the END of the windup, so the windup is the aiming phase.
     if (dist < 10 && dist > 3 && ai.attackCooldown <= 0) {
-      ai.state = STATE.CHARGE;
+      ai.state = STATE.WINDUP;
       ai.stateTimer = 0;
-      ai.chargeSpeed = 0;
-      // Lock the charge direction — can only steer slightly
-      ai.chargeDir = toPlayer.clone();
-      ai.chargeDir.y = 0;
-      ai.chargeDir.normalize();
     }
 
     if (dist > 18) {
       ai.state = STATE.PATROL;
       ai.stateTimer = 0;
+    }
+  }
+
+  // --- WINDUP ---
+  // The cartoon bull: rears back, throws both arms back and out wide, drops
+  // its head and paws the ground before it comes at you.
+  //
+  // It keeps turning to face you for the whole windup, then locks its heading
+  // the instant it launches. So the windup is your warning AND your opening —
+  // the later you move, the more wrong its aim ends up.
+  else if (ai.state === STATE.WINDUP) {
+    const t = Math.min(ai.stateTimer / WINDUP_FRAMES, 1);
+
+    // Still tracking you — it's lining the shot up, not committed yet.
+    toPlayer.y = 0;
+    model.rotation.y = Math.atan2(toPlayer.x, toPlayer.z);
+
+    // Rear back, then settle into a low crouch as it's about to go.
+    const rear = Math.sin(Math.min(t / 0.4, 1) * Math.PI * 0.5);   // 0→1 over the first 40%
+    model.rotation.x = rear * 0.22 - Math.max(0, (t - 0.7) / 0.3) * 0.38;
+
+    // Arms sweep BACK and OUT — the bull-horn pose. rotation.z flares them
+    // away from the body, which nothing else in this file touches, so every
+    // exit from this state has to put it back to 0.
+    if (d.arms) {
+      d.arms.forEach((arm) => {
+        arm.shoulderPivot.rotation.x = -rear * 1.15;
+        arm.shoulderPivot.rotation.z = arm.side * rear * 0.65;
+        arm.elbowPivot.rotation.x = -0.3 - rear * 0.35;
+      });
+    }
+
+    // Paw the ground with the front-left leg once the arms are up.
+    if (d.legs && d.legs.length && t > 0.35) {
+      const paw = d.legs[0];
+      const scrape = Math.sin(ai.stateTimer * 0.45);
+      paw.upper.rotation.x = paw.baseUpperTilt + scrape * 0.5;
+      paw.lower.rotation.x = paw.baseLowerTilt - Math.abs(scrape) * 0.25;
+    }
+
+    // Snorting shudder, building as it's about to launch.
+    model.rotation.z = Math.sin(ai.stateTimer * 0.8) * 0.03 * t;
+
+    if (ai.stateTimer >= WINDUP_FRAMES) {
+      // Put the pawing leg back where the walk cycle expects it, or it stays
+      // frozen mid-scrape for the whole charge.
+      if (d.legs) {
+        d.legs.forEach((leg) => {
+          leg.upper.rotation.x = leg.baseUpperTilt;
+          leg.lower.rotation.x = leg.baseLowerTilt;
+        });
+      }
+      ai.state = STATE.CHARGE;
+      ai.stateTimer = 0;
+      ai.chargeSpeed = 0;
+      // Heading locks HERE, at the end of the windup — not when it first
+      // spotted you.
+      ai.chargeDir = toPlayer.clone();
+      ai.chargeDir.y = 0;
+      ai.chargeDir.normalize();
     }
   }
 
@@ -347,11 +427,14 @@ export function updateBruteAI(model, ai, playerPos, dt) {
     // Accelerate over the first 20 frames
     ai.chargeSpeed = Math.min(0.12, ai.chargeSpeed + 0.004 * dt * 60);
 
-    // Slight steering toward player (not much — it's committed)
+    // Barely any steering — this is what makes a dodge mean something.
+    // At the old 0.02 it corrected ~84% of the way to you over a charge, so
+    // sidestepping 1.5u still left you 14° off its nose. At 0.004 the same
+    // sidestep puts you 36° off, outside the slam cone below.
     const steer = new THREE.Vector3().subVectors(playerPos, pos);
     steer.y = 0;
     steer.normalize();
-    ai.chargeDir.lerp(steer, 0.02); // very slow correction
+    ai.chargeDir.lerp(steer, CHARGE_STEER);
     ai.chargeDir.normalize();
 
     pos.add(ai.chargeDir.clone().multiplyScalar(ai.chargeSpeed * dt * 60));
@@ -360,8 +443,11 @@ export function updateBruteAI(model, ai, playerPos, dt) {
     // Visual: lean forward, arms back
     model.rotation.x = -0.2;
     if (d.arms) {
+      // Arms fold back in from the wide bull pose as it picks up speed.
+      const tuck = Math.max(0, 1 - ai.stateTimer / 12);
       d.arms.forEach((arm) => {
         arm.shoulderPivot.rotation.x = -0.8 + Math.sin(ai.stateTimer * 0.3) * 0.3;
+        arm.shoulderPivot.rotation.z = arm.side * 0.65 * tuck;
       });
     }
 
@@ -390,18 +476,23 @@ export function updateBruteAI(model, ai, playerPos, dt) {
       });
     }
 
-    // Damage at the impact frame (~60% through)
+    // Damage at the impact frame (~60% through). Must be close AND in front —
+    // step out of the cone and it pounds empty floor, then stumbles through
+    // RECOVER below, which is your window on it.
     if (ai.stateTimer === 12) {
-      if (dist < 3.5) {
+      const facing = new THREE.Vector3(Math.sin(model.rotation.y), 0, Math.cos(model.rotation.y));
+      const flat = toPlayer.clone();
+      flat.y = 0;
+      const offAxis = flat.lengthSq() > 0 ? facing.angleTo(flat.normalize()) : 0;
+
+      if (dist < SLAM_RANGE && offAxis < SLAM_ARC) {
         ai.state = STATE.RECOVER;
         ai.stateTimer = 0;
         ai.attackCooldown = 120;
-        return {
-          type: 'ground_slam',
-          origin: pos.clone(),
-          damage: 4,
-          range: 3.5,
-        };
+        // No damage number here on purpose — game.js owns it (ALIEN_TYPES
+        // .attackDmg), so the two can't drift apart. This used to say 4 while
+        // the registration said 15.
+        return { type: 'ground_slam', origin: pos.clone() };
       }
     }
 
@@ -423,6 +514,7 @@ export function updateBruteAI(model, ai, playerPos, dt) {
     if (d.arms) {
       d.arms.forEach((arm) => {
         arm.shoulderPivot.rotation.x = 0.8 * (1 - t);
+        arm.shoulderPivot.rotation.z = 0;   // undo any leftover bull flare
         arm.elbowPivot.rotation.x = -0.3;
       });
     }

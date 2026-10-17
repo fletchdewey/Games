@@ -53,11 +53,19 @@ export function getMaterial(color, opts = {}) {
   const key = `${color}-${opts.type || 'lambert'}-${opts.opacity || 1}`;
   if (cache[key]) return cache[key];
 
+  // `type` is OUR switch, not a Three.js property — it must not reach the
+  // constructor. Spreading it in overwrote material.type ('MeshBasicMaterial'
+  // → 'basic'), which is the key Three uses to find the shader. The lookup
+  // then missed, vertexShader came back undefined, and WebGLProgram threw
+  // "Cannot read properties of undefined (reading 'replace')" every frame an
+  // eye or glow mesh was on screen.
+  const { type, ...params } = opts;
+
   let mat;
-  if (opts.type === 'basic') {
-    mat = new THREE.MeshBasicMaterial({ color, ...opts });
+  if (type === 'basic') {
+    mat = new THREE.MeshBasicMaterial({ color, ...params });
   } else {
-    mat = new THREE.MeshLambertMaterial({ color, ...opts });
+    mat = new THREE.MeshLambertMaterial({ color, ...params });
   }
 
   cache[key] = mat;

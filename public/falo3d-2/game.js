@@ -18,23 +18,32 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=72fce17f30';
+import { PALETTE, getMaterial } from './shared/materials.js?v=94e56d1ec8';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=72fce17f30';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=72fce17f30';
-import { buildSpire, animateSpire, createSpireAI, updateSpireAI, hitSpire, killSpire } from './aliens/spire.js?v=72fce17f30';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=72fce17f30';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=94e56d1ec8';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=94e56d1ec8';
+import { buildSpire, animateSpire, createSpireAI, updateSpireAI, hitSpire, killSpire } from './aliens/spire.js?v=94e56d1ec8';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=94e56d1ec8';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=72fce17f30';
+import { createController, updateController } from './player/controller.js?v=94e56d1ec8';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=72fce17f30';
-import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster } from './bosses/puppet_master_ai.js?v=72fce17f30';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=94e56d1ec8';
+import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster } from './bosses/puppet_master_ai.js?v=94e56d1ec8';
 
 // === Map ===
-import { buildMap, getCurrentRoom } from './map/builder.js?v=72fce17f30';
+// The level now comes from the grid you paint in the Map Editor, baked into
+// grid_data.js by build.sh. layout.js / builder.js are the old hand-written
+// rooms and are no longer used by v2.
+import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, ROOMS }
+  from './map/grid_map.js?v=94e56d1ec8';
+import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
+         buildFloorTentacles, buildLaserScars,
+         buildWatcherDebris, buildOutpostWreckage,
+         buildHumanDebris, buildPrison, buildArmory,
+         buildAlienBoard } from './map/props.js?v=94e56d1ec8';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -73,26 +82,28 @@ const ALIEN_TYPES = {
     createAI: createBruteAI, updateAI: updateBruteAI,
     hit: hitBrute, kill: killBrute,
     hp: 6, baseY: 0.3, attackType: 'melee', attackRange: 3.5,
-    attackDmg: 15, attackCD: 2.0, speed: 0.035,
+    attackDmg: 10, attackCD: 2.0, speed: 0.035,   // 10% of the player's 100 HP
+    // The Brute lands damage on its slam's impact frame, not on a proximity
+    // timer — otherwise the charge/dodge is decorative and it hits you for
+    // simply being near it. See the alien update loop.
+    attackViaAI: true,
     idleStates: ['patrol', 'chase'],
   },
 };
 
 // ─── ALIEN SPAWN PLAN ───────────────────────────────────────
 // Which aliens spawn in which rooms.
-const SPAWN_PLAN = [
-  { room: 'outpost1', type: 'crawler', count: 4 },
-  { room: 'outpost2', type: 'floater', count: 3 },
-  { room: 'outpost3', type: 'spire',   count: 3 },
-  { room: 'outpost4', type: 'brute',   count: 2 },
-  { room: 'cafeteria', type: 'crawler', count: 2 },
-  { room: 'hospital', type: 'floater', count: 1 },
-  { room: 'prison', type: 'crawler', count: 3 },
-  { room: 'alien_pods', type: 'spire', count: 2 },
-  { room: 'control_room', type: 'brute', count: 1 },
-  { room: 'control_room', type: 'floater', count: 2 },
-  { room: 'control_room', type: 'spire', count: 1 },
-];
+// Empty on purpose. The old crawler/floater/spire/brute models are being
+// replaced by the workshop versions (and the Watcher), so the level ships with
+// no regular aliens until those are ported. The spawn machinery below is
+// untouched — adding them back is just repopulating this list.
+//
+//   { room: 'room1', type: 'brute', count: 2 },
+//
+// Room ids: room1 Hangar · room2 Outpost 3 · room3 outpost 2 · room4 outpost 1
+// room5 armory · room6 prison · room7 outpost 4 · room8 alien pods
+// room9 Control Room (boss) · room10 Locked Door
+const SPAWN_PLAN = [];
 
 // ─── GUN ────────────────────────────────────────────────────
 function createGun(camera) {
@@ -180,7 +191,6 @@ function disposeModel(model) {
 }
 
 // ─── SPAWN ALIENS ───────────────────────────────────────────
-import { ROOMS } from './map/layout.js?v=72fce17f30';
 
 function spawnAliens(scene) {
   const aliens = [];
@@ -196,11 +206,11 @@ function spawnAliens(scene) {
       const model = reg.build();
       const ai = reg.createAI();
 
-      // Scatter within the room
-      const hw = roomDef.size[0] / 2 - 1.5;
-      const hd = roomDef.size[1] / 2 - 1.5;
-      const sx = roomDef.pos[0] + (Math.random() * 2 - 1) * hw;
-      const sz = roomDef.pos[1] + (Math.random() * 2 - 1) * hd;
+      // Pick an actual painted cell. Scattering inside a bounding box would
+      // drop aliens into the empty notches of an irregular room.
+      const spot = randomCellIn(plan.room);
+      if (!spot) continue;
+      const sx = spot.x, sz = spot.z;
 
       model.position.set(sx, reg.baseY, sz);
       model.userData.baseY = reg.baseY;
@@ -209,6 +219,7 @@ function spawnAliens(scene) {
 
       aliens.push({
         model, ai, type: plan.type, reg,
+        room: plan.room,          // used to park aliens in rooms you're not in
         hp: reg.hp, maxHp: reg.hp,
         alive: true, flashTimer: 0, deathTimer: 0,
         spawnPos: new THREE.Vector3(sx, reg.baseY, sz),
@@ -221,19 +232,25 @@ function spawnAliens(scene) {
 }
 
 // ─── SPAWN BOSS ─────────────────────────────────────────────
-// One Puppet Master waits in the Control Room. The fight begins when
-// the player first steps into that room.
+// One Puppet Master waits in the Control Room — the arena behind the Locked
+// Door. The fight begins when the player first steps into it.
+const BOSS_ROOM = 'room9';
+
+// The Puppet Master is an old-version enemy like the rest. Flip this back to
+// true to put it in the Control Room again — spawnBoss and updateBoss are
+// untouched, every call site below just checks for null first.
+const BOSS_ENABLED = false;
 function spawnBoss(scene) {
-  const roomDef = ROOMS.find(r => r.id === 'control_room');
   const model = createPuppetMaster();
-  // Stand toward the back of the room, facing the entrance.
-  model.position.set(roomDef.pos[0], 0, roomDef.pos[1] - 3);
+  // Middle of the arena. roomSpawn() always lands on a painted cell.
+  const at = roomSpawn(BOSS_ROOM) || new THREE.Vector3(0, 0, 0);
+  model.position.set(at.x, 0, at.z);
   initPuppetMaster(model);
   scene.add(model);
 
   return {
     model,
-    roomId: 'control_room',
+    roomId: BOSS_ROOM,
     active: false,      // has the fight started?
     defeated: false,    // pilot killed?
     pilotDetached: false,
@@ -254,8 +271,65 @@ scene.fog = new THREE.FogExp2(0x060608, 0.012);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
 scene.add(camera);
 
-const { bounds, walls, wallMeshes } = buildMap(scene);
+const { bounds, walls, wallMeshes, ceilingY } = buildGridMap(scene);
+
+// Hangar set dressing — the crash site. Its meshes join wallMeshes so shots
+// stop on a body or the airframe instead of passing through.
+const hangarProps = buildHangarProps(scene, ROOMS.find((r) => r.id === 'room1'), walls);
+wallMeshes.push(...hangarProps.meshes);
+const propColliders = hangarProps.colliders;
+const hazards = hangarProps.hazards;
+
+// Outpost 1 — cobwebbed ceiling, and webbing matted across the floor that
+// bogs you down while you're standing in it.
+const OUTPOST_1 = ROOMS.find((r) => r.id === 'room4');
+buildCeilingWebs(scene, OUTPOST_1);
+const floorWebs = buildFloorWebs(scene, OUTPOST_1, 4);
+
+// Outpost 2 — pink growths across the floor that shock you if you tread on one.
+const tentacles = buildFloorTentacles(scene, ROOMS.find((r) => r.id === 'room3'), 5);
+
+// Outpost 3 — a Watcher died fighting here: beam scars raked up the walls and
+// its legs still on the floor.
+const OUTPOST_3 = ROOMS.find((r) => r.id === 'room2');
+buildLaserScars(scene, walls, OUTPOST_3);
+buildWatcherDebris(scene, OUTPOST_3, 8);
+
+// The garrison's side of the same three fights. Each one is told where the
+// alien dressing in that room is, so a rifle doesn't end up lying through a
+// web or a tentacle.
+buildHumanDebris(scene, OUTPOST_1, floorWebs.zones, 3301);
+buildHumanDebris(scene, ROOMS.find((r) => r.id === 'room3'), tentacles.zones, 5507);
+buildHumanDebris(scene, OUTPOST_3, [], 7717);
+
+// The prison block: two cells still locked, one torn open.
+const prison = buildPrison(scene, ROOMS.find((r) => r.id === 'room6'));
+propColliders.push(...prison.colliders);
+
+// The armory: rusted lockers, a weapon rack and the bench the rifles were
+// serviced on.
+const armory = buildArmory(scene, ROOMS.find((r) => r.id === 'room5'));
+propColliders.push(...armory.colliders);
+
+// The board the aliens planned the helicopter ambush on, left up in the
+// armory. East wall, south of the lockers — the room's longest clear run.
+// rotY turns the board's face (+Z) to point back into the room, at -X.
+buildAlienBoard(scene, { x: 3.88, y: 1.85, z: -24.5, rotY: -Math.PI / 2 });
+
+// Outpost 4 — crates smashed open, their contents across the floor, and the
+// plate a Brute shed in the fight. Its crates block you like the Hangar's do.
+const wreckage = buildOutpostWreckage(scene, ROOMS.find((r) => r.id === 'room7'));
+propColliders.push(...wreckage.colliders);
+
+// Start in the Hangar. The old (0, 1.6, 2) is open space on the painted map.
+const START_POS = (() => {
+  const p = roomSpawn('room1') || new THREE.Vector3(0, 0, 0);
+  return new THREE.Vector3(p.x, 1.6, p.z);
+})();
 const ctrl = createController(camera, canvas);
+// createController starts at the world origin, which is empty space on the
+// painted map — you'd spawn outside the level in the dark.
+ctrl.position.copy(START_POS);
 
 // ─── PLAYER WALL COLLISION ──────────────────────────────────
 // The controller moves the camera without knowing about walls
@@ -263,8 +337,21 @@ const ctrl = createController(camera, canvas);
 // segment, resolving X and Z independently so you slide along walls
 // and still pass cleanly through doorways.
 const PLAYER_RADIUS = 0.35;
+const WALK_SPEED = 5;                  // matches the controller's own default
+const WEB_SPEED = 2.1;                 // wading through floor webbing
+const SHOCK_DAMAGE = 5;                // 5% of full health per shock
+const SHOCK_INTERVAL = 0.9;            // seconds between shocks while stood on one
+let shockCooldown = 0;
+let shockFlash = 0;
 
 function hitsWall(x, z) {
+  // Solid props. Circles, so a rotated wreck blocks its own shape rather than
+  // a square patch around it. Checked first — it's a much shorter list.
+  for (const c of propColliders) {
+    const dx = x - c.x, dz = z - c.z;
+    const rr = c.r + PLAYER_RADIUS;
+    if (dx * dx + dz * dz < rr * rr) return true;
+  }
   for (const w of walls) {
     if (w.axis === 'x') {
       // Constant-X wall spanning Z ∈ [min,max]
@@ -280,7 +367,7 @@ function hitsWall(x, z) {
 }
 const gun = createGun(camera);
 const aliens = spawnAliens(scene);
-const boss = spawnBoss(scene);
+const boss = BOSS_ENABLED ? spawnBoss(scene) : null;
 const raycaster = new THREE.Raycaster();
 const screenCenter = new THREE.Vector2(0, 0);
 
@@ -299,6 +386,8 @@ const killsEl = document.getElementById('kills');
 const roomLabelEl = document.getElementById('room-label');
 const dmgFlashEl = document.getElementById('damage-flash');
 const deathScreen = document.getElementById('death-screen');
+const deathMsgEl = deathScreen.querySelector('p');
+let deathCause = null;
 const startOverlay = document.getElementById('start-overlay');
 
 // Boss HUD (added to the page markup)
@@ -324,17 +413,51 @@ function damagePlayer(amount) {
 
   if (playerHp <= 0) {
     isDead = true;
+    deathMsgEl.textContent = deathCause || 'Respawning...';
+    deathCause = null;
     deathScreen.style.display = 'flex';
     setTimeout(() => {
       playerHp = 100;
       isDead = false;
       deathScreen.style.display = 'none';
-      ctrl.position.set(0, 1.6, 2);
+      ctrl.position.copy(START_POS);
       ctrl.yaw = Math.PI;
       ctrl.pitch = 0;
       updateHUD();
     }, 2000);
   }
+}
+
+// ─── ALIEN ACTIVATION ────────────────────────────────────────
+//
+// Every alien in the level used to think and animate every frame, in every
+// room, whether or not you were anywhere near it. Three.js frustum-culls the
+// *drawing* of anything off-screen for free, but it can't skip the AI, and it
+// can't tell that a room two doors down is hidden behind a wall — a frustum is
+// just a cone, so those aliens were still being drawn.
+//
+// So: only the room you're standing in runs. Aliens elsewhere keep their state
+// (a charging Brute is still charging when you come back) but cost nothing.
+//
+// The radius is the escape hatch for corridors. A corridor is its own room id,
+// so nothing would match there, and without a fallback every alien in the
+// level would park the moment you stepped through a doorway — you'd watch them
+// blink out. Inside a real room it barely matters, because the room match
+// already activates everything in that room regardless of distance.
+//
+// Measured against the actual spawn plan (24 aliens / 1182 meshes), averaged
+// over the random spawn scatter:
+//     radius  8 → 2.7 aliens active (9.0x)   risks visible pop-in from corridors
+//     radius 12 → 3.1 aliens active (7.8x)   covers the near half of the next room
+//     radius 18 → 6.0 aliens active (4.0x)   pulls in whole neighbouring rooms
+const ACTIVE_RADIUS = 12;
+
+// The player's room ID. The HUD's getCurrentRoom() returns a *label* and
+// deliberately skips corridors (they have none), so it can't be reused here.
+function currentRoomId() {
+  // Grid lookup, so an irregular room reports correctly instead of matching
+  // the empty corner of its bounding box.
+  return roomIdAt(ctrl.position.x, ctrl.position.z);
 }
 
 // ─── BOSS ────────────────────────────────────────────────────
@@ -485,7 +608,81 @@ function gameLoop(now) {
   // --- Player ---
   if (!isDead) {
     const prevX = ctrl.position.x, prevZ = ctrl.position.z;
+
+    // Webbing underfoot. The controller reads ctrl.speed fresh every frame,
+    // so this is set both ways each frame rather than only on the way in —
+    // otherwise you'd leave the web still wading.
+    let bogged = false;
+    for (const w of floorWebs.zones) {
+      if ((ctrl.position.x - w.x) ** 2 + (ctrl.position.z - w.z) ** 2 < w.r * w.r) {
+        bogged = true;
+        break;
+      }
+    }
+    ctrl.speed = bogged ? WEB_SPEED : WALK_SPEED;
+
+    // Tentacles. The first step onto one shocks you immediately and standing
+    // there keeps shocking you; the cooldown resets the moment you're clear,
+    // so stepping off and back on costs you a fresh hit rather than letting
+    // you wait the timer out with a foot on it.
+    let onTentacle = false;
+    for (const t of tentacles.zones) {
+      if ((ctrl.position.x - t.x) ** 2 + (ctrl.position.z - t.z) ** 2 < t.r * t.r) {
+        onTentacle = true;
+        break;
+      }
+    }
+    if (!onTentacle) {
+      shockCooldown = 0;
+    } else {
+      shockCooldown -= dt;
+      if (shockCooldown <= 0) {
+        shockCooldown = SHOCK_INTERVAL;
+        shockFlash = 0.14;
+        // Only claim the kill if this hit is the one that lands it, or a
+        // later death to something else would still read "Electrocuted".
+        if (playerHp - SHOCK_DAMAGE <= 0) deathCause = 'Electrocuted';
+        damagePlayer(SHOCK_DAMAGE);
+      }
+    }
+    if (shockFlash > 0) {
+      shockFlash -= dt;
+      tentacles.glowMat.color.setHex(shockFlash > 0 ? 0xffffff : 0xff9ad8);
+    }
+
     updateController(ctrl, dt);
+
+  // ─── VACUUM ─────────────────────────────────────────────
+  // The hull breach drags you toward it and kills you at the lip. The pull
+  // is routed through hitsWall so it can't shove you through geometry on
+  // the way — it only ever moves you into space you could have walked into.
+  if (!isDead) {
+    for (const h of hazards) {
+      if (ctrl.position.x < h.xMin || ctrl.position.x > h.xMax) continue;
+      // `side` is +1 when the floor lies at z greater than the breach and -1
+      // when it lies at z less, so distance and pull both read the same way
+      // whichever wall of the Hangar is open.
+      const side = h.side || 1;
+      const d = (ctrl.position.z - h.z) * side;
+      if (d < 0 || d > h.pull) continue;
+      const t = 1 - d / h.pull;
+      const nz = ctrl.position.z - side * h.force * t * t * dt;
+      if (!hitsWall(ctrl.position.x, nz)) ctrl.position.z = nz;
+      if (d < h.kill) {
+        deathCause = 'Sucked into space';
+        damagePlayer(9999);
+      }
+    }
+  }
+
+  // Keep the player's head under the ceiling. Nothing currently jumps high
+  // enough to clip it, but that's a property of today's jumpForce, not a
+  // guarantee — clamp it so the ceiling is solid regardless.
+  const headroom = ceilingY - 0.25;
+  if (ctrl.position.y > headroom) {
+    ctrl.position.y = headroom;
+    if (ctrl.velocity.y > 0) ctrl.velocity.y = 0;
+  }
 
     // Wall collision — resolve X and Z independently so the player
     // slides along walls instead of sticking, and doorways stay open.
@@ -509,13 +706,18 @@ function gameLoop(now) {
       gun.recoilTime = 0.08;
       raycaster.setFromCamera(screenCenter, camera);
 
+      // Parked aliens are hidden, and r128's raycaster does NOT skip invisible
+      // meshes — without the visible check they'd still soak bullets from
+      // across the level. (The boss code below already guards this way.)
       const hitMeshes = [];
       aliens.forEach((a) => {
-        if (a.alive) a.model.traverse((c) => { if (c.isMesh) hitMeshes.push(c); });
+        if (a.alive && a.model.visible) {
+          a.model.traverse((c) => { if (c.isMesh && c.visible) hitMeshes.push(c); });
+        }
       });
       // Boss meshes (body under boss.model; pilot may have ejected to the
       // scene, so traverse the pilot group separately to still catch it).
-      if (boss.active && !boss.defeated) {
+      if (boss && boss.active && !boss.defeated) {
         boss.model.traverse((c) => { if (c.isMesh && c.visible) hitMeshes.push(c); });
         boss.model.userData.pilotGroup.traverse((c) => { if (c.isMesh && c.visible) hitMeshes.push(c); });
       }
@@ -535,7 +737,7 @@ function gameLoop(now) {
 
         if (hitObj.userData.isWall) {
           // Shot blocked by a wall — no damage, tracer stops here.
-        } else if (boss.active && !boss.defeated && hitObj.userData.hitPart) {
+        } else if (boss && boss.active && !boss.defeated && hitObj.userData.hitPart) {
           // Boss hit (its meshes carry a hitPart tag).
           damagePuppetMaster(boss.model, 1, hitObj.userData.hitPart);
         } else {
@@ -569,6 +771,10 @@ function gameLoop(now) {
   }
 
   // --- Update aliens ---
+  // Resolved once per frame rather than per alien — it's a scan over every
+  // room's bounds.
+  const playerRoom = currentRoomId();
+
   aliens.forEach((a) => {
     if (!a.alive) {
       a.deathTimer += dt;
@@ -602,11 +808,19 @@ function gameLoop(now) {
       return;
     }
 
+    // Park anything outside the player's room. Dead aliens are deliberately
+    // left out of this (they return above) — their timers have to keep running
+    // or a corpse in another room would never clear or respawn.
+    const dist = a.model.position.distanceTo(ctrl.position);
+    const active = a.room === playerRoom || dist < ACTIVE_RADIUS;
+    if (a.model.visible !== active) a.model.visible = active;
+    if (!active) return;
+
     // Flash timer
     if (a.flashTimer > 0) a.flashTimer -= dt;
 
-    // Run AI
-    a.reg.updateAI(a.model, a.ai, ctrl.position, dt);
+    // Run AI. Some aliens report an attack landing as a returned event.
+    const aiEvent = a.reg.updateAI(a.model, a.ai, ctrl.position, dt);
 
     // Idle animation — the same walk cycles / pulses / throbs shown in
     // the Alien Workshop. Only played during locomotion/idle states so
@@ -616,9 +830,17 @@ function gameLoop(now) {
       a.reg.animate(a.model, time);
     }
 
-    // Simple attack logic on top of AI
+    // Aliens that time their own attacks (the Brute's slam) damage you on the
+    // frame their animation connects, and skip the generic timer entirely —
+    // running both would let it hit you mid-charge, mid-stumble, or while
+    // standing still, which is exactly what made the dodge pointless.
+    if (a.reg.attackViaAI) {
+      if (aiEvent && aiEvent.type === 'ground_slam') damagePlayer(a.reg.attackDmg);
+      return;
+    }
+
+    // Simple attack logic on top of AI (dist computed above)
     a.attackTimer -= dt;
-    const dist = a.model.position.distanceTo(ctrl.position);
 
     if (a.attackTimer <= 0 && dist < a.reg.attackRange * 1.2 && dist < 20) {
       a.attackTimer = a.reg.attackCD;
@@ -636,7 +858,7 @@ function gameLoop(now) {
   });
 
   // --- Update boss ---
-  if (!isDead) updateBoss(dt);
+  if (!isDead && boss) updateBoss(dt);
 
   // --- Update projectiles ---
   projectiles = projectiles.filter((p) => {
@@ -683,7 +905,7 @@ function gameLoop(now) {
   roomCheckTimer += dt;
   if (roomCheckTimer > 0.2) {
     roomCheckTimer = 0;
-    const rm = getCurrentRoom(ctrl.position, bounds);
+    const rm = placeNameAt(ctrl.position.x, ctrl.position.z);
     if (rm) roomLabelEl.textContent = rm;
   }
 

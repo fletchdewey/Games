@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Falo 3D-2 — Map Walkthrough</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #11141c;
+                 font-family: ui-monospace, Menlo, monospace; }
+    canvas { display: block; }
+    #hud, #note {
+      position: fixed; left: 14px; color: #cdd6e4; font-size: 12px;
+      background: rgba(0,0,0,0.45); padding: 6px 10px; border-radius: 5px;
+      pointer-events: none; letter-spacing: 0.3px;
+    }
+    #hud { top: 12px; }
+    #note { bottom: 12px; color: #8a97ab; }
+    #room { position: fixed; top: 44px; left: 50%; transform: translateX(-50%);
+            font-size: 20px; letter-spacing: 3px; text-transform: uppercase;
+            color: #7fd6ff; text-shadow: 0 2px 10px #000a; pointer-events: none;
+            font-weight: 700; }
+    #dot { position: fixed; left: 50%; top: 50%; width: 4px; height: 4px;
+           margin: -2px 0 0 -2px; border-radius: 50%; background: #ffffffaa; }
+  </style>
+  <script type="importmap">
+  { "imports": { "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.min.js" } }
+  </script>
+</head>
+<body>
+  <div id="hud">loading map…</div>
+  <div id="room"></div>
+  <div id="note"></div>
+  <div id="dot"></div>
+  <script type="module" src="./map_walk.js"></script>
+</body>
+</html>
