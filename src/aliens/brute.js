@@ -24,6 +24,7 @@ import * as THREE from 'three';
 import { PALETTE, getMaterial } from '../shared/materials.js';
 import { buildLegChain } from '../shared/geometry.js';
 import { createBehaviorSpec } from '../shared/behavior.js';
+import { BRUTE_ATTACK } from '../shared/brute_attack.js';
 
 
 // ─── 1. GEOMETRY ────────────────────────────────────────────────
@@ -281,12 +282,12 @@ const STATE = {
   DEAD:    'dead',
 };
 
-// How long the bull windup holds before it launches. Long enough to read and
-// react to, short enough that it doesn't feel like it's waiting for you.
-const WINDUP_FRAMES = 50;   // ~0.8s at 60fps
-
-// How hard the charge is allowed to track you once committed. See CHARGE.
-const CHARGE_STEER = 0.004;
+// The charge-and-slam numbers live in shared/brute_attack.js, because the
+// Puppet Master drives a brute body and fights with the same cycle. Taking
+// them from there rather than keeping a second copy is what stops the two
+// drifting apart. The rationale for each value is written up over there.
+const WINDUP_FRAMES = BRUTE_ATTACK.WINDUP_FRAMES;
+const CHARGE_STEER = BRUTE_ATTACK.CHARGE_STEER;
 
 // The slam connects in a CONE in front of the Brute, not a circle around it.
 // A circle cannot distinguish a dodge from a direct hit: the charge always
@@ -298,8 +299,8 @@ const CHARGE_STEER = 0.004;
 //     step ~1.0u         → 21° off-axis   hit  (a half-step isn't enough)
 //     step ~1.5u         → 36° off-axis   MISS
 //     step during windup →  0° off-axis   hit  (it re-aims as it launches)
-const SLAM_RANGE = 3.5;
-const SLAM_ARC = Math.PI / 6;   // 30° either side of its nose
+const SLAM_RANGE = BRUTE_ATTACK.SLAM_RANGE;
+const SLAM_ARC = BRUTE_ATTACK.SLAM_ARC;   // 30° either side of its nose
 
 export function createBruteAI() {
   return {

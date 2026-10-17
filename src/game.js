@@ -31,7 +31,8 @@ import { createController, updateController } from './player/controller.js';
 
 // === Boss ===
 import { createPuppetMaster } from './bosses/puppet_master.js';
-import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster } from './bosses/puppet_master_ai.js';
+import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
@@ -163,24 +164,35 @@ function createFlash(scene, pos) {
 }
 
 // ─── ALIEN PROJECTILES ──────────────────────────────────────
-function createAlienProjectile(scene, from, to, color, speed, damage) {
+// `opts.model` throws a solid object instead of the usual glowing bolt — the
+// Puppet Master's pilot lobs whatever junk is lying around the station, and a
+// thrown spanner has no business lighting the room up. `opts.spin` tumbles it.
+function createAlienProjectile(scene, from, to, color, speed, damage, opts = {}) {
   const dir = new THREE.Vector3().subVectors(to, from).normalize();
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.08, 5, 5),
-    new THREE.MeshBasicMaterial({ color })
-  );
+  let mesh;
+  if (opts.model) {
+    mesh = opts.model;
+  } else {
+    mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 5, 5),
+      new THREE.MeshBasicMaterial({ color })
+    );
+    mesh.add(new THREE.PointLight(color, 1, 4));
+  }
   mesh.position.copy(from);
-  const light = new THREE.PointLight(color, 1, 4);
-  mesh.add(light);
   scene.add(mesh);
-  return { mesh, dir, speed, life: 4, damage };
+  return { mesh, dir, speed, life: 4, damage, spin: opts.spin || null };
 }
 
 // Remove a projectile from the scene and free its GPU resources.
 function removeProjectile(p) {
   scene.remove(p.mesh);
-  p.mesh.geometry.dispose();
-  p.mesh.material.dispose();
+  // A thrown object is a Group of meshes, not one mesh with its own geometry.
+  if (p.mesh.geometry) p.mesh.geometry.dispose();
+  if (p.mesh.material) p.mesh.material.dispose();
+  p.mesh.traverse((o) => {
+    if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); }
+  });
 }
 
 // Free a model's GPU geometry when we throw it away (materials come from
@@ -247,6 +259,17 @@ function spawnBoss(scene) {
   const at = roomSpawn(BOSS_ROOM) || new THREE.Vector3(0, 0, 0);
   model.position.set(at.x, 0, at.z);
   initPuppetMaster(model);
+
+  // Pen the ejected pilot inside the Control Room. Unleashed it flees the
+  // player in a straight line and walks out through the wall and off the map.
+  // The inradius of the room, less a margin, keeps it off the walls wherever
+  // in there the body happens to come down.
+  const r = ROOMS.find((rm) => rm.id === BOSS_ROOM);
+  if (r) {
+    setPuppetArena(model, (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2,
+                   Math.min(r.x1 - r.x0, r.z1 - r.z0) / 2 - 1.5);
+  }
+
   scene.add(model);
 
   return {
@@ -518,23 +541,10 @@ function updateBoss(dt) {
     const dtF = Math.min(dt * 60, 3);
     updatePuppetMaster(boss.model, ctrl.position, dtF);
 
-    // Pilot ejects (phase 3): lift it out of the body to scene level so
-    // it can scurry around on its own, near the collapsed wreck.
-    if (d.phase === 'ejected' && !boss.pilotDetached) {
-      scene.add(d.pilotGroup);
-      d.pilotGroup.position.set(boss.model.position.x, 1.3, boss.model.position.z + 0.4);
-      d.pilotGroup.rotation.set(0, 0, 0);
-      boss.pilotDetached = true;
-    }
-
-    // Body topples when it dies (the AI flags it; we animate the fall).
-    if (d.bodyCollapsing) {
-      d.bodyCollapseFrame = (d.bodyCollapseFrame || 0) + dt * 60;
-      const t = Math.min(1, d.bodyCollapseFrame / 60);
-      boss.model.rotation.x = t * 1.3;
-      boss.model.position.y = -t * 0.3;
-      if (t >= 1) d.bodyCollapsing = false;
-    }
+    // Blood, the pilot bailing out, the body going down, and the pilot's
+    // own end. All of it lives in the boss module now, so the Puppet Master
+    // workshop plays back exactly what happens here, not a copy of it.
+    stepPuppetMasterFx(boss.model, dt * 60, scene);
 
     // Apply whatever attack the brain queued this frame.
     const atk = d.currentAttack;
@@ -544,7 +554,9 @@ function updateBoss(dt) {
           damagePlayer(atk.damage);
         }
       } else if (atk.type === 'pilot_throw') {
-        projectiles.push(createAlienProjectile(scene, atk.origin, atk.target, 0x44ff88, 6, atk.damage));
+        projectiles.push(createAlienProjectile(
+          scene, atk.origin, atk.target, 0x44ff88, 6, atk.damage,
+          { model: atk.model, spin: atk.spin }));
       }
       d.currentAttack = null;
     }
@@ -755,7 +767,9 @@ function gameLoop(now) {
           // Shot blocked by a wall — no damage, tracer stops here.
         } else if (boss && boss.active && !boss.defeated && hitObj.userData.hitPart) {
           // Boss hit (its meshes carry a hitPart tag).
-          damagePuppetMaster(boss.model, 1, hitObj.userData.hitPart);
+          // hits[0].point is the exact impact, so the blood comes out of the
+          // hole rather than the middle of whatever was hit.
+          damagePuppetMaster(boss.model, 1, hitObj.userData.hitPart, hits[0].point);
         } else {
           for (const alien of aliens) {
             let found = false;
@@ -881,6 +895,11 @@ function gameLoop(now) {
     p.life -= dt;
     if (p.life <= 0) { removeProjectile(p); return false; }
     p.mesh.position.addScaledVector(p.dir, p.speed * dt);
+    if (p.spin) {
+      p.mesh.rotation.x += p.spin.x * dt;
+      p.mesh.rotation.y += p.spin.y * dt;
+      p.mesh.rotation.z += p.spin.z * dt;
+    }
     // Hit player?
     if (p.mesh.position.distanceTo(ctrl.position) < 0.6) {
       damagePlayer(p.damage != null ? p.damage : 10);

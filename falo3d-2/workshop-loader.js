@@ -48,6 +48,25 @@ function watch(url, intervalMs = 1000) {
 }
 
 /**
+ * Rewrite every non-bare import in the transpiled source to an absolute URL.
+ *
+ * A blob: URL has no directory to resolve against, so "./x.js" and
+ * "/src/x.js" both fail inside a blob module — the browser reports the base
+ * scheme as not hierarchical. Bare names ("react", "three") are deliberately
+ * left alone: the host page's import map still covers those, and rewriting
+ * them would break it.
+ *
+ * This is what lets a workshop import the real game source out of /src/ and
+ * drive the actual code instead of a copy of it.
+ */
+function absolutise(code, jsxUrl) {
+  const base = new URL(jsxUrl, location.href);
+  return code.replace(
+    /(\bfrom\s*|\bimport\s*\(\s*)(['"])((?:\.{1,2})?\/[^'"]*)\2/g,
+    (_m, kw, q, spec) => `${kw}${q}${new URL(spec, base).href}${q}`);
+}
+
+/**
  * Transpile and mount a workshop.
  *
  * @param {string} jsxUrl — path to the .jsx file, relative to this page
@@ -78,7 +97,7 @@ export async function mountWorkshop(jsxUrl) {
 
   let mod;
   try {
-    const blob = new Blob([code], { type: 'text/javascript' });
+    const blob = new Blob([absolutise(code, jsxUrl)], { type: 'text/javascript' });
     mod = await import(/* @vite-ignore */ URL.createObjectURL(blob));
   } catch (err) {
     return showError('Module failed to load', err);

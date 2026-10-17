@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Falo 3D-2 — Puppet Master Workshop</title>
+  <style>
+    html, body { margin: 0; background: #0a0a12; color: #e8e8f0;
+                 font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    #root { min-height: 100vh; }
+    #boot { padding: 40px; color: #556; font-size: 13px; letter-spacing: 2px;
+            text-transform: uppercase; }
+    /* The stage swallows drags for orbiting — don't let it select text too. */
+    canvas { user-select: none; touch-action: none; }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?external=react",
+      "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.min.js"
+    }
+  }
+  </script>
+
+  <!-- Babel standalone transpiles the .jsx in the browser (see workshop-loader.js) -->
+  <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"><div id="boot">Compiling puppet_workshop.jsx…</div></div>
+  <script type="module">
+    import { mountWorkshop } from './workshop-loader.js';
+    mountWorkshop('./puppet_workshop.jsx');
+  </script>
+</body>
+</html>
