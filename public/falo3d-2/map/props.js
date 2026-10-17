@@ -11,16 +11,16 @@
 // a metre. The helicopter is sized as a real one would be — ~13 long.
 
 import * as THREE from 'three';
-import { roomIdAt, WALL_HEIGHT as WALL_H,
-         SURFACE_WHITE } from './grid_map.js?v=0579c96020';
+import { roomIdAt, worldToCell, WALL_HEIGHT as WALL_H,
+         SURFACE_WHITE } from './grid_map.js?v=0c02580341';
 // Specimens for the pods room. These come from workshop_models.js — the
 // current models, straight out of the Alien Workshop — not from the older
 // crawler/floater/brute modules the fightable aliens are still built from.
 import { buildCrawler, buildFloater, buildBrute, buildWatcher }
-  from '../aliens/workshop_models.js?v=0579c96020';
+  from '../aliens/workshop_models.js?v=0c02580341';
 // The control room's map screen is drawn from the same painted cells the
 // level itself is built from.
-import { GRID } from './grid_data.js?v=0579c96020';
+import { GRID } from './grid_data.js?v=0c02580341';
 
 // Deterministic jitter, so the wreck looks scattered but lands in the same
 // place every run. Math.random() here would move the bodies on every reload.
@@ -1141,6 +1141,29 @@ function ammoCrate(rand, mats) {
       g.add(mag);
     }
   }
+  return g;
+}
+
+// A pistol on the floor, built along +X with the muzzle leading. Small enough
+// that it only reads as a sidearm next to something else for scale, which is
+// why it goes by a body rather than on its own.
+function pistol(mats) {
+  const g = new THREE.Group();
+  const Y = 0.028;
+  const slide = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.045, 0.035), mats.metal);
+  slide.position.set(0, Y + 0.02, 0);
+  g.add(slide);
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.03, 0.032), mats.metal);
+  frame.position.set(-0.01, Y - 0.005, 0);
+  g.add(frame);
+  // Lying on its side, so the grip runs out flat instead of into the floor.
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.028, 0.11), mats.stock);
+  grip.position.set(-0.07, Y, 0.06);
+  grip.rotation.y = -0.25;
+  g.add(grip);
+  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.022, 0.012), mats.metal);
+  guard.position.set(-0.02, Y - 0.012, 0.035);
+  g.add(guard);
   return g;
 }
 
@@ -3178,6 +3201,66 @@ export function buildControlRoom(scene, room, seed = 4040) {
   const smear = bloodPool(0.28, 2929);
   smear.position.set(DX + 0.1, DESK_Y + 0.05, ZC + 0.1);
   group.add(smear);
+
+  // ── THE DOOR ──────────────────────────────────────────────
+  // Two of them posted either side of the only way in, still where they fell.
+  // The opening is found from the painted map rather than written down here:
+  // it is wherever a cell just outside the room's west edge has floor on it,
+  // so re-painting the map moves these two with it.
+  {
+    const CS = GRID.cellSize || 2;
+    const painted = new Set(GRID.cells.map((c) => c[0] + ',' + c[1]));
+    let dz0 = Infinity, dz1 = -Infinity;
+    for (let z = room.z0 + 0.5; z < room.z1; z += CS / 2) {
+      const [ix, iz] = worldToCell(room.x0 - CS / 2, z);
+      if (!painted.has(ix + ',' + iz)) continue;
+      dz0 = Math.min(dz0, z); dz1 = Math.max(dz1, z);
+    }
+    const gunMats = { metal: M.gunMetal(), stock: M.gunStock() };
+    const GUARDS = [
+      { z: dz0 - 1.4, rot: 0.38, arm: 'rifle', seed: 5121 },
+      { z: dz1 + 1.4, rot: Math.PI - 0.32, arm: 'pistol', seed: 6233 },
+    ];
+    for (const gd of GUARDS) {
+      const gx = room.x0 + 1.35;
+      const pool = bloodPool(0.85 + (gd.seed % 7) * 0.03, gd.seed + 3);
+      pool.position.set(gx, 0, gd.z);
+      pool.rotation.y = gd.rot;
+      group.add(pool);
+
+      const body = deadBody('soldier', gd.seed);
+      body.position.set(gx, 0, gd.z);
+      body.rotation.y = gd.rot;
+      group.add(body);
+
+      // The weapon thrown clear of the hand it fell out of. It has to land
+      // past the edge of the blood: dark gunmetal on a dark pool reads as
+      // nothing at all, and the pistol is small enough to vanish entirely.
+      // deadBody lies along Z with the head at +Z, so +X is out to its side.
+      const reach = gd.arm === 'rifle' ? 0.8 : 1.2;
+      const hand = new THREE.Vector3(reach, 0, reach * 0.45).applyAxisAngle(
+        new THREE.Vector3(0, 1, 0), gd.rot);
+      const gun = gd.arm === 'rifle'
+        ? brokenRifle(rng(gd.seed + 11), gunMats, false)
+        : pistol(gunMats);
+      gun.position.set(gx + hand.x, 0, gd.z + hand.z);
+      gun.rotation.y = gd.rot + (gd.arm === 'rifle' ? 1.1 : 2.4);
+      group.add(gun);
+
+      // Brass where they stood and fired it.
+      const brass = [];
+      const br = rng(gd.seed + 29);
+      for (let i = 0; i < 22; i++) {
+        const a = br() * Math.PI * 2, d = 0.5 + Math.pow(br(), 0.6) * 1.3;
+        pushBar(brass, gx + Math.cos(a) * d, 0.013, gd.z + Math.sin(a) * d,
+                0.012, 0.055, Math.PI / 2, br() * Math.PI * 2);
+      }
+      const bg3 = new THREE.BufferGeometry();
+      bg3.setAttribute('position', new THREE.Float32BufferAttribute(brass, 3));
+      bg3.computeVertexNormals();
+      group.add(new THREE.Mesh(bg3, M.brass()));
+    }
+  }
 
   // ── LIGHT ─────────────────────────────────────────────────
   // Two fixtures over the console only. Lighting all 32x24 of this room would
