@@ -43,7 +43,8 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
-         buildAlienBoard, buildAlienPods } from './map/props.js';
+         buildAlienBoard, buildAlienPods,
+         buildStudyScreen } from './map/props.js';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -325,6 +326,11 @@ propColliders.push(...wreckage.colliders);
 // wall — the room's only solid run, and the wall you face coming in.
 const pods = buildAlienPods(scene, ROOMS.find((r) => r.id === 'room8'));
 propColliders.push(...pods.colliders);
+
+// The terminal the station kept its notes on them on, facing the tanks from
+// the far wall.
+const study = buildStudyScreen(scene, ROOMS.find((r) => r.id === 'room8'));
+propColliders.push(...study.colliders);
 
 // Start in the Hangar. The old (0, 1.6, 2) is open space on the painted map.
 const START_POS = (() => {

@@ -18,32 +18,33 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=831fb32a42';
+import { PALETTE, getMaterial } from './shared/materials.js?v=0ba5483f36';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=831fb32a42';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=831fb32a42';
-import { buildSpire, animateSpire, createSpireAI, updateSpireAI, hitSpire, killSpire } from './aliens/spire.js?v=831fb32a42';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=831fb32a42';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=0ba5483f36';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=0ba5483f36';
+import { buildSpire, animateSpire, createSpireAI, updateSpireAI, hitSpire, killSpire } from './aliens/spire.js?v=0ba5483f36';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=0ba5483f36';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=831fb32a42';
+import { createController, updateController } from './player/controller.js?v=0ba5483f36';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=831fb32a42';
-import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster } from './bosses/puppet_master_ai.js?v=831fb32a42';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=0ba5483f36';
+import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster } from './bosses/puppet_master_ai.js?v=0ba5483f36';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, ROOMS }
-  from './map/grid_map.js?v=831fb32a42';
+  from './map/grid_map.js?v=0ba5483f36';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
-         buildAlienBoard, buildAlienPods } from './map/props.js?v=831fb32a42';
+         buildAlienBoard, buildAlienPods,
+         buildStudyScreen } from './map/props.js?v=0ba5483f36';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -325,6 +326,11 @@ propColliders.push(...wreckage.colliders);
 // wall — the room's only solid run, and the wall you face coming in.
 const pods = buildAlienPods(scene, ROOMS.find((r) => r.id === 'room8'));
 propColliders.push(...pods.colliders);
+
+// The terminal the station kept its notes on them on, facing the tanks from
+// the far wall.
+const study = buildStudyScreen(scene, ROOMS.find((r) => r.id === 'room8'));
+propColliders.push(...study.colliders);
 
 // Start in the Hangar. The old (0, 1.6, 2) is open space on the painted map.
 const START_POS = (() => {

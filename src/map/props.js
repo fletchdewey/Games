@@ -2567,6 +2567,179 @@ export function buildAlienPods(scene, room, seed = 8808) {
   return { group, colliders };
 }
 
+
+// ─── THE STUDY SCREEN ───────────────────────────────────────
+// A terminal on the wall facing the pods, holding the notes the station kept
+// on what is in them. Everything else in the game is built from boxes, but a
+// wall of findings has to be readable, so this one is a canvas drawn with
+// real text and hung on the wall as a texture.
+//
+// The log at the bottom is the point of the room: they were studying these
+// things, the notes stop mid-entry, and Pod 3's lids are open in the tank.
+
+const STUDY = [
+  { pod: 'POD 1', name: 'CRAWLER', cls: 'pack hunter', mass: '41 kg',
+    threat: 'MODERATE',
+    notes: 'Flanks. Will not come at you straight. Closes the last four metres in one jump.' },
+  { pod: 'POD 2', name: 'FLOATER', cls: 'psionic', mass: '23 kg',
+    threat: 'HIGH',
+    notes: 'No muscle anywhere in it. Holds altitude with nothing. Cabin pressure spikes a half second before it fires.' },
+  { pod: 'POD 3', name: 'WATCHER', cls: 'ranged', mass: '58 kg',
+    threat: 'SEVERE',
+    notes: 'The eye is the only soft tissue on it. One clean hit is lethal. It knows, and keeps the lids shut until it fires.' },
+  { pod: 'POD 4', name: 'BRUTE', cls: 'shock', mass: '310 kg',
+    threat: 'SEVERE',
+    notes: 'Plate is grown, not worn. Commits to a charge and cannot turn out of it. Give it a wall.' },
+];
+
+const LOG = [
+  ['DAY 36', 'All four sedated. Feed lines stable. Bay sealed overnight.'],
+  ['DAY 38', 'Pod 2 core output up 400%. Sedation dose doubled.'],
+  ['DAY 41', 'Pod 3 lids open on morning check. Nobody opened them.'],
+  ['DAY 42', 'Re-sealed Pod 3. Lids open again within the hour. It is awake and it is'],
+];
+
+function studyCanvas() {
+  const CW = 1024, CH = 640;
+  const cv = document.createElement('canvas');
+  cv.width = CW; cv.height = CH;
+  const x = cv.getContext('2d');
+
+  const GREEN = '#6effa8', DIM = '#2f8f5c', WARN = '#ffb347';
+  x.fillStyle = '#04130c';
+  x.fillRect(0, 0, CW, CH);
+
+  // Header
+  x.fillStyle = '#0c2f1d';
+  x.fillRect(0, 0, CW, 54);
+  x.fillStyle = GREEN;
+  x.font = 'bold 26px "Courier New", monospace';
+  x.fillText('SPECIMEN STUDY — CONTAINMENT BAY 4', 22, 36);
+  x.font = '18px "Courier New", monospace';
+  x.fillStyle = DIM;
+  x.textAlign = 'right';
+  x.fillText('STATION FALO / XENOBIOLOGY', CW - 22, 35);
+  x.textAlign = 'left';
+
+  // Four columns, one per tank, in the order they stand along the wall.
+  const COLW = (CW - 44) / 4;
+  STUDY.forEach((s, i) => {
+    const cx = 22 + i * COLW, w = COLW - 18;
+    x.strokeStyle = '#174a31';
+    x.lineWidth = 2;
+    x.strokeRect(cx, 74, w, 300);
+
+    x.fillStyle = DIM;
+    x.font = '15px "Courier New", monospace';
+    x.fillText(s.pod, cx + 12, 100);
+    x.fillStyle = GREEN;
+    x.font = 'bold 27px "Courier New", monospace';
+    x.fillText(s.name, cx + 12, 130);
+
+    x.font = '15px "Courier New", monospace';
+    x.fillStyle = DIM;
+    x.fillText('CLASS ' + s.cls, cx + 12, 156);
+    x.fillText('MASS  ' + s.mass, cx + 12, 176);
+    x.fillStyle = s.threat === 'SEVERE' ? WARN : GREEN;
+    x.fillText('THREAT ' + s.threat, cx + 12, 196);
+
+    // Findings, wrapped to the column by measuring as we go.
+    x.fillStyle = GREEN;
+    x.font = '15px "Courier New", monospace';
+    let line = '', ly = 224;
+    for (const word of s.notes.split(' ')) {
+      const t = line ? line + ' ' + word : word;
+      if (x.measureText(t).width > w - 24) { x.fillText(line, cx + 12, ly); line = word; ly += 19; }
+      else line = t;
+    }
+    if (line) x.fillText(line, cx + 12, ly);
+  });
+
+  // The log.
+  x.strokeStyle = '#174a31';
+  x.beginPath(); x.moveTo(22, 400); x.lineTo(CW - 22, 400); x.stroke();
+  x.fillStyle = DIM;
+  x.font = '16px "Courier New", monospace';
+  x.fillText('BAY LOG', 22, 428);
+  let ly = 462;
+  LOG.forEach(([day, text], i) => {
+    const last = i === LOG.length - 1;
+    x.fillStyle = last ? WARN : DIM;
+    x.font = '17px "Courier New", monospace';
+    x.fillText(day, 22, ly);
+    x.fillStyle = last ? WARN : GREEN;
+    x.fillText(text, 120, ly);
+    ly += 30;
+  });
+  // The entry stops here. A cursor still blinking on it says more than a
+  // finished sentence would.
+  x.fillStyle = WARN;
+  x.fillRect(120 + x.measureText(LOG[LOG.length - 1][1]).width + 8, ly - 44, 11, 18);
+
+  // CRT scanlines, drawn over everything.
+  x.fillStyle = 'rgba(0,0,0,0.16)';
+  for (let sy = 0; sy < CH; sy += 4) x.fillRect(0, sy, CW, 2);
+
+  const tex = new THREE.CanvasTexture(cv);
+  // 640 is not a power of two. Without these the texture is resized or comes
+  // back blank depending on the driver.
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.generateMipmaps = false;
+  return tex;
+}
+
+export function buildStudyScreen(scene, room) {
+  const group = new THREE.Group();
+  const W = 3.2, H = 2.0;
+  const shell = M.metal(), dark = M.hullDk();
+
+  const bezel = new THREE.Mesh(new THREE.BoxGeometry(W + 0.22, H + 0.22, 0.12), dark);
+  group.add(bezel);
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(W, H),
+    new THREE.MeshBasicMaterial({ map: studyCanvas() }));
+  face.position.z = 0.07;
+  group.add(face);
+
+  // Mounts holding it off the wall.
+  for (const sx of [-1, 1]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.22), shell);
+    arm.position.set(sx * (W / 2 - 0.2), H / 2 - 0.1, -0.12);
+    group.add(arm);
+  }
+
+  // A console shelf under it, so the screen reads as something worked at
+  // rather than a poster.
+  const shelf = new THREE.Mesh(new THREE.BoxGeometry(W * 0.8, 0.07, 0.52), shell);
+  shelf.position.set(0, -H / 2 - 0.42, 0.22);
+  group.add(shelf);
+  for (const sx of [-1, 1]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.42, 0.06), dark);
+    leg.position.set(sx * W * 0.34, -H / 2 - 0.66, 0.1);
+    group.add(leg);
+  }
+  const keys = new THREE.Mesh(new THREE.BoxGeometry(W * 0.44, 0.04, 0.26), dark);
+  keys.position.set(-0.15, -H / 2 - 0.36, 0.26);
+  keys.rotation.x = -0.12;
+  group.add(keys);
+  const lamps = [];
+  for (let i = 0; i < 5; i++) {
+    pushBox(lamps, W * 0.26 + i * 0.07, -H / 2 - 0.36, 0.3, 0.035, 0.02, 0.02);
+  }
+  const lg = new THREE.BufferGeometry();
+  lg.setAttribute('position', new THREE.Float32BufferAttribute(lamps, 3));
+  lg.computeVertexNormals();
+  group.add(new THREE.Mesh(lg, new THREE.MeshBasicMaterial({ color: 0x6effa8 })));
+
+  // Hung on the wall opposite the tanks, turned to face back down the room.
+  group.position.set(room.x0 + 6.0, 1.85, room.z1 - 0.08);
+  group.rotation.y = Math.PI;
+  group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
+  scene.add(group);
+  return { group, colliders: [{ x: room.x0 + 6.0, z: room.z1 - 0.5, r: 0.6 }] };
+}
+
 // ─── THE HANGAR CRASH SITE ──────────────────────────────────
 export function buildHangarProps(scene, room, walls = []) {
   const group = new THREE.Group();
