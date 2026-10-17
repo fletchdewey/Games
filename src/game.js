@@ -146,6 +146,7 @@ const SPAWN_PLAN = [
   { room: 'room3', type: 'floater', count: 4 },   // outpost 2
   { room: 'room4', type: 'crawler', count: 4 },   // outpost 1
   { room: 'room6', type: 'crawler', count: 2, spots: brokenCellSpots() },
+  { room: 'room5', type: 'brute',   count: 1 },   // armory
 ];
 
 /**
@@ -263,25 +264,39 @@ function disposeModel(model) {
 // ─── SPAWN ALIENS ───────────────────────────────────────────
 
 /**
- * A painted cell in `roomId` at least `gap` from everything in `placed`.
- * Falls back to whichever candidate was furthest from its nearest neighbour,
- * so a room too small to space everyone out still spreads them as well as it
- * can instead of giving up and stacking them.
+ * A painted cell in `roomId` that is `gap` clear of everything in `placed`
+ * and not standing in the scenery.
+ *
+ * The second half matters in the cluttered rooms. A painted cell only means
+ * there is floor there — it says nothing about the weapon racks bolted to it,
+ * and the armory is mostly weapon racks. An alien dropped inside one isn't
+ * stuck (it walks out, the collision lets anything already overlapping move
+ * freely) but you would see it standing in a crate for the first second.
+ *
+ * Two fallbacks, in order of how much they give up: the roomiest spot that
+ * is at least clear of scenery, then the roomiest spot at all — so a room too
+ * cramped to satisfy both still spreads them as well as it can rather than
+ * stacking them.
  */
-function spacedCellIn(roomId, placed, gap) {
-  let best = null, bestClearance = -1;
+function spacedCellIn(roomId, placed, gap, radius) {
+  let best = null, bestGap = -1;
+  let bestClear = null, bestClearGap = -1;
   for (let attempt = 0; attempt < 40; attempt++) {
     const spot = randomCellIn(roomId);
     if (!spot) return null;
+
     let nearest = Infinity;
     for (const p of placed) {
       const d = Math.hypot(spot.x - p.x, spot.z - p.z);
       if (d < nearest) nearest = d;
     }
-    if (nearest >= gap) return spot;
-    if (nearest > bestClearance) { bestClearance = nearest; best = spot; }
+    const clearOfScenery = !hitsWall(spot.x, spot.z, radius);
+
+    if (clearOfScenery && nearest >= gap) return spot;
+    if (clearOfScenery && nearest > bestClearGap) { bestClearGap = nearest; bestClear = spot; }
+    if (nearest > bestGap) { bestGap = nearest; best = spot; }
   }
-  return best;
+  return bestClear || best;
 }
 
 /** Build one alien and stand it at x,z. Shared by the scatter and by the
@@ -336,7 +351,7 @@ function spawnAliens(scene) {
       // that is a whole body-width from everything already down; if the room
       // is too cramped for that, take the roomiest one we saw.
       const spot = spacedCellIn(plan.room, taken[plan.room] || (taken[plan.room] = []),
-                                reg.spawnGap || 2);
+                                reg.spawnGap || 2, reg.bodyRadius || 0.6);
       if (!spot) continue;
       taken[plan.room].push(spot);
       placeAlien(aliens, scene, reg, plan, spot.x, spot.z);
@@ -1435,6 +1450,8 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
     get shots() { return projectiles.length; },
     /** Die on demand, so the death screen can be checked without a fight. */
     kill() { damagePlayer(9999); },
+    /** The level's own collision test, for checking placements from here. */
+    hitsWall, isFloorAt,
     /** Drop the player into the arena so the fight starts. */
     toBoss() {
       const at = roomSpawn(BOSS_ROOM);
