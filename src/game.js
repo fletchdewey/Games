@@ -569,7 +569,9 @@ const killsEl = document.getElementById('kills');
 const roomLabelEl = document.getElementById('room-label');
 const dmgFlashEl = document.getElementById('damage-flash');
 const deathScreen = document.getElementById('death-screen');
-const deathMsgEl = deathScreen.querySelector('p');
+const deathMsgEl = document.getElementById('death-msg');
+const playAgainBtn = document.getElementById('play-again');
+const quitBtn = document.getElementById('quit-game');
 let deathCause = null;
 const startOverlay = document.getElementById('start-overlay');
 
@@ -597,20 +599,125 @@ function damagePlayer(amount) {
 
   if (playerHp <= 0) {
     isDead = true;
-    deathMsgEl.textContent = deathCause || 'Respawning...';
+    deathMsgEl.textContent = deathCause || 'The station keeps what it kills.';
     deathCause = null;
     deathScreen.style.display = 'flex';
-    setTimeout(() => {
-      playerHp = 100;
-      isDead = false;
-      deathScreen.style.display = 'none';
-      ctrl.position.copy(START_POS);
-      ctrl.yaw = Math.PI;
-      ctrl.pitch = 0;
-      updateHUD();
-    }, 2000);
+    // Give the mouse back. It's locked to the canvas while you're playing, so
+    // without this there's no cursor to click either button with.
+    if (document.pointerLockElement) document.exitPointerLock();
   }
 }
+
+// ─── STARTING OVER ──────────────────────────────────────────
+// Dying used to drop you back at the airlock with full health two seconds
+// later, keeping your kills and leaving the boss however you'd left it. Now
+// it's a choice: play again, or quit to the title screen. Both of them begin
+// a brand new run, so everything the last one accumulated has to be put back
+// by hand. Anything missed here is a bug you only ever see on the second
+// playthrough — a tracer still in flight, a boss already dead, last run's
+// kill count.
+
+/** Put the world back exactly how a fresh page load finds it. */
+function resetRun() {
+  // Things in flight. These each hold a mesh or a light in the scene, so they
+  // go first — reviving the world around them would leave them hanging there.
+  for (const b of bullets) {
+    scene.remove(b.mesh);
+    b.mesh.geometry.dispose();
+    b.mesh.material.dispose();
+  }
+  bullets.length = 0;
+  for (const f of flashes) scene.remove(f.light);
+  flashes.length = 0;
+  for (const p of projectiles) removeProjectile(p);
+  projectiles.length = 0;
+
+  // Aliens. Rebuilt rather than revived, for the same reason the respawn in
+  // the game loop rebuilds them: a death animation hides sub-meshes and moves
+  // parts about, so reusing the body gives you a half-rendered alien.
+  for (const a of aliens) {
+    scene.remove(a.model);
+    disposeModel(a.model);
+
+    const model = a.reg.build();
+    model.position.copy(a.spawnPos);
+    model.userData.baseY = a.reg.baseY;
+    a.ai = a.reg.createAI();
+    model.userData.ai = a.ai;
+    scene.add(model);
+
+    a.model = model;
+    a.alive = true;
+    a.hp = a.maxHp;
+    a.deathTimer = 0;
+    a.flashTimer = 0;
+    a.attackTimer = a.reg.attackCD * (0.5 + Math.random());
+  }
+
+  // The boss, through the real spawn — so a new run rolls the dice again and
+  // you aren't handed the same fight twice just because it's what killed you.
+  if (boss) {
+    scene.remove(boss.model);
+    disposeModel(boss.model);
+    Object.assign(boss, spawnBoss(scene));
+    if (bossHudEl) bossHudEl.style.display = 'none';
+    if (bossBannerEl) bossBannerEl.style.display = 'none';
+  }
+
+  // The player.
+  killCount = 0;
+  playerHp = 100;
+  isDead = false;
+  deathCause = null;
+  dmgFlashTimer = 0;
+  dmgFlashEl.style.opacity = '0';
+  shockCooldown = 0;
+  shockFlash = 0;
+  tentacles.glowMat.color.setHex(0xff9ad8);
+
+  ctrl.position.copy(START_POS);
+  ctrl.velocity.set(0, 0, 0);
+  ctrl.yaw = Math.PI;
+  ctrl.pitch = 0;
+  ctrl.onGround = true;
+  ctrl.shootRequested = false;
+  // As far as the browser is concerned, whatever you were holding when you
+  // died is still held — the keyup never came. Without this you spawn already
+  // walking, and with the trigger down you'd fire the moment you land.
+  for (const k in ctrl.keys) ctrl.keys[k] = false;
+
+  updateHUD();
+}
+
+/** Button one: straight back in at the start, from scratch. */
+function playAgain() {
+  resetRun();
+  deathScreen.style.display = 'none';
+  // Chrome refuses a lock requested too soon after the last one was released,
+  // and we release it on death. If it won't take, the mouse just stays free
+  // and clicking the view grabs it — so swallow it rather than let it throw.
+  const lock = canvas.requestPointerLock();
+  if (lock && lock.catch) lock.catch(() => {});
+}
+
+/** Button two: back to the title screen. The run is thrown away either way,
+ *  so Click to Play drops you into a clean station rather than the one you
+ *  just walked out of. */
+function quitToTitle() {
+  resetRun();
+  deathScreen.style.display = 'none';
+  startOverlay.style.display = 'flex';
+}
+
+playAgainBtn.addEventListener('click', playAgain);
+quitBtn.addEventListener('click', quitToTitle);
+
+// Your hand is on the keyboard already, so take it from there too.
+document.addEventListener('keydown', (e) => {
+  if (!isDead) return;
+  if (e.code === 'KeyR') playAgain();
+  else if (e.code === 'KeyQ') quitToTitle();
+});
 
 // ─── ALIEN ACTIVATION ────────────────────────────────────────
 //
@@ -779,6 +886,9 @@ document.addEventListener('pointerlockchange', () => {
 });
 
 canvas.addEventListener('click', () => {
+  // Not while you're dead or sat on the title screen — those are the two
+  // times the cursor is the whole point.
+  if (isDead || startOverlay.style.display !== 'none') return;
   if (!ctrl.locked) {
     canvas.requestPointerLock();
   }
@@ -1128,8 +1238,14 @@ function gameLoop(now) {
 // the deployed game exposes nothing.
 if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
   window.__game = {
-    boss, ctrl, scene, BOSS_KINDS,
+    boss, ctrl, scene, BOSS_KINDS, aliens,
     get hp() { return playerHp; },
+    get kills() { return killCount; },
+    get dead() { return isDead; },
+    get bullets() { return bullets.length; },
+    get shots() { return projectiles.length; },
+    /** Die on demand, so the death screen can be checked without a fight. */
+    kill() { damagePlayer(9999); },
     /** Drop the player into the arena so the fight starts. */
     toBoss() {
       const at = roomSpawn(BOSS_ROOM);
