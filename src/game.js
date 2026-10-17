@@ -46,7 +46,7 @@ import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
-import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, ROOMS }
+import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
   from './map/grid_map.js';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
@@ -73,6 +73,7 @@ const ALIEN_TYPES = {
     hp: 3, baseY: 0.32, attackType: 'melee', attackRange: 2.5,   // feet measured at -0.32
     attackDmg: 8, attackCD: 1.5, speed: 0.04,
     spawnGap: 2.8,          // 2.6 wide across the legs, plus a little air
+    bodyRadius: 0.7,        // the shell; the splayed legs are allowed to overlap
     // States where the idle walk cycle should play (see aliens/crawler.js).
     // During action states (pounce/recover/hurt) the AI drives the pose.
     idleStates: ['patrol', 'chase'],
@@ -84,6 +85,7 @@ const ALIEN_TYPES = {
     hp: 2, baseY: 1.5, attackType: 'ranged', attackRange: 10,   // hovers; no feet to land
     attackDmg: 12, attackCD: 2.0, speed: 0.025,
     spawnGap: 2.0,          // the smallest of the four, at 1.3 across
+    bodyRadius: 0.6,        // the bell. Its tentacles trail through, which is fine
     projSpeed: 6, projColor: 0xff44cc,
     idleStates: ['hover', 'chase'],
   },
@@ -96,6 +98,7 @@ const ALIEN_TYPES = {
     hp: 1, baseY: 0.05, attackType: 'beam', attackRange: 12,   // feet measured at -0.05
     attackDmg: 15, attackCD: 0, speed: 0,
     spawnGap: 3.4,          // 2.6 across the tripod, and it never moves off it
+    bodyRadius: 0.8,        // never actually moves, so this never comes up
     // Its beam lands on the one frame the shot connects, like the Brute's
     // slam — not on a proximity timer. Standing beside one does nothing at
     // all until it actually fires, which is what makes the telegraph worth
@@ -114,6 +117,7 @@ const ALIEN_TYPES = {
     hp: 6, baseY: 0.86, attackType: 'melee', attackRange: 3.5,   // feet measured at -0.86
     attackDmg: 10, attackCD: 2.0, speed: 0.035,   // 10% of the player's 100 HP
     spawnGap: 3.2,          // the widest of the four, at 3.0 shoulder to shoulder
+    bodyRadius: 0.9,        // its torso. Any wider and it could not fit a doorway
     // The Brute lands damage on its slam's impact frame, not on a proximity
     // timer — otherwise the charge/dodge is decorative and it hits you for
     // simply being near it. See the alien update loop.
@@ -583,26 +587,84 @@ const SHOCK_INTERVAL = 0.9;            // seconds between shocks while stood on 
 let shockCooldown = 0;
 let shockFlash = 0;
 
-function hitsWall(x, z) {
+// `r` is how wide the thing being moved is. It defaults to the player, who
+// was the only one that ever asked — the aliens walked through walls because
+// nothing on their side ever called this.
+function hitsWall(x, z, r = PLAYER_RADIUS) {
   // Solid props. Circles, so a rotated wreck blocks its own shape rather than
   // a square patch around it. Checked first — it's a much shorter list.
   for (const c of propColliders) {
     const dx = x - c.x, dz = z - c.z;
-    const rr = c.r + PLAYER_RADIUS;
+    const rr = c.r + r;
     if (dx * dx + dz * dz < rr * rr) return true;
   }
   for (const w of walls) {
     if (w.axis === 'x') {
       // Constant-X wall spanning Z ∈ [min,max]
-      if (Math.abs(x - w.pos) < PLAYER_RADIUS &&
-          z >= w.min - PLAYER_RADIUS && z <= w.max + PLAYER_RADIUS) return true;
+      if (Math.abs(x - w.pos) < r &&
+          z >= w.min - r && z <= w.max + r) return true;
     } else {
       // Constant-Z wall spanning X ∈ [min,max]
-      if (Math.abs(z - w.pos) < PLAYER_RADIUS &&
-          x >= w.min - PLAYER_RADIUS && x <= w.max + PLAYER_RADIUS) return true;
+      if (Math.abs(z - w.pos) < r &&
+          x >= w.min - r && x <= w.max + r) return true;
     }
   }
   return false;
+}
+
+/**
+ * Somewhere an alien is not allowed to stand.
+ *
+ * TWO tests, and it needs both. hitsWall() keeps its body from overlapping a
+ * wall, but it only looks at where the alien ENDED UP, and a wall is only a
+ * band about a metre either side of its plane. Anything that can cross more
+ * than that band in a single frame skips over the band entirely and lands in
+ * the void beyond, having never once been "inside" a wall.
+ *
+ * The Floater does exactly that. Its hover doesn't drift — it assigns a
+ * position outright, on a circle around where it spawned, so dropping out of
+ * a chase snaps it across the room in one frame. That is how they were
+ * getting outside the station. The floor test is what catches it: no size of
+ * step can land on a cell that was never painted.
+ */
+/**
+ * Keep a moved alien out of the walls.
+ *
+ * The alien brains steer straight at you and know nothing about the level —
+ * the walls live out here, not in the alien modules — so instead of asking
+ * each of them to check, we let one move however it likes and then undo the
+ * parts of that move that ended up somewhere it shouldn't be. X and Z are
+ * undone separately, which is what makes an alien slide along a wall and
+ * round a doorway rather than stopping dead against it. Same trick the
+ * player uses.
+ *
+ * The two tests are NOT equally strict, and that distinction is the whole
+ * thing:
+ *
+ *   THE FLOOR is absolute. Every alien spawns on painted floor and there is
+ *   no legitimate reason for one to be anywhere else, so it is never allowed
+ *   off it — whatever state it is in, however big the step. That is what
+ *   stops a teleport (the Floater snapping onto its hover circle) from
+ *   skipping clean over a wall without ever being inside it.
+ *
+ *   THE BODY is advisory. A wide alien stood beside a wall really does
+ *   overlap it — a Brute is nearly two metres across — and if we treated
+ *   that as "trapped" and waved it through, as a first version of this did,
+ *   it would stroll out of the station every time it hugged a corner. So
+ *   when it is already touching, we stop asking and let the floor rule hold
+ *   it. It can scrape along the wall; it cannot leave the building.
+ */
+function keepOutOfWalls(pos, prevX, prevZ, r) {
+  // Should never happen now, but if something has already put it off the
+  // floor, let it move freely rather than freezing it out there forever.
+  if (!isFloorAt(prevX, prevZ)) return;
+
+  const alreadyTouching = hitsWall(prevX, prevZ, r);
+  const blocked = (x, z) =>
+    !isFloorAt(x, z) || (!alreadyTouching && hitsWall(x, z, r));
+
+  if (blocked(pos.x, prevZ)) pos.x = prevX;
+  if (blocked(pos.x, pos.z)) pos.z = prevZ;
 }
 // Is there a clear line between these two points, or is there a wall in it?
 //
@@ -1207,6 +1269,9 @@ function gameLoop(now) {
     // Flash timer
     if (a.flashTimer > 0) a.flashTimer -= dt;
 
+    // Where it stood before it got a say, so the walls can put it back.
+    const wasX = a.model.position.x, wasZ = a.model.position.z;
+
     // Hand the Watcher its line of sight before it thinks. The walls belong
     // to the level, not to the alien module, so the test has to happen here.
     if (a.reg.needsSight) {
@@ -1219,6 +1284,11 @@ function gameLoop(now) {
 
     // Run AI. Some aliens report an attack landing as a returned event.
     const aiEvent = a.reg.updateAI(a.model, a.ai, ctrl.position, dt);
+
+    // ...and then take back any of that movement that went through a wall.
+    // Dead ones are left alone — their collapse is an animation, and a body
+    // slumping half into a wall beats one that twitches as it falls.
+    if (a.alive) keepOutOfWalls(a.model.position, wasX, wasZ, a.reg.bodyRadius || 0.6);
 
     // Idle animation — the same walk cycles / pulses / throbs shown in
     // the Alien Workshop. Only played during locomotion/idle states so

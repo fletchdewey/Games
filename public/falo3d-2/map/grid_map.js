@@ -18,7 +18,7 @@
 //   wallMeshes meshes tagged isWall             so shots stop at walls
 
 import * as THREE from 'three';
-import { GRID } from './grid_data.js?v=341d46c223';
+import { GRID } from './grid_data.js?v=efae637ed7';
 
 // Must match the Map Editor's grid origin or everything lands offset.
 export const GX0 = -48, GZ0 = -96;
@@ -65,6 +65,21 @@ export const ROOMS = (GRID.rooms || []).map((r) => {
 const roomOfCell = new Map();
 for (const r of GRID.rooms || [])
   for (const [x, z] of r.cells) roomOfCell.set(`${x},${z}`, r.id);
+
+/**
+ * Is there painted floor under this world position?
+ *
+ * The difference between this and hitsWall() matters. A wall test asks "am I
+ * touching a wall", which is a band a metre or so either side of the wall's
+ * plane; step further than that band in one frame and you sail straight
+ * through without ever being inside it. This asks "is there floor here at
+ * all", which no size of step can sneak past — so it is the one to use on
+ * anything that can move a long way at once.
+ */
+export function isFloorAt(wx, wz) {
+  const [ix, iz] = worldToCell(wx, wz);
+  return has(ix, iz);
+}
 
 /** Room id at a world position, or null in a hallway / off the map. */
 export function roomIdAt(wx, wz) {
