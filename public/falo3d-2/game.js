@@ -18,34 +18,34 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=a80da401b0';
+import { PALETTE, getMaterial } from './shared/materials.js?v=baf0e35931';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=a80da401b0';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=a80da401b0';
-import { buildSpire, animateSpire, createSpireAI, updateSpireAI, hitSpire, killSpire } from './aliens/spire.js?v=a80da401b0';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=a80da401b0';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=baf0e35931';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=baf0e35931';
+import { buildSpire, animateSpire, createSpireAI, updateSpireAI, hitSpire, killSpire } from './aliens/spire.js?v=baf0e35931';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=baf0e35931';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=a80da401b0';
+import { createController, updateController } from './player/controller.js?v=baf0e35931';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=a80da401b0';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=baf0e35931';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=a80da401b0';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=baf0e35931';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, ROOMS }
-  from './map/grid_map.js?v=a80da401b0';
+  from './map/grid_map.js?v=baf0e35931';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
          buildAlienBoard, buildAlienPods,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=a80da401b0';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=baf0e35931';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
