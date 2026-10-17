@@ -39,7 +39,7 @@
 // Frames, like the other boss files: 60 to the second.
 
 import * as THREE from 'three';
-import { BLOOD_MAX, BLOOD_PARKED, POOL_MAX } from './burrower.js?v=58f941327e';
+import { BLOOD_MAX, BLOOD_PARKED, POOL_MAX } from './burrower.js?v=051f4774f4';
 
 export const FX = {
   // ── Getting about ──
@@ -470,19 +470,28 @@ function beginDive(d) {
  * Pen it inside the room it is fought in. Unlike the others it doesn't home
  * on the player — it deliberately overshoots, to a spot beside you and then
  * past you through the leap — so without a leash it walks out through a wall.
+ *
+ * The pen is a RECTANGLE, matching the room. A circle inside a 32x24 room
+ * only reaches 10.5 units from the middle while the player can stand 20 away
+ * in a corner, so the worm sat pinned against an invisible edge, looking
+ * slow and unable to land a thing.
  */
-export function setBurrowerArena(group, cx, cz, radius) {
-  group.userData.arena = { x: cx, z: cz, r: Math.max(2, radius) };
+export function setBurrowerArena(group, x0, z0, x1, z1, margin = 1.5) {
+  const m = margin;
+  group.userData.arena = {
+    x0: Math.min(x0, x1) + m, x1: Math.max(x0, x1) - m,
+    z0: Math.min(z0, z1) + m, z1: Math.max(z0, z1) - m,
+  };
 }
 
-/** Pull a point back inside the arena, if there is one. */
+/** Pull a point back inside the arena. Returns null if it was already in. */
 function pen(d, x, z) {
-  if (!d.arena) return null;
-  const dx = x - d.arena.x, dz = z - d.arena.z;
-  const len = Math.hypot(dx, dz);
-  if (len <= d.arena.r || len < 1e-6) return null;
-  return { x: d.arena.x + dx / len * d.arena.r,
-           z: d.arena.z + dz / len * d.arena.r };
+  const a = d.arena;
+  if (!a) return null;
+  const cx = Math.min(a.x1, Math.max(a.x0, x));
+  const cz = Math.min(a.z1, Math.max(a.z0, z));
+  if (cx === x && cz === z) return null;
+  return { x: cx, z: cz };
 }
 
 /**

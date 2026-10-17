@@ -18,41 +18,41 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=58f941327e';
+import { PALETTE, getMaterial } from './shared/materials.js?v=051f4774f4';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=58f941327e';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=58f941327e';
-import { buildSpire, animateSpire, createSpireAI, updateSpireAI, hitSpire, killSpire } from './aliens/spire.js?v=58f941327e';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=58f941327e';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=051f4774f4';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=051f4774f4';
+import { buildSpire, animateSpire, createSpireAI, updateSpireAI, hitSpire, killSpire } from './aliens/spire.js?v=051f4774f4';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=051f4774f4';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=58f941327e';
+import { createController, updateController } from './player/controller.js?v=051f4774f4';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=58f941327e';
-import { createSwarm } from './bosses/swarm.js?v=58f941327e';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=58f941327e';
-import { createTwins } from './bosses/twins.js?v=58f941327e';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=58f941327e';
-import { createBurrower } from './bosses/burrower.js?v=58f941327e';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=051f4774f4';
+import { createSwarm } from './bosses/swarm.js?v=051f4774f4';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=051f4774f4';
+import { createTwins } from './bosses/twins.js?v=051f4774f4';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=051f4774f4';
+import { createBurrower } from './bosses/burrower.js?v=051f4774f4';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=58f941327e';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=051f4774f4';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=58f941327e';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=051f4774f4';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, ROOMS }
-  from './map/grid_map.js?v=58f941327e';
+  from './map/grid_map.js?v=051f4774f4';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
          buildAlienBoard, buildAlienPods,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=58f941327e';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=051f4774f4';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -274,6 +274,7 @@ const BOSS_ENABLED = true;
 const BOSS_KINDS = [
   {
     id: 'puppet_master',
+    fell: 'The Puppet Master falls.',
     bullet: 1,
     create: () => createPuppetMaster(),
     place(model, at, arena) {
@@ -320,6 +321,7 @@ const BOSS_KINDS = [
   },
   {
     id: 'swarm',
+    fell: 'The Swarm scatters for good.',
     bullet: 1,
     create: () => createSwarm(),
     place(model, at) { model.position.set(at.x, 0, at.z); initSwarm(model); },
@@ -340,6 +342,7 @@ const BOSS_KINDS = [
   },
   {
     id: 'twins',
+    fell: 'Both Twins are down.',
     bullet: 1,
     create: () => createTwins(),
     place(model, at) { model.position.set(at.x, 0, at.z); initTwins(model); },
@@ -362,6 +365,7 @@ const BOSS_KINDS = [
   },
   {
     id: 'burrower',
+    fell: 'The Burrower comes apart.',
     bullet: 10,
     create: () => createBurrower(),
     // The only one that doesn't ride its group: it lays its body out in the
@@ -369,7 +373,7 @@ const BOSS_KINDS = [
     // spawn point goes into initBurrower instead of into model.position.
     place(model, at, arena) {
       initBurrower(model, { x: at.x, z: at.z });
-      setBurrowerArena(model, arena.x, arena.z, arena.r);
+      setBurrowerArena(model, arena.x0, arena.z0, arena.x1, arena.z1);
     },
     update: (model, playerPos, dtF) => updateBurrower(model, playerPos, dtF),
     hit: (model, part, point, amount) =>
@@ -385,18 +389,25 @@ const BOSS_KINDS = [
   },
 ];
 
-function spawnBoss(scene) {
-  const kind = BOSS_KINDS[Math.floor(Math.random() * BOSS_KINDS.length)];
+// `forceId` is only ever passed by the localhost dev hook, so a particular
+// boss can be checked without reloading until it comes up.
+function spawnBoss(scene, forceId) {
+  const kind = forceId
+    ? BOSS_KINDS.find((k) => k.id === forceId)
+    : BOSS_KINDS[Math.floor(Math.random() * BOSS_KINDS.length)];
   // Middle of the arena. roomSpawn() always lands on a painted cell.
   const at = roomSpawn(BOSS_ROOM) || new THREE.Vector3(0, 0, 0);
 
-  // The room it is penned into, as a circle: the inradius less a margin keeps
-  // whatever it is off the walls wherever in there it ends up.
+  // The room it is fought in, given both ways: a circle for the Puppet
+  // Master's pilot leash, and the actual rectangle for anything that has to
+  // be able to reach the player anywhere in the room.
   const r = ROOMS.find((rm) => rm.id === BOSS_ROOM);
   const arena = r
     ? { x: (r.x0 + r.x1) / 2, z: (r.z0 + r.z1) / 2,
-        r: Math.min(r.x1 - r.x0, r.z1 - r.z0) / 2 - 1.5 }
-    : { x: at.x, z: at.z, r: 8 };
+        r: Math.min(r.x1 - r.x0, r.z1 - r.z0) / 2 - 1.5,
+        x0: r.x0, x1: r.x1, z0: r.z0, z1: r.z1 }
+    : { x: at.x, z: at.z, r: 8,
+        x0: at.x - 8, x1: at.x + 8, z0: at.z - 8, z1: at.z + 8 };
 
   const model = kind.create();
   kind.place(model, at, arena);
@@ -564,6 +575,7 @@ const bossHudEl = document.getElementById('boss-hud');
 const bossNameEl = document.getElementById('boss-name');
 const bossBarEl = document.getElementById('boss-bar');
 const bossBannerEl = document.getElementById('boss-banner');
+const bossBannerLineEl = document.getElementById('boss-banner-line');
 
 function updateHUD() {
   healthBar.style.width = playerHp + '%';
@@ -727,6 +739,9 @@ function updateBoss(dt) {
       boss.defeated = true;
       killCount++;
       updateHUD();
+      // Whichever one it was says so — the banner used to claim the Puppet
+      // Master had fallen whatever you had actually just killed.
+      if (bossBannerLineEl) bossBannerLineEl.textContent = kind.fell;
       if (bossBannerEl) bossBannerEl.style.display = 'flex';
     }
   } else if (d.attacks) {
@@ -1116,6 +1131,14 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
     toBoss() {
       const at = roomSpawn(BOSS_ROOM);
       if (at) ctrl.position.set(at.x, ctrl.position.y, at.z);
+    },
+    /** Replace the waiting boss with a named one, through the real spawn. */
+    respawn(id) {
+      scene.remove(boss.model);
+      const next = spawnBoss(scene, id);
+      Object.assign(boss, next);
+      if (bossBannerEl) bossBannerEl.style.display = 'none';
+      return boss.kind.id;
     },
   };
 }

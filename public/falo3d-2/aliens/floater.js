@@ -19,8 +19,8 @@
 // instead of a staff, and a mind blast instead of a fireball.
 
 import * as THREE from 'three';
-import { PALETTE, getMaterial } from '../shared/materials.js?v=58f941327e';
-import { createBehaviorSpec } from '../shared/behavior.js?v=58f941327e';
+import { PALETTE, getMaterial } from '../shared/materials.js?v=051f4774f4';
+import { createBehaviorSpec } from '../shared/behavior.js?v=051f4774f4';
 
 
 // ─── 1. GEOMETRY ────────────────────────────────────────────────
