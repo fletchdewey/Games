@@ -12,7 +12,7 @@
 
 import * as THREE from 'three';
 import { roomIdAt, WALL_HEIGHT as WALL_H,
-         SURFACE_WHITE } from './grid_map.js?v=94e56d1ec8';
+         SURFACE_WHITE } from './grid_map.js?v=a9f045b09a';
 
 // Deterministic jitter, so the wreck looks scattered but lands in the same
 // place every run. Math.random() here would move the bodies on every reload.
@@ -1285,6 +1285,19 @@ function pushBar(arr, px, py, pz, r, len, rx = 0, rz = 0) {
   }
 }
 
+// A box pushed straight into a shared vertex array, for merging a lot of
+// small rectangular parts — cage wire, hooks, rails — into one draw call.
+// BOX_PROTO's vertices run -0.5..0.5, so w/h/d are the finished dimensions.
+const BOX_PROTO = new THREE.BoxGeometry(1, 1, 1).toNonIndexed()
+  .attributes.position.array;
+function pushBox(arr, cx, cy, cz, w, h, d) {
+  for (let i = 0; i < BOX_PROTO.length; i += 3) {
+    arr.push(cx + BOX_PROTO[i] * w,
+             cy + BOX_PROTO[i + 1] * h,
+             cz + BOX_PROTO[i + 2] * d);
+  }
+}
+
 const CELL = { W: 3.6, D: 2.6, T: 0.2, BAR_TOP: 3.0, R: 0.04, GAP: 0.24 };
 
 // A cot: welded frame, headboard, thin mattress and a pillow. Built with its
@@ -1952,6 +1965,274 @@ export function buildArmory(scene, room, seed = 1174) {
     for (let d = -BL / 2 + 0.3; d < BL / 2; d += 0.5) {
       colliders.push({ x: bx + d, z: bz, r: 0.4 });
     }
+  }
+
+  // ── THE WEAPONS CAGE, south-east corner ───────────────────
+  // The secure rack: mesh walls and a gate that has been prised off its
+  // latch and left standing wide. The heavy weapons are gone. This is the
+  // one piece of story in the room — somebody reached the armory first and
+  // took everything worth carrying before the rest of them got here.
+  //
+  // Only the two faces that front the room get wire. The other two sit flat
+  // against the room's own walls, where nobody can ever see them.
+  {
+    const CX0 = room.x1 - 3.5, CX1 = room.x1 - 0.14;
+    const CZ0 = room.z0 + 0.14, CZ1 = room.z0 + 1.8;
+    const CH = 2.25, WIRE = 0.022, PITCH = 0.17;
+    const GX0 = CX0 + 0.5, GX1 = GX0 + 1.05;        // the gate's gap
+
+    const wire = [];
+    const meshX = (a, b, z) => {
+      for (let x = a; x <= b + 1e-6; x += PITCH) pushBox(wire, x, CH / 2, z, WIRE, CH, WIRE);
+      for (let y = PITCH; y < CH; y += PITCH) pushBox(wire, (a + b) / 2, y, z, b - a, WIRE, WIRE);
+    };
+    const meshZ = (a, b, x) => {
+      for (let z = a; z <= b + 1e-6; z += PITCH) pushBox(wire, x, CH / 2, z, WIRE, CH, WIRE);
+      for (let y = PITCH; y < CH; y += PITCH) pushBox(wire, x, y, (a + b) / 2, WIRE, WIRE, b - a);
+    };
+    meshX(CX0, GX0, CZ1);
+    meshX(GX1, CX1, CZ1);
+    meshZ(CZ0, CZ1, CX0);
+    const wg = new THREE.BufferGeometry();
+    wg.setAttribute('position', new THREE.Float32BufferAttribute(wire, 3));
+    wg.computeVertexNormals();
+    group.add(new THREE.Mesh(wg, M.bar()));
+
+    // Corner posts and a top rail, so the mesh reads as hung on a frame.
+    for (const [px, pz] of [[CX0, CZ0], [CX0, CZ1], [CX1, CZ1], [CX1, CZ0]]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, CH, 0.08), steel);
+      post.position.set(px, CH / 2, pz);
+      group.add(post);
+    }
+    for (const [a, b, ax] of [[CX0, CX1, 'x'], [CZ0, CZ1, 'z']]) {
+      const rail = new THREE.Mesh(ax === 'x'
+        ? new THREE.BoxGeometry(b - a, 0.07, 0.07)
+        : new THREE.BoxGeometry(0.07, 0.07, b - a), steel);
+      rail.position.set(ax === 'x' ? (a + b) / 2 : CX0, CH,
+                        ax === 'x' ? CZ1 : (a + b) / 2);
+      group.add(rail);
+    }
+
+    // The gate swings on its right-hand edge. Positive yaw carries the free
+    // edge to +Z, i.e. out into the room rather than back through the wall.
+    const gate = new THREE.Group();
+    gate.position.set(GX1, 0, CZ1);
+    gate.rotation.y = 2.55;      // flung past square, back along the cage face
+    group.add(gate);
+    const GW = GX1 - GX0, GH = CH - 0.12;
+    const gw = [];
+    for (let x = -GW; x <= 1e-6; x += PITCH) pushBox(gw, x, GH / 2, 0, WIRE, GH, WIRE);
+    for (let y = PITCH; y < GH; y += PITCH) pushBox(gw, -GW / 2, y, 0, GW, WIRE, WIRE);
+    const gg = new THREE.BufferGeometry();
+    gg.setAttribute('position', new THREE.Float32BufferAttribute(gw, 3));
+    gg.computeVertexNormals();
+    gate.add(new THREE.Mesh(gg, M.bar()));
+    for (const [gx, gy, gwid, ghi] of [[-GW / 2, 0.03, GW, 0.06],
+                                       [-GW / 2, GH, GW, 0.06],
+                                       [-0.03, GH / 2, 0.06, GH],
+                                       [-GW + 0.03, GH / 2, 0.06, GH]]) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(gwid, ghi, 0.05), steel);
+      b.position.set(gx, gy, 0);
+      gate.add(b);
+    }
+    // The hasp, bent back where it was levered off.
+    const hasp = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.05, 0.03), mats.metal);
+    hasp.position.set(-GW + 0.06, 1.05, 0.05);
+    hasp.rotation.z = 0.7;
+    gate.add(hasp);
+
+    // What did it: bolt cutters, dropped on the floor by the gate.
+    {
+      const bc = new THREE.Group();
+      for (const sz of [-1, 1]) {
+        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.035, 0.035),
+                                      M.fatigue());
+        handle.position.set(0.3, 0.02, sz * 0.055);
+        handle.rotation.y = sz * 0.07;
+        bc.add(handle);
+        const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.04, 0.035), mats.metal);
+        jaw.position.set(-0.08, 0.02, sz * 0.03);
+        jaw.rotation.y = -sz * 0.12;
+        bc.add(jaw);
+      }
+      bc.position.set(GX0 + 0.35, 0, CZ1 + 0.62);
+      bc.rotation.y = 2.3;
+      group.add(bc);
+    }
+
+    // Inside: a low rack with most of its brackets empty.
+    const irz = CZ0 + 0.34;
+    const itray = new THREE.Mesh(new THREE.BoxGeometry(CX1 - CX0 - 0.5, 0.06, 0.34), steel);
+    itray.position.set((CX0 + CX1) / 2, 0.1, irz);
+    group.add(itray);
+    const irail = new THREE.Mesh(new THREE.BoxGeometry(CX1 - CX0 - 0.5, 0.07, 0.09), steel);
+    irail.position.set((CX0 + CX1) / 2, 1.05, irz - 0.1);
+    group.add(irail);
+    for (let i = 0; i < 6; i++) {
+      const sx = CX0 + 0.5 + i * ((CX1 - CX0 - 1.0) / 5);
+      const brk = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.12, 0.3), steel);
+      brk.position.set(sx, 0.2, irz);
+      group.add(brk);
+      // Two left. Everything else went out of the door.
+      if (i === 1 || i === 4) {
+        const r = rackRifle(rand, mats);
+        r.position.set(sx + 0.06, 0.13, irz);
+        r.rotation.y = Math.PI / 2;
+        group.add(r);
+      }
+    }
+
+    // A crate of ammunition they couldn't carry, left on the cage floor.
+    const left = ammoCrate(rand, { box: M.ammoBox(), stencil: M.stencil(), metal: mats.metal });
+    left.position.set(CX0 + 0.75, 0, CZ1 - 0.45);
+    left.rotation.y = 0.4;
+    group.add(left);
+
+    // Stencilled plate over the cage, on the wall behind it.
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.34, 0.04), M.hullDk());
+    plate.position.set((CX0 + CX1) / 2, CH + 0.42, room.z0 + 0.06);
+    group.add(plate);
+    const letters = [];
+    for (let i = 0; i < 7; i++) {
+      pushBox(letters, (CX0 + CX1) / 2 - 0.56 + i * 0.19, CH + 0.42, room.z0 + 0.09,
+              0.1, 0.15, 0.012);
+    }
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute('position', new THREE.Float32BufferAttribute(letters, 3));
+    lg.computeVertexNormals();
+    group.add(new THREE.Mesh(lg, M.stencil()));
+
+    // You can walk in through the gate, and nowhere else.
+    for (let x = CX0; x <= CX1; x += 0.4) {
+      if (x > GX0 - 0.2 && x < GX1 + 0.2) continue;
+      colliders.push({ x, z: CZ1, r: 0.18 });
+    }
+    for (let z = CZ0; z <= CZ1; z += 0.4) colliders.push({ x: CX0, z, r: 0.18 });
+    for (let t = 0.2; t <= GW; t += 0.35) {
+      colliders.push({ x: GX1 - t * Math.cos(gate.rotation.y),
+                       z: CZ1 + t * Math.sin(gate.rotation.y), r: 0.14 });
+    }
+  }
+
+  // ── AMMUNITION, stacked along the north wall ──────────────
+  // Next to the door you come in by, which is where you would stack it.
+  {
+    const crateMats = { box: M.ammoBox(), stencil: M.stencil(), metal: mats.metal };
+    // An open-lidded crate can't have another one sitting on it, so whatever
+    // ammoCrate decided to open gets sorted to the top of its own stack.
+    const lidAngle = (c) => {
+      const h = c.children.find((ch) => ch.isGroup);
+      return h ? Math.abs(h.rotation.x) : 0;
+    };
+    const az = room.z1 - 0.42;
+    for (const [sx, n] of [[room.x0 + 6.5, 3], [room.x0 + 7.6, 2], [room.x0 + 8.7, 2]]) {
+      const made = [];
+      for (let i = 0; i < n; i++) made.push(ammoCrate(rand, crateMats));
+      made.sort((a, b) => lidAngle(a) - lidAngle(b));
+      made.forEach((c, i) => {
+        c.position.set(sx + (rand() - 0.5) * 0.1, i * 0.37, az + (rand() - 0.5) * 0.08);
+        c.rotation.y = (rand() - 0.5) * 0.26;
+        group.add(c);
+      });
+      colliders.push({ x: sx, z: az, r: 0.42 });
+    }
+
+    // One dragged off the stack and tipped over. Tipping it puts the body's
+    // width along world Y, so it has to be lifted by half a width to sit on
+    // the floor instead of sinking into it.
+    const spilt = ammoCrate(rand, crateMats);
+    spilt.position.set(room.x0 + 5.5, 0.34, room.z1 - 1.45);
+    spilt.rotation.set(0, 0.5, Math.PI / 2);
+    group.add(spilt);
+
+    // Loose rounds thrown clear of it.
+    // pushBox is axis-aligned, so rounds laid with it all point the same way
+    // and read as a grid. pushBar takes a heading: rx of a quarter turn lays
+    // the bar flat, and rz then spins it to face anywhere on the floor.
+    const brass = [];
+    for (let i = 0; i < 52; i++) {
+      const a = rand() * Math.PI * 2, d = 0.25 + Math.pow(rand(), 0.6) * 1.5;
+      pushBar(brass, room.x0 + 5.5 + Math.cos(a) * d, 0.013,
+              room.z1 - 1.45 + Math.sin(a) * d * 0.8,
+              0.012, 0.055, Math.PI / 2, rand() * Math.PI * 2);
+    }
+    const bg2 = new THREE.BufferGeometry();
+    bg2.setAttribute('position', new THREE.Float32BufferAttribute(brass, 3));
+    bg2.computeVertexNormals();
+    group.add(new THREE.Mesh(bg2, M.brass()));
+  }
+
+  // ── BODY ARMOUR, west wall north of the doorway ───────────
+  // Hooks with most of their kit already taken, which says the same thing
+  // the cage does without repeating it.
+  {
+    const hx = room.x0 + 0.12, z0 = room.z1 - 1.1, LEN = 4.3;
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, LEN), steel);
+    rail.position.set(hx, 1.82, z0 - LEN / 2);
+    group.add(rail);
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.05, LEN), steel);
+    shelf.position.set(hx + 0.1, 2.12, z0 - LEN / 2);
+    group.add(shelf);
+
+    const hooks = [];
+    for (let i = 0; i < 7; i++) {
+      const hz = z0 - 0.3 - i * ((LEN - 0.6) / 6);
+      pushBox(hooks, hx + 0.06, 1.75, hz, 0.06, 0.2, 0.03);
+      if (i === 1 || i === 3 || i === 6) {
+        // A plate carrier: front panel, back panel, shoulder straps over
+        // the rail. Hung, not worn, so it hangs straight down.
+        const v = new THREE.Group();
+        v.position.set(hx + 0.14, 1.64, hz);
+        for (const sx of [-0.07, 0.07]) {
+          const panel = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.5, 0.36), M.fatigue());
+          panel.position.set(sx, -0.26, 0);
+          v.add(panel);
+        }
+        for (const sz of [-0.11, 0.11]) {
+          const strap = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.05, 0.07), M.fatigue());
+          strap.position.set(-0.03, 0.0, sz);
+          v.add(strap);
+        }
+        const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.2), M.hullDk());
+        pouch.position.set(0.12, -0.3, 0);
+        v.add(pouch);
+        group.add(v);
+      }
+    }
+    const hg = new THREE.BufferGeometry();
+    hg.setAttribute('position', new THREE.Float32BufferAttribute(hooks, 3));
+    hg.computeVertexNormals();
+    group.add(new THREE.Mesh(hg, steel));
+
+    // Helmets on the shelf. DoubleSide: the shelf is above eye level, so you
+    // look up into the open underside of the dome.
+    const helmMat = new THREE.MeshLambertMaterial({
+      color: 0x2f3a2c, side: THREE.DoubleSide });
+    for (const hz of [z0 - 0.9, z0 - 2.6]) {
+      const dome = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), helmMat);
+      dome.position.set(hx + 0.12, 2.15, hz);
+      group.add(dome);
+    }
+  }
+
+  // ── ONE CEILING FIXTURE ───────────────────────────────────
+  // The painted-grid lighting puts its lamps on a 10-cell lattice, and the
+  // armory falls between them — which is why this room reads darker than the
+  // rest of the station. One more point light is 1/24th on top of a shader
+  // cost the whole level already pays, and it buys back the entire room.
+  {
+    const fx = room.x0 + 4.4, fz = (room.z0 + room.z1) / 2 + 1.5;
+    const housing = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.1, 2.2), steel);
+    housing.position.set(fx, WALL_H - 0.14, fz);
+    group.add(housing);
+    const tube = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.04, 2.0),
+      new THREE.MeshBasicMaterial({ color: 0xe8f0ff }));
+    tube.position.set(fx, WALL_H - 0.21, fz);
+    group.add(tube);
+    const lamp = new THREE.PointLight(0xdbe6f7, 0.8, 13, 1.5);
+    lamp.position.set(fx, WALL_H - 0.5, fz);
+    group.add(lamp);
   }
 
   group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
