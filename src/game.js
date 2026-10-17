@@ -23,7 +23,8 @@ import { PALETTE, getMaterial } from './shared/materials.js';
 // === Alien modules ===
 import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js';
 import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js';
-import { buildSpire, animateSpire, createSpireAI, updateSpireAI, hitSpire, killSpire } from './aliens/spire.js';
+import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher,
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js';
 import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js';
 
 // === Player ===
@@ -57,12 +58,19 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
 // spawn and update them generically.
+//
+// baseY is the height the model is parked at, and it has one job: put the
+// FEET on the floor. It is not a guess — each one is measured from the model
+// itself, by posing it through a whole walk cycle and taking the lowest point
+// its legs reach. Get it wrong and nothing errors; the alien just stands in
+// the floor. The Brute was 0.56 under and the Spire 0.77 under, which is most
+// of a leg, and neither had ever been checked.
 const ALIEN_TYPES = {
   crawler: {
     build: buildCrawler, animate: animateCrawler,
     createAI: createCrawlerAI, updateAI: updateCrawlerAI,
     hit: hitCrawler, kill: killCrawler,
-    hp: 3, baseY: 0.25, attackType: 'melee', attackRange: 2.5,
+    hp: 3, baseY: 0.32, attackType: 'melee', attackRange: 2.5,   // feet measured at -0.32
     attackDmg: 8, attackCD: 1.5, speed: 0.04,
     // States where the idle walk cycle should play (see aliens/crawler.js).
     // During action states (pounce/recover/hurt) the AI drives the pose.
@@ -72,25 +80,35 @@ const ALIEN_TYPES = {
     build: buildFloater, animate: animateFloater,
     createAI: createFloaterAI, updateAI: updateFloaterAI,
     hit: hitFloater, kill: killFloater,
-    hp: 2, baseY: 1.5, attackType: 'ranged', attackRange: 10,
+    hp: 2, baseY: 1.5, attackType: 'ranged', attackRange: 10,   // hovers; no feet to land
     attackDmg: 12, attackCD: 2.0, speed: 0.025,
     projSpeed: 6, projColor: 0xff44cc,
     idleStates: ['hover', 'chase'],
   },
-  spire: {
-    build: buildSpire, animate: animateSpire,
-    createAI: createSpireAI, updateAI: updateSpireAI,
-    hit: hitSpire, kill: killSpire,
-    hp: 3, baseY: 0.3, attackType: 'ranged', attackRange: 12,
-    attackDmg: 10, attackCD: 2.5, speed: 0.02,
-    projSpeed: 5, projColor: 0xffaa22,
-    idleStates: ['patrol', 'stalk'],
+  // The Watcher stands where the Spire used to. It is a turret, not a walker:
+  // it never leaves its spot, so it has no speed and no patrol.
+  watcher: {
+    build: buildWatcher, animate: animateWatcher,
+    createAI: createWatcherAI, updateAI: updateWatcherAI,
+    hit: hitWatcher, kill: killWatcher,
+    hp: 1, baseY: 0.05, attackType: 'beam', attackRange: 12,   // feet measured at -0.05
+    attackDmg: 15, attackCD: 0, speed: 0,
+    // Its beam lands on the one frame the shot connects, like the Brute's
+    // slam — not on a proximity timer. Standing beside one does nothing at
+    // all until it actually fires, which is what makes the telegraph worth
+    // reading instead of decorative.
+    attackViaAI: true,
+    // Checked against the walls every frame before it is allowed to see you.
+    // See clearShot() — the only alien that gets this, and the only one whose
+    // shot is instant enough to need it.
+    needsSight: true,
+    idleStates: ['scan'],
   },
   brute: {
     build: buildBrute, animate: animateBrute,
     createAI: createBruteAI, updateAI: updateBruteAI,
     hit: hitBrute, kill: killBrute,
-    hp: 6, baseY: 0.3, attackType: 'melee', attackRange: 3.5,
+    hp: 6, baseY: 0.86, attackType: 'melee', attackRange: 3.5,   // feet measured at -0.86
     attackDmg: 10, attackCD: 2.0, speed: 0.035,   // 10% of the player's 100 HP
     // The Brute lands damage on its slam's impact frame, not on a proximity
     // timer — otherwise the charge/dodge is decorative and it hits you for
@@ -102,13 +120,13 @@ const ALIEN_TYPES = {
 
 // ─── ALIEN SPAWN PLAN ───────────────────────────────────────
 // Which aliens spawn in which rooms.
-// Empty on purpose. The old crawler/floater/spire/brute models are being
-// replaced by the workshop versions (and the Watcher), so the level ships with
-// no regular aliens until those are ported. The spawn machinery below is
-// untouched — adding them back is just repopulating this list.
+// Empty on purpose — for now. All four aliens use their Alien Workshop models
+// and stand at measured heights, so the machinery below is ready and filling
+// this list in is the only thing left to do.
 //
 //   { room: 'room1', type: 'brute', count: 2 },
 //
+// Types: crawler · floater · brute · watcher
 // Room ids: room1 Hangar · room2 Outpost 3 · room3 outpost 2 · room4 outpost 1
 // room5 armory · room6 prison · room7 outpost 4 · room8 alien pods
 // room9 Control Room (boss) · room10 Locked Door
@@ -548,6 +566,23 @@ function hitsWall(x, z) {
   }
   return false;
 }
+// Is there a clear line between these two points, or is there a wall in it?
+//
+// Only the Watcher asks. Everything else that shoots at you lobs a slow,
+// visible projectile that the projectile loop already flies through the world
+// one step at a time. The Watcher's beam arrives the instant it fires and
+// takes 15 off you, so it has to be blocked by geometry or ducking behind a
+// wall would mean nothing.
+const sightRay = new THREE.Raycaster();
+function clearShot(from, to) {
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const dist = dir.length();
+  if (dist < 0.001) return true;
+  sightRay.set(from, dir.divideScalar(dist));
+  sightRay.far = dist;
+  return sightRay.intersectObjects(wallMeshes).length === 0;
+}
+
 const gun = createGun(camera);
 const aliens = spawnAliens(scene);
 const boss = BOSS_ENABLED ? spawnBoss(scene) : null;
@@ -1134,6 +1169,16 @@ function gameLoop(now) {
     // Flash timer
     if (a.flashTimer > 0) a.flashTimer -= dt;
 
+    // Hand the Watcher its line of sight before it thinks. The walls belong
+    // to the level, not to the alien module, so the test has to happen here.
+    if (a.reg.needsSight) {
+      const eye = a.model.position.clone();
+      eye.y += WATCHER_EYE_Y;
+      const chest = ctrl.position.clone();
+      chest.y -= WATCHER_AIM_DROP;
+      a.model.userData.hasSight = clearShot(eye, chest);
+    }
+
     // Run AI. Some aliens report an attack landing as a returned event.
     const aiEvent = a.reg.updateAI(a.model, a.ai, ctrl.position, dt);
 
@@ -1150,7 +1195,8 @@ function gameLoop(now) {
     // running both would let it hit you mid-charge, mid-stumble, or while
     // standing still, which is exactly what made the dodge pointless.
     if (a.reg.attackViaAI) {
-      if (aiEvent && aiEvent.type === 'ground_slam') damagePlayer(a.reg.attackDmg);
+      if (aiEvent && (aiEvent.type === 'ground_slam' || aiEvent.type === 'eye_beam'))
+        damagePlayer(a.reg.attackDmg);
       return;
     }
 
@@ -1163,7 +1209,7 @@ function gameLoop(now) {
         damagePlayer(a.reg.attackDmg);
       } else if (a.reg.attackType === 'ranged' && dist >= 3) {
         const from = a.model.position.clone();
-        from.y += a.type === 'spire' ? 1.3 : a.type === 'floater' ? 0.5 : 0.5;
+        from.y += 0.5;   // out of the body rather than out of its feet
         const to = ctrl.position.clone(); to.y = 1.2;
         projectiles.push(createAlienProjectile(
           scene, from, to, a.reg.projColor, a.reg.projSpeed, a.reg.attackDmg

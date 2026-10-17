@@ -19,133 +19,32 @@
 // instead of a staff, and a mind blast instead of a fireball.
 
 import * as THREE from 'three';
-import { PALETTE, getMaterial } from '../shared/materials.js?v=3506b4cb0a';
-import { createBehaviorSpec } from '../shared/behavior.js?v=3506b4cb0a';
+import { buildFloater as buildFloaterModel } from './workshop_models.js?v=e2e069d6e5';
+import { rememberColor, restoreColor, baseColorRGB, baseOpacity }
+  from './model_colors.js?v=e2e069d6e5';
+import { createBehaviorSpec } from '../shared/behavior.js?v=e2e069d6e5';
 
 
 // ─── 1. GEOMETRY ────────────────────────────────────────────────
 //
-// This builds the Floater out of simple shapes — a translucent
-// dome (the "bell"), a glowing core (the brain), tentacles,
-// and a ring of eyes around the skirt.
+// The bell, the core, the tentacles and the eyes all come from the Alien
+// Workshop now, via workshop_models.js — the same Floater that hangs in the
+// pods room. There used to be a second, older one built here, so the specimen
+// in the tank and the thing firing mind blasts at you were different models.
 //
-// No legs needed — this thing floats. Think of it like building
-// a Lego jellyfish: dome on top, dangly bits underneath.
+// The animation and the brain below are untouched: the workshop model stashes
+// the same handles this file has always reached for — dome, core, coreLight,
+// folds and tentacles.
 
 export function buildFloater() {
-  const g = new THREE.Group();
+  const g = buildFloaterModel();
 
-  // Grab shared materials. skin2 is the Floater's purple tone.
-  // dome (skinMat) has its color/opacity mutated in HURT and death, and the
-  // core color flickers every frame — so each Floater owns its own copies,
-  // or one dying Floater fades every Floater's dome.
-  const skinMat  = getMaterial(PALETTE.skin2, { transparent: true, opacity: 0.7 }).clone();
-  const coreMat  = getMaterial(PALETTE.glowPurple, { type: 'basic' }).clone();
-  const tentMat  = getMaterial(PALETTE.skin2);
-  const foldMat  = getMaterial(0x4a2850);
-  const eyeMat   = getMaterial(PALETTE.eyePink, { type: 'basic' });
+  // Getting shot drives the bell toward white, and dying fades it out. Both
+  // have to know what it looked like to begin with — see model_colors.js.
+  rememberColor(g.userData.dome.material);
+  rememberColor(g.userData.core.material);
 
-  // --- Dome (the bell) ---
-  // A half-sphere, like a jellyfish cap. Slightly squished vertically.
-  // We only draw the top 60% of a sphere (the last two args clip it).
-  const domeGeo = new THREE.SphereGeometry(0.6, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.6);
-  domeGeo.scale(1, 0.9, 1);
-  const dome = new THREE.Mesh(domeGeo, skinMat);
-  dome.position.y = 1.0;
-  g.add(dome);
-
-  // --- Brain folds ---
-  // Four half-torus ridges on top of the dome, like wrinkles on
-  // a brain. Each one sits at a slightly different angle so they
-  // criss-cross. This is what makes it look "psychic" — it has
-  // a visible brain under the translucent dome.
-  const folds = [];
-  for (let i = 0; i < 4; i++) {
-    const ridgeGeo = new THREE.TorusGeometry(0.35 - i * 0.06, 0.035, 4, 8, Math.PI);
-    const ridge = new THREE.Mesh(ridgeGeo, foldMat);
-    ridge.position.set(0, 1.15 + i * 0.08, 0);
-    ridge.rotation.y = i * 0.7;
-    ridge.rotation.x = -Math.PI * 0.5;
-    g.add(ridge);
-    folds.push(ridge);
-  }
-
-  // --- Core (inner glow) ---
-  // A small glowing sphere in the center — the "brain stem."
-  // This pulses and flickers during animation. When the Floater
-  // charges a mind blast, this flares bright.
-  const coreGeo = new THREE.SphereGeometry(0.2, 6, 6);
-  const core = new THREE.Mesh(coreGeo, coreMat);
-  core.position.y = 1.0;
-  g.add(core);
-
-  // Point light so the glow actually lights up nearby surfaces.
-  const coreLight = new THREE.PointLight(0xff44cc, 1.5, 5);
-  coreLight.position.set(0, 1.0, 0);
-  g.add(coreLight);
-
-  // --- Skirt ring ---
-  // A torus (donut shape) at the bottom of the dome where
-  // the tentacles attach. Like the rim of a jellyfish bell.
-  const skirtGeo = new THREE.TorusGeometry(0.55, 0.06, 5, 10);
-  const skirt = new THREE.Mesh(skirtGeo, tentMat);
-  skirt.position.y = 0.65;
-  skirt.rotation.x = Math.PI * 0.5;
-  g.add(skirt);
-
-  // --- Eyes (4, evenly spaced around the skirt) ---
-  // Pink glowing dots, like sensor nodes. They sit just below
-  // the dome, looking outward in four directions.
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2;
-    const eGeo = new THREE.SphereGeometry(0.06, 5, 5);
-    const eye = new THREE.Mesh(eGeo, eyeMat);
-    eye.position.set(Math.cos(a) * 0.5, 0.75, Math.sin(a) * 0.5);
-    g.add(eye);
-  }
-
-  // --- Tentacles (6 strands, 5 segments each + glowing tip) ---
-  // Each tentacle is a chain of small spheres that get smaller
-  // toward the tip. The tip glows purple (same as the core).
-  //
-  // We store baseX/baseZ so the animation knows where each segment
-  // "wants" to be. Then it adds sway on top of that base position.
-  // It's like each tentacle is a string hanging from a point —
-  // the base is where the string is tied, and sway is the wind.
-  const tentacles = [];
-  for (let t = 0; t < 6; t++) {
-    const a = (t / 6) * Math.PI * 2;
-    const baseX = Math.cos(a) * 0.4;
-    const baseZ = Math.sin(a) * 0.4;
-    const segs = [];
-
-    for (let seg = 0; seg < 5; seg++) {
-      const r = 0.04 - seg * 0.006;
-      const segGeo = new THREE.SphereGeometry(Math.max(0.01, r), 4, 4);
-      const segMesh = new THREE.Mesh(segGeo, tentMat);
-      segMesh.position.set(baseX, 0.5 - seg * 0.2, baseZ);
-      g.add(segMesh);
-      segs.push({ mesh: segMesh, baseX, baseZ, seg });
-    }
-
-    // Glowing tip
-    const tipGeo = new THREE.SphereGeometry(0.025, 4, 4);
-    const tip = new THREE.Mesh(tipGeo, coreMat);
-    tip.position.set(baseX, 0.5 - 5 * 0.2, baseZ);
-    g.add(tip);
-    segs.push({ mesh: tip, baseX, baseZ, seg: 5 });
-
-    tentacles.push(segs);
-  }
-
-  // --- Store references for animation ---
-  g.userData.dome = dome;
-  g.userData.core = core;
-  g.userData.coreLight = coreLight;
-  g.userData.folds = folds;
-  g.userData.tentacles = tentacles;
   g.userData.type = 'floater';
-
   return g;
 }
 
@@ -445,11 +344,12 @@ export function updateFloaterAI(model, ai, playerPos, dt) {
 
     // Dome flashes toward white
     if (d.dome) {
-      const sr = 0x3b / 255, sg = 0x20 / 255, sb = 0x40 / 255;
+      // From the bell's own colour, not a copy of it written down here.
+      const c = baseColorRGB(d.dome.material);
       d.dome.material.color.setRGB(
-        sr + (1 - sr) * flash,
-        sg + (1 - sg) * flash,
-        sb + (1 - sb) * flash,
+        c.r + (1 - c.r) * flash,
+        c.g + (1 - c.g) * flash,
+        c.b + (1 - c.b) * flash,
       );
     }
 
@@ -463,7 +363,7 @@ export function updateFloaterAI(model, ai, playerPos, dt) {
 
     if (ai.stateTimer > 15) {
       // Reset visuals
-      if (d.dome) d.dome.material.color.set(PALETTE.skin2);
+      if (d.dome) restoreColor(d.dome.material);
       if (d.core) d.core.scale.setScalar(1);
       if (d.coreLight) d.coreLight.intensity = 1.5;
       ai.state = STATE.CHASE;
@@ -502,7 +402,7 @@ function deathPop(model, t) {
     const expand = 1 + (t / 0.3) * 0.8;
     if (d.dome) {
       d.dome.scale.setScalar(expand);
-      d.dome.material.opacity = 0.7 * (1 - t / 0.3);
+      d.dome.material.opacity = baseOpacity(d.dome.material) * (1 - t / 0.3);
     }
     if (d.core) {
       d.core.scale.setScalar(1 + (t / 0.3) * 3);

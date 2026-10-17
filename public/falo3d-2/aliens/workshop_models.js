@@ -3,13 +3,19 @@
 // lifted out of it verbatim so the two can't drift apart.
 //
 // These are GEOMETRY ONLY — the builders and the palette they share, with the
-// workshop's animateModel and its React panel left behind. The pods room uses
-// them for the specimens in the tanks.
+// workshop's animateModel and its React panel left behind.
 //
-// The older src/aliens/{crawler,floater,brute}.js still drive the aliens you
-// fight: their animate and AI code reaches into the models those builders make,
-// so swapping the geometry under them would break the walk cycles. Replacing
-// them is the alien port, and this file is the half of it that is already done.
+// EVERYTHING now builds its body from here: the specimens in the pods room,
+// and the aliens you actually fight. src/aliens/{crawler,floater,brute,
+// watcher}.js keep the walk cycles and the brains, and each one's build
+// function is a thin wrapper over the matching builder below. There is no
+// second, older set of models any more — which is why the Crawler in the tank
+// and the Crawler jumping on you are finally the same creature.
+//
+// That makes this file load-bearing. The game's animation reaches into
+// userData for legs, plates, glowMeshes, dome, core, coreLight, folds,
+// tentacles and arms, so a builder that stops naming one of those breaks an
+// alien silently — no error, it just stops flinching or stops walking.
 //
 // To re-sync after editing the workshop: re-copy everything above its
 // animateModel, keep this header, and keep the four export keywords.
@@ -580,20 +586,29 @@ export function buildBrute() {
     legs.push({ ...leg, side, baseUpperTilt: 0.2, baseLowerTilt: -0.4 });
   }
 
+  const glowMeshes = [];
   for (const side of [-1, 1]) {
     const gGeo = new THREE.SphereGeometry(0.06, 4, 4);
     const gMesh = new THREE.Mesh(gGeo, glowMat);
     gMesh.position.set(side * 0.7, 1.3, 0.1);
     g.add(gMesh);
+    glowMeshes.push(gMesh);
   }
   const cgGeo = new THREE.SphereGeometry(0.08, 4, 4);
   const cg = new THREE.Mesh(cgGeo, glowMat);
   cg.position.set(0, 0.9, 0.6);
   g.add(cg);
+  glowMeshes.push(cg);
 
   g.userData.walkType = "brute";
   g.userData.legs = legs;
   g.userData.arms = arms;
+  // The glow nodes and the head were the two things the Brute's brain reached
+  // for that this model never handed it: the glows flare when it's shot and
+  // go out when it dies, and both were silently doing nothing. Workshop
+  // animation doesn't use them, but it costs nothing to name them here.
+  g.userData.glowMeshes = glowMeshes;
+  g.userData.head = head;
   return g;
 }
 
@@ -605,7 +620,7 @@ export function buildBrute() {
 // The eye is the silhouette, the telegraph AND the weak point all at once:
 // armoured lids seal it at rest and only iris open to fire, so the one-shot
 // window exists exactly while it's dangerous.
-const W = {
+export const W = {
   scanTime: 2.5, openTime: 0.9, chargeTime: 0.8, fireTime: 0.45, sealTime: 0.35,
   beamRange: 12, shutterOpen: 1.15, shutClosed: 0.3, spinRate: 7, scanSweep: 0.75,
   eyeRadius: 0.38, hubHeight: 1.54, legLength: 1.8, shutterCount: 4, legMountR: 0.50,

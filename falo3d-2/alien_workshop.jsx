@@ -564,20 +564,28 @@ function buildBrute() {
     legs.push({ ...leg, side, baseUpperTilt: 0.2, baseLowerTilt: -0.4 });
   }
 
+  const glowMeshes = [];
   for (const side of [-1, 1]) {
     const gGeo = new THREE.SphereGeometry(0.06, 4, 4);
     const gMesh = new THREE.Mesh(gGeo, glowMat);
     gMesh.position.set(side * 0.7, 1.3, 0.1);
     g.add(gMesh);
+    glowMeshes.push(gMesh);
   }
   const cgGeo = new THREE.SphereGeometry(0.08, 4, 4);
   const cg = new THREE.Mesh(cgGeo, glowMat);
   cg.position.set(0, 0.9, 0.6);
   g.add(cg);
+  glowMeshes.push(cg);
 
   g.userData.walkType = "brute";
   g.userData.legs = legs;
   g.userData.arms = arms;
+  // The game's Brute flares these when it's shot and puts them out when it
+  // dies. Nothing in here uses them — they are named so that re-copying this
+  // file into workshop_models.js can't quietly take them away again.
+  g.userData.glowMeshes = glowMeshes;
+  g.userData.head = head;
   return g;
 }
 

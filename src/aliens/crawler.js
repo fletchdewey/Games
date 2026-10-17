@@ -17,145 +17,35 @@
 // The Crawler works the same way, just with a jump instead of a swing.
 
 import * as THREE from 'three';
-import { PALETTE, getMaterial } from '../shared/materials.js';
-import { buildLegChain } from '../shared/geometry.js';
+import { buildCrawler as buildCrawlerModel } from './workshop_models.js';
+import { rememberColors, restoreColor, baseColorRGB } from './model_colors.js';
 import { createBehaviorSpec } from '../shared/behavior.js';
 
 
 // ─── 1. GEOMETRY ────────────────────────────────────────────────
 //
-// This builds the Crawler's body out of simple shapes — spheres,
-// cones, cylinders. No 3D model files needed.
-// It returns a THREE.Group (a container) with everything inside.
+// The body is NOT built here any more. It comes from the Alien Workshop, via
+// workshop_models.js — the same model you see posed in the workshop and
+// floating in the pods room, so the Crawler you fight and the Crawler you
+// designed are one object. There used to be a second, older crawler built
+// right here, which is why the one in the tank never matched the one that
+// jumped on you.
+//
+// Everything below this — the walk cycle and the brain — is unchanged, and
+// works because the workshop model stashes the same things in userData that
+// this file has always read: legs, plates and glowMeshes.
 
 export function buildCrawler() {
-  const g = new THREE.Group();
+  const g = buildCrawlerModel();
 
-  // Grab shared materials from the palette instead of making new ones.
-  // This way all Crawlers in the scene share the same material objects.
-  const skinMat  = getMaterial(PALETTE.skin1);
-  const boneMat  = getMaterial(PALETTE.bone);
-  const eyeMat   = getMaterial(PALETTE.eyeRed, { type: 'basic' });
-  // These two get recolored during the HURT flash, so each Crawler needs
-  // its own copy — otherwise hurting one flashes every Crawler (and every
-  // Brute, which shares the armor material).
-  const glowMat  = getMaterial(PALETTE.glowGreen, { type: 'basic' }).clone();
-  const armorMat = getMaterial(PALETTE.armor).clone();
+  // The hurt flash drives these materials to white and then has to put them
+  // back. It used to put them back to a colour written into THIS file, which
+  // silently became a lie the moment the workshop's palette moved — so note
+  // down what each one actually started as and restore from that instead.
+  rememberColors(g.userData.plates);
+  rememberColors(g.userData.glowMeshes);
 
-  // --- Body ---
-  // A squished sphere — wide and flat like a crab shell.
-  const bodyGeo = new THREE.SphereGeometry(0.6, 7, 5);
-  bodyGeo.scale(1.2, 0.5, 1.4);
-  const body = new THREE.Mesh(bodyGeo, skinMat);
-  body.position.y = 0.4;
-  body.castShadow = true;
-  g.add(body);
-
-  // --- Armor plates ---
-  // Three overlapping plates on top, like a trilobite's shell.
-  // Each one is slightly smaller, stacked front-to-back.
-  const plates = [];
-  for (let i = 0; i < 3; i++) {
-    const plateGeo = new THREE.SphereGeometry(0.35 - i * 0.08, 5, 4);
-    plateGeo.scale(1.1, 0.3, 0.8);
-    const plate = new THREE.Mesh(plateGeo, armorMat);
-    plate.position.set(0, 0.55 + i * 0.05, -0.3 + i * 0.3);
-    g.add(plate);
-    plates.push(plate);
-  }
-
-  // --- Legs (6 total: 3 per side) ---
-  // We use buildLegChain from shared/geometry.js — the same Lego
-  // leg piece every alien uses. The Crawler's legs are thin and
-  // spread wide, angled outward like a spider.
-  const legAngles = [-0.8, 0, 0.8];  // front, middle, back
-  const legs = [];
-
-  for (const side of [-1, 1]) {         // -1 = left, 1 = right
-    for (let li = 0; li < legAngles.length; li++) {
-      const angle = legAngles[li];
-
-      const leg = buildLegChain({
-        upperLen: 0.55,
-        lowerLen: 0.5,
-        upperR: 0.04,
-        lowerR: 0.02,
-        footSize: 0.025,       // small talon claws
-        skinMat,
-        boneMat,
-        upperTilt: 0.3,        // legs splay outward
-        lowerTilt: -0.9,       // knees bend back in
-      });
-
-      // Position each leg on the body and angle it outward
-      leg.hip.position.set(side * 0.5, 0.35, angle * 0.45);
-      leg.hip.rotation.z = side * 1.0;   // splay left/right
-      leg.hip.rotation.y = angle * 0.3;  // fan front/back
-      g.add(leg.hip);
-
-      legs.push({
-        ...leg,
-        side,
-        index: li,
-        baseUpperTilt: 0.3,
-        baseLowerTilt: -0.9,
-      });
-    }
-  }
-
-  // --- Pincers ---
-  // Two small forward-facing cones, like crab claws.
-  for (const side of [-1, 1]) {
-    const pincerGeo = new THREE.ConeGeometry(0.04, 0.5, 4);
-    const pincer = new THREE.Mesh(pincerGeo, boneMat);
-    pincer.position.set(side * 0.35, 0.2, 0.8);
-    pincer.rotation.x = -0.6;
-    pincer.rotation.z = side * -0.4;
-    g.add(pincer);
-  }
-
-  // --- Eyes (5 total) ---
-  // A cluster of red eyes on the front — creepy spider look.
-  const eyePositions = [
-    { x: -0.12, y: 0.55, z: 0.65 },
-    { x:  0.12, y: 0.55, z: 0.65 },
-    { x:  0,    y: 0.6,  z: 0.7  },
-    { x: -0.08, y: 0.65, z: 0.6  },
-    { x:  0.08, y: 0.65, z: 0.6  },
-  ];
-
-  for (const ep of eyePositions) {
-    const eGeo = new THREE.SphereGeometry(0.04, 4, 4);
-    const eye = new THREE.Mesh(eGeo, eyeMat);
-    eye.position.set(ep.x, ep.y, ep.z);
-    g.add(eye);
-  }
-
-  // --- Glow nodes ---
-  // Three green dots on the back — like bioluminescent markings.
-  const glowPositions = [
-    { x: -0.2, z: 0 },
-    { x:  0.2, z: 0 },
-    { x:  0,   z: -0.4 },
-  ];
-
-  const glowMeshes = [];
-  for (const p of glowPositions) {
-    const gGeo = new THREE.SphereGeometry(0.05, 4, 4);
-    const gMesh = new THREE.Mesh(gGeo, glowMat);
-    gMesh.position.set(p.x, 0.58, p.z);
-    g.add(gMesh);
-    glowMeshes.push(gMesh);
-  }
-
-  // --- Store references for animation ---
-  // userData is Three.js's "stash stuff here" bag.
-  // The animation function reads these to know what to wiggle.
-  g.userData.legs = legs;
-  g.userData.plates = plates;
-  g.userData.glowMeshes = glowMeshes;
   g.userData.type = 'crawler';
-
   return g;
 }
 
@@ -363,12 +253,14 @@ export function updateCrawlerAI(model, ai, playerPos, dt) {
 
     // Flash plates toward white
     if (d.plates) {
-      const ar = 0x1e / 255, ag = 0x1e / 255, ab = 0x2a / 255;
       d.plates.forEach((plate) => {
+        // Flash from the plate's OWN colour toward white, rather than from a
+        // hard-coded grey that only matched the model this file used to build.
+        const c = baseColorRGB(plate.material);
         plate.material.color.setRGB(
-          ar + (1 - ar) * flash,
-          ag + (1 - ag) * flash,
-          ab + (1 - ab) * flash,
+          c.r + (1 - c.r) * flash,
+          c.g + (1 - c.g) * flash,
+          c.b + (1 - c.b) * flash,
         );
       });
     }
@@ -384,12 +276,12 @@ export function updateCrawlerAI(model, ai, playerPos, dt) {
     if (ai.stateTimer > 20) {
       // Reset materials to normal
       if (d.plates) {
-        d.plates.forEach((plate) => plate.material.color.set(PALETTE.armor));
+        d.plates.forEach((plate) => restoreColor(plate.material));
       }
       if (d.glowMeshes) {
         d.glowMeshes.forEach((gm) => {
           gm.scale.setScalar(1);
-          gm.material.color.set(PALETTE.glowGreen);
+          restoreColor(gm.material);
         });
       }
       ai.state = STATE.CHASE;

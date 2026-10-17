@@ -21,197 +21,25 @@
 // while the Brute charges in. That's the strategy.
 
 import * as THREE from 'three';
-import { PALETTE, getMaterial } from '../shared/materials.js';
-import { buildLegChain } from '../shared/geometry.js';
+import { buildBrute as buildBruteModel } from './workshop_models.js';
 import { createBehaviorSpec } from '../shared/behavior.js';
 import { BRUTE_ATTACK } from '../shared/brute_attack.js';
 
 
 // ─── 1. GEOMETRY ────────────────────────────────────────────────
 //
-// Big body, tiny head, massive arms, thick legs.
-// Hunched over with spine plates running down the back.
-// Like a gorilla crossed with a rhino.
+// The armour, the horn, the bracered fists and the legs all come from the
+// Alien Workshop now, via workshop_models.js — the same Brute standing in the
+// last pod in the specimen room. A second, older one used to be built here,
+// so the one in the tank and the one charging at you were different models.
+//
+// The animation and the brain below are untouched. The workshop model hands
+// over legs and arms shaped exactly as this file expects, and now the glow
+// nodes and head as well.
 
 export function buildBrute() {
-  const g = new THREE.Group();
-
-  const skinMat  = getMaterial(PALETTE.skin3);
-  const boneMat  = getMaterial(PALETTE.bone);
-  const armorMat = getMaterial(PALETTE.armor);
-  const glowMat  = getMaterial(PALETTE.glowCyan, { type: 'basic' });
-  const eyeMat   = getMaterial(PALETTE.eyeRed, { type: 'basic' });
-
-  // --- Torso ---
-  // Huge and hunched forward. The hunch is done with rotation.
-  const torsoGeo = new THREE.SphereGeometry(0.7, 7, 6);
-  torsoGeo.scale(1.1, 1.0, 0.9);
-  const torso = new THREE.Mesh(torsoGeo, skinMat);
-  torso.position.y = 0.8;
-  torso.rotation.x = 0.4; // hunched forward
-  torso.castShadow = true;
-  g.add(torso);
-
-  // --- Spine plates ---
-  // Five armored plates following the curve of the hunch.
-  // Each one sits at a tangent to the arc — like a stegosaurus.
-  for (let i = 0; i < 5; i++) {
-    const t = i / 4;
-    const angle = -0.4 + t * 1.2;
-    const radius = 0.75;
-    const curveY = 0.8 + Math.sin(angle) * radius * 0.6;
-    const curveZ = -0.1 - Math.cos(angle) * radius * 0.55;
-    const plateGeo = new THREE.BoxGeometry(0.45 - i * 0.06, 0.1, 0.3 - i * 0.03);
-    const plate = new THREE.Mesh(plateGeo, armorMat);
-    plate.position.set(0, curveY, curveZ);
-    plate.rotation.x = angle - 0.2;
-    g.add(plate);
-  }
-
-  // --- Head ---
-  // Tiny compared to the body — like a gorilla's proportions.
-  const headGeo = new THREE.SphereGeometry(0.25, 6, 5);
-  headGeo.scale(0.9, 0.8, 1.1);
-  const head = new THREE.Mesh(headGeo, skinMat);
-  head.position.set(0, 1.45, 0.35);
-  g.add(head);
-
-  // Brow ridge
-  const browGeo = new THREE.BoxGeometry(0.45, 0.08, 0.2);
-  const brow = new THREE.Mesh(browGeo, armorMat);
-  brow.position.set(0, 1.52, 0.48);
-  g.add(brow);
-
-  // Eyes (in deep sockets)
-  for (const ex of [-0.1, 0.1]) {
-    const sockGeo = new THREE.SphereGeometry(0.06, 4, 4);
-    const sock = new THREE.Mesh(sockGeo, getMaterial(0x0a0a15));
-    sock.position.set(ex, 1.45, 0.52);
-    g.add(sock);
-    const eGeo = new THREE.SphereGeometry(0.035, 4, 4);
-    const eye = new THREE.Mesh(eGeo, eyeMat);
-    eye.position.set(ex, 1.45, 0.56);
-    g.add(eye);
-  }
-
-  // Jaw
-  const jawGeo = new THREE.SphereGeometry(0.18, 5, 4);
-  jawGeo.scale(1.2, 0.6, 1);
-  const jaw = new THREE.Mesh(jawGeo, skinMat);
-  jaw.position.set(0, 1.32, 0.45);
-  g.add(jaw);
-
-  // Tusks
-  for (const tx of [-0.12, 0.12]) {
-    const tuskGeo = new THREE.ConeGeometry(0.03, 0.2, 4);
-    const tusk = new THREE.Mesh(tuskGeo, boneMat);
-    tusk.position.set(tx, 1.38, 0.55);
-    tusk.rotation.x = -0.3;
-    g.add(tusk);
-  }
-
-  // --- Arms ---
-  // Massive — longer than the legs. Built as a hierarchy
-  // (shoulder → upper → elbow → forearm → fist) so they
-  // swing properly during the walk cycle and slam attack.
-  const arms = [];
-  for (const side of [-1, 1]) {
-    const shoulderPivot = new THREE.Group();
-    shoulderPivot.position.set(side * 0.65, 1.1, 0.1);
-    g.add(shoulderPivot);
-
-    const shoulderGeo = new THREE.SphereGeometry(0.25, 6, 5);
-    const shoulder = new THREE.Mesh(shoulderGeo, skinMat);
-    shoulderPivot.add(shoulder);
-
-    const upperGeo = new THREE.CylinderGeometry(0.16, 0.13, 0.8, 6);
-    upperGeo.translate(0, -0.4, 0);
-    const upper = new THREE.Mesh(upperGeo, skinMat);
-    upper.rotation.z = side * 0.2;
-    shoulderPivot.add(upper);
-
-    const elbowPivot = new THREE.Group();
-    elbowPivot.position.set(0, -0.8, 0);
-    upper.add(elbowPivot);
-
-    const elbowGeo = new THREE.SphereGeometry(0.13, 5, 5);
-    const elbow = new THREE.Mesh(elbowGeo, skinMat);
-    elbowPivot.add(elbow);
-
-    const foreGeo = new THREE.CylinderGeometry(0.14, 0.18, 0.9, 6);
-    foreGeo.translate(0, -0.45, 0);
-    const fore = new THREE.Mesh(foreGeo, skinMat);
-    fore.rotation.x = -0.3;
-    elbowPivot.add(fore);
-
-    // Big fist at the end — child of forearm so it follows rotation
-    const fistGeo = new THREE.SphereGeometry(0.18, 5, 5);
-    const fist = new THREE.Mesh(fistGeo, skinMat);
-    fist.position.set(0, -0.9, 0);
-    fore.add(fist);
-
-    // Knuckle spikes — also children of forearm
-    for (let k = -1; k <= 1; k++) {
-      const spikeGeo = new THREE.ConeGeometry(0.025, 0.12, 3);
-      const spike = new THREE.Mesh(spikeGeo, boneMat);
-      spike.position.set(k * 0.06, -0.95, 0.15);
-      spike.rotation.x = -0.5;
-      fore.add(spike);
-    }
-
-    arms.push({ shoulderPivot, elbowPivot, upper, fore, side });
-  }
-
-  // --- Legs (2, using shared buildLegChain) ---
-  // Short and thick — stubby compared to the massive torso.
-  const legs = [];
-  for (const lx of [-0.3, 0.3]) {
-    const side = lx > 0 ? 1 : -1;
-    const leg = buildLegChain({
-      upperLen: 0.4,
-      lowerLen: 0.35,
-      upperR: 0.14,
-      lowerR: 0.12,
-      footSize: null,
-      skinMat,
-      boneMat,
-      upperTilt: 0.2,
-      lowerTilt: -0.4,
-    });
-    leg.hip.position.set(lx, 0.3, 0);
-    g.add(leg.hip);
-
-    // Flat armored feet (not claws)
-    const footGeo = new THREE.BoxGeometry(0.2, 0.08, 0.25);
-    const foot = new THREE.Mesh(footGeo, armorMat);
-    leg.footGroup.add(foot);
-
-    legs.push({ ...leg, side, baseUpperTilt: 0.2, baseLowerTilt: -0.4 });
-  }
-
-  // --- Glow nodes ---
-  // Cyan dots on the shoulders and chest
-  for (const side of [-1, 1]) {
-    const gGeo = new THREE.SphereGeometry(0.06, 4, 4);
-    const gMesh = new THREE.Mesh(gGeo, glowMat);
-    gMesh.position.set(side * 0.7, 1.3, 0.1);
-    g.add(gMesh);
-  }
-  const chestGlow = new THREE.Mesh(
-    new THREE.SphereGeometry(0.08, 4, 4), glowMat
-  );
-  chestGlow.position.set(0, 0.9, 0.6);
-  g.add(chestGlow);
-
-  const glowMeshes = [chestGlow];
-
-  // --- Store references ---
-  g.userData.legs = legs;
-  g.userData.arms = arms;
-  g.userData.glowMeshes = glowMeshes;
-  g.userData.head = head;
+  const g = buildBruteModel();
   g.userData.type = 'brute';
-
   return g;
 }
 
