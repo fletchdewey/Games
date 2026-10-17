@@ -99,7 +99,15 @@ export const FX = {
   bleedOutFrames: 780,      // ~13s before a body can't be revived
 };
 
-export function initTwins(group) {
+/**
+ * `at` is where the pair stands, in the SAME space the player position will
+ * be given in. Everything in here — walking, facing, ranges — compares the
+ * player's position against `t.group.position` directly, so the two have to
+ * be in one space. Leave the boss group at the origin and put the twins where
+ * they belong through here; move the group instead and they walk toward a
+ * point offset by however far the group was moved, straight out of the room.
+ */
+export function initTwins(group, at = { x: 0, z: 0 }) {
   const d = group.userData;
   const cfg = {
     blue: { hp: FX.blueHp, speed: FX.blueSpeed },
@@ -120,8 +128,8 @@ export function initTwins(group) {
     t.smash = { state: 'none', t: 0, hit: false };
   }
   // Start them apart, so the first kill already has a walk attached to it.
-  d.blue.group.position.set(-2.2, 0, 0);
-  d.brown.group.position.set(2.2, 0, 0);
+  d.blue.group.position.set(at.x - 2.2, 0, at.z);
+  d.brown.group.position.set(at.x + 2.2, 0, at.z);
   d.defeated = false;
   d.attacks = [];            // notes the game turns into damage/projectiles
 }

@@ -18,41 +18,41 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=051f4774f4';
+import { PALETTE, getMaterial } from './shared/materials.js?v=d8f6ec5bd3';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=051f4774f4';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=051f4774f4';
-import { buildSpire, animateSpire, createSpireAI, updateSpireAI, hitSpire, killSpire } from './aliens/spire.js?v=051f4774f4';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=051f4774f4';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=d8f6ec5bd3';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=d8f6ec5bd3';
+import { buildSpire, animateSpire, createSpireAI, updateSpireAI, hitSpire, killSpire } from './aliens/spire.js?v=d8f6ec5bd3';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=d8f6ec5bd3';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=051f4774f4';
+import { createController, updateController } from './player/controller.js?v=d8f6ec5bd3';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=051f4774f4';
-import { createSwarm } from './bosses/swarm.js?v=051f4774f4';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=051f4774f4';
-import { createTwins } from './bosses/twins.js?v=051f4774f4';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=051f4774f4';
-import { createBurrower } from './bosses/burrower.js?v=051f4774f4';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=d8f6ec5bd3';
+import { createSwarm } from './bosses/swarm.js?v=d8f6ec5bd3';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=d8f6ec5bd3';
+import { createTwins } from './bosses/twins.js?v=d8f6ec5bd3';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=d8f6ec5bd3';
+import { createBurrower } from './bosses/burrower.js?v=d8f6ec5bd3';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=051f4774f4';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=d8f6ec5bd3';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=051f4774f4';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=d8f6ec5bd3';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, ROOMS }
-  from './map/grid_map.js?v=051f4774f4';
+  from './map/grid_map.js?v=d8f6ec5bd3';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
          buildAlienBoard, buildAlienPods,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=051f4774f4';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=d8f6ec5bd3';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -345,7 +345,10 @@ const BOSS_KINDS = [
     fell: 'Both Twins are down.',
     bullet: 1,
     create: () => createTwins(),
-    place(model, at) { model.position.set(at.x, 0, at.z); initTwins(model); },
+    // Like the Burrower, the group stays at the origin and the pair is placed
+    // in world space inside. Their AI compares the player's position against
+    // each twin's own position, and those two have to be the same space.
+    place(model, at) { initTwins(model, { x: at.x, z: at.z }); },
     update: (model, playerPos, dtF) => updateTwins(model, playerPos, dtF),
     // Its meshes are tagged with which twin they belong to, so the hit goes
     // to the one actually shot.

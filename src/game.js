@@ -345,7 +345,10 @@ const BOSS_KINDS = [
     fell: 'Both Twins are down.',
     bullet: 1,
     create: () => createTwins(),
-    place(model, at) { model.position.set(at.x, 0, at.z); initTwins(model); },
+    // Like the Burrower, the group stays at the origin and the pair is placed
+    // in world space inside. Their AI compares the player's position against
+    // each twin's own position, and those two have to be the same space.
+    place(model, at) { initTwins(model, { x: at.x, z: at.z }); },
     update: (model, playerPos, dtF) => updateTwins(model, playerPos, dtF),
     // Its meshes are tagged with which twin they belong to, so the hit goes
     // to the one actually shot.
