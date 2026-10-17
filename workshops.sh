@@ -9,6 +9,7 @@
 #   8006 → Map Walkthrough     (falo3d-2/map_walk.js)
 #   8007 → Puppet Master       (falo3d-2/puppet_workshop.jsx)
 #   8008 → The Swarm          (falo3d-2/swarm_workshop.jsx)
+#   8009 → The Twins          (falo3d-2/twins_workshop.jsx)
 #
 # Edit the .jsx and the page reloads itself — no build step, no node_modules.
 # Ctrl-C stops them all.
@@ -25,6 +26,7 @@ python3 tools/workshop_server.py 8005 map.html &
 python3 tools/workshop_server.py 8006 mapwalk.html &
 python3 tools/workshop_server.py 8007 puppet.html &
 python3 tools/workshop_server.py 8008 swarm.html &
+python3 tools/workshop_server.py 8009 twins.html &
 
 sleep 0.5
 echo ""
@@ -36,6 +38,7 @@ echo "  Map      http://localhost:8005"
 echo "  Walk     http://localhost:8006"
 echo "  Puppet   http://localhost:8007"
 echo "  Swarm    http://localhost:8008"
+echo "  Twins    http://localhost:8009"
 echo ""
 echo "  Ctrl-C to stop."
 

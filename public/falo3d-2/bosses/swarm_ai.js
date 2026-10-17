@@ -29,7 +29,7 @@
 // Time is in FRAMES here, 60 to the second, same as the other boss files.
 
 import * as THREE from 'three';
-import { syncSwarm } from './swarm.js?v=f16d7d3421';
+import { syncSwarm } from './swarm.js?v=2032983e1f';
 
 export const FX = {
   // ── The mass ──
