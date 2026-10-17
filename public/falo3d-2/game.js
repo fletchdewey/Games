@@ -18,42 +18,42 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=be72871c23';
+import { PALETTE, getMaterial } from './shared/materials.js?v=3a09565bb3';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=be72871c23';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=be72871c23';
-import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=be72871c23';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=be72871c23';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=3a09565bb3';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=3a09565bb3';
+import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=3a09565bb3';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=3a09565bb3';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=be72871c23';
+import { createController, updateController } from './player/controller.js?v=3a09565bb3';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=be72871c23';
-import { createSwarm } from './bosses/swarm.js?v=be72871c23';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=be72871c23';
-import { createTwins } from './bosses/twins.js?v=be72871c23';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=be72871c23';
-import { createBurrower } from './bosses/burrower.js?v=be72871c23';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=3a09565bb3';
+import { createSwarm } from './bosses/swarm.js?v=3a09565bb3';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=3a09565bb3';
+import { createTwins } from './bosses/twins.js?v=3a09565bb3';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=3a09565bb3';
+import { createBurrower } from './bosses/burrower.js?v=3a09565bb3';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=be72871c23';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=3a09565bb3';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=be72871c23';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=3a09565bb3';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=be72871c23';
+  from './map/grid_map.js?v=3a09565bb3';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
          buildAlienBoard, buildAlienPods, prisonBrokenCell,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=be72871c23';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=3a09565bb3';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -108,6 +108,8 @@ const ALIEN_TYPES = {
     // See clearShot() — the only alien that gets this, and the only one whose
     // shot is instant enough to need it.
     needsSight: true,
+    // What to put away when the world stops. See the freeze in the loop.
+    rest: restWatcher,
     idleStates: ['scan'],
   },
   brute: {
@@ -747,6 +749,22 @@ let projectiles = [];
 let killCount = 0;
 let playerHp = 100;
 let isDead = false;
+
+// Has the player actually started playing?
+//
+// The game loop has always run from the moment the page loads, with the
+// title screen simply drawn on top of a station that was already live. You
+// could be shot, and killed, while reading the controls — the Watcher in the
+// Hangar made that obvious, because it opens fire two seconds after it sees
+// you and does not need to walk anywhere first. The same was true on the
+// death screen: the fight carried on behind it.
+//
+// Nothing about a boss or an alien should happen on either screen, so one
+// flag decides it, and `worldIsLive()` below is the only thing that asks.
+let started = false;
+// Whether the world was live last frame, so the moment it stops can be
+// noticed exactly once.
+let wasLive = false;
 let dmgFlashTimer = 0;
 
 // ─── HUD ELEMENTS ──────────────────────────────────────────
@@ -769,6 +787,20 @@ const bossBarEl = document.getElementById('boss-bar');
 const bossBannerEl = document.getElementById('boss-banner');
 const bossBannerLineEl = document.getElementById('boss-banner-line');
 
+/**
+ * Is the world running right now?
+ *
+ * False on the title screen and on the death screen — the two times the
+ * player is looking at a menu and cannot do anything about what is pointed
+ * at them. Everything that moves, thinks, or takes health off you is behind
+ * this: the player, the aliens, the boss, bullets in flight and the station's
+ * own hazards. Rendering is NOT, so both screens still show the room rather
+ * than a black rectangle.
+ */
+function worldIsLive() {
+  return started && !isDead;
+}
+
 function updateHUD() {
   healthBar.style.width = playerHp + '%';
   healthBar.style.background = playerHp > 60 ? '#44ff88' : playerHp > 30 ? '#ffaa22' : '#ff2244';
@@ -778,7 +810,9 @@ function updateHUD() {
 }
 
 function damagePlayer(amount) {
-  if (isDead) return;
+  // Belt and braces: every caller is already behind worldIsLive(), but this
+  // is the one function that can actually hurt you, so it checks too.
+  if (!worldIsLive()) return;
   playerHp = Math.max(0, playerHp - amount);
   dmgFlashTimer = 0.3;
   dmgFlashEl.style.opacity = '1';
@@ -892,6 +926,7 @@ function playAgain() {
  *  just walked out of. */
 function quitToTitle() {
   resetRun();
+  started = false;         // back to a station that is standing still
   deathScreen.style.display = 'none';
   startOverlay.style.display = 'flex';
 }
@@ -1065,6 +1100,7 @@ function updateBoss(dt) {
 // ─── START ──────────────────────────────────────────────────
 startOverlay.addEventListener('click', () => {
   startOverlay.style.display = 'none';
+  started = true;          // the station comes alive here, and not before
   canvas.requestPointerLock();
 });
 
@@ -1100,8 +1136,10 @@ function gameLoop(now) {
   lastTime = now;
   const time = now / 1000;
 
+  const live = worldIsLive();
+
   // --- Player ---
-  if (!isDead) {
+  if (live) {
     const prevX = ctrl.position.x, prevZ = ctrl.position.z;
 
     // Webbing underfoot. The controller reads ctrl.speed fresh every frame,
@@ -1151,7 +1189,7 @@ function gameLoop(now) {
   // The hull breach drags you toward it and kills you at the lip. The pull
   // is routed through hitsWall so it can't shove you through geometry on
   // the way — it only ever moves you into space you could have walked into.
-  if (!isDead) {
+  if (live) {
     for (const h of hazards) {
       if (ctrl.position.x < h.xMin || ctrl.position.x > h.xMax) continue;
       // `side` is +1 when the floor lies at z greater than the breach and -1
@@ -1197,7 +1235,7 @@ function gameLoop(now) {
   // --- Shooting ---
   if (ctrl.shootRequested) {
     ctrl.shootRequested = false;
-    if (!isDead) {
+    if (live) {
       gun.recoilTime = 0.08;
       raycaster.setFromCamera(screenCenter, camera);
 
@@ -1279,6 +1317,9 @@ function gameLoop(now) {
 
   aliens.forEach((a) => {
     if (!a.alive) {
+      // Corpses wait with everyone else — their clear-up and respawn clocks
+      // should not run down behind a menu.
+      if (!live) return;
       a.deathTimer += dt;
       // Let the AI module handle the death animation
       a.reg.updateAI(a.model, a.ai, ctrl.position, dt);
@@ -1316,6 +1357,13 @@ function gameLoop(now) {
     const dist = a.model.position.distanceTo(ctrl.position);
     const active = a.room === playerRoom || dist < ACTIVE_RADIUS;
     if (a.model.visible !== active) a.model.visible = active;
+
+    // Deciding what is VISIBLE happens even while the world is frozen, and
+    // has to: the parking above is the only thing that hides the aliens in
+    // other rooms, and freezing before it ran left all twenty-two of them
+    // drawn at once — so the title screen showed creatures through the walls
+    // from three rooms away. Thinking stops here; being invisible does not.
+    if (!live) return;
     if (!active) return;
 
     // Flash timer
@@ -1378,11 +1426,24 @@ function gameLoop(now) {
     }
   });
 
+  // Freezing can leave a visual stuck on. The Watcher's beam is drawn by its
+  // AI, so stopping the AI mid-shot doesn't end the shot — it just stops
+  // anyone updating it, and the beam stays lit and pointed at you for as long
+  // as the menu is up. So on the one frame the world stops, anything holding
+  // something like that is told to put it away.
+  if (wasLive && !live) {
+    for (const a of aliens) if (a.reg.rest) a.reg.rest(a.model);
+  }
+  wasLive = live;
+
   // --- Update boss ---
-  if (!isDead && boss) updateBoss(dt);
+  if (live && boss) updateBoss(dt);
 
   // --- Update projectiles ---
-  projectiles = projectiles.filter((p) => {
+  // Frozen with everything else. A bolt already in the air when you died
+  // should not still be travelling toward you while you decide whether to
+  // play again — and it certainly should not land when you do.
+  if (live) projectiles = projectiles.filter((p) => {
     p.life -= dt;
     if (p.life <= 0) { removeProjectile(p); return false; }
     p.mesh.position.addScaledVector(p.dir, p.speed * dt);
@@ -1469,6 +1530,12 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
     },
   };
 }
+
+// Draw the HUD once before the first frame. It used to be set only by the
+// first thing that hurt you, which worked solely because the station was
+// already live behind the title screen — so with that stopped, the health
+// bar sat at whatever width the stylesheet gave it until you took a hit.
+updateHUD();
 
 // Start the loop
 requestAnimationFrame(gameLoop);

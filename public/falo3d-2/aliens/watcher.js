@@ -35,8 +35,8 @@
 // that it would shoot you through the floor plan from the next room.
 
 import * as THREE from 'three';
-import { buildWatcher as buildWatcherModel, W } from './workshop_models.js?v=be72871c23';
-import { rememberColor } from './model_colors.js?v=be72871c23';
+import { buildWatcher as buildWatcherModel, W } from './workshop_models.js?v=3a09565bb3';
+import { rememberColor } from './model_colors.js?v=3a09565bb3';
 
 // Everything above is in SECONDS, not frames, because that is the unit the
 // workshop's own numbers are written in and converting them twice is how the
@@ -292,6 +292,20 @@ function shortestTurn(from, to) {
   while (diff > Math.PI) diff -= Math.PI * 2;
   while (diff < -Math.PI) diff += Math.PI * 2;
   return diff;
+}
+
+/**
+ * Put the beam away.
+ *
+ * Called when the world stops — the title screen, or the death screen. The
+ * beam is drawn by the AI, so freezing the AI mid-shot doesn't end the shot,
+ * it just stops anyone updating it: a beam that was in flight when you died
+ * stays lit and pointed at you for as long as the menu is up, which reads as
+ * being shot while you decide whether to play again.
+ */
+export function restWatcher(model) {
+  const d = model.userData;
+  if (d.beam) beamOff(d);
 }
 
 /** 1 HP. Anything that hits it, kills it — that is the whole trade. */

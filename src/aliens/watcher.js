@@ -294,6 +294,20 @@ function shortestTurn(from, to) {
   return diff;
 }
 
+/**
+ * Put the beam away.
+ *
+ * Called when the world stops — the title screen, or the death screen. The
+ * beam is drawn by the AI, so freezing the AI mid-shot doesn't end the shot,
+ * it just stops anyone updating it: a beam that was in flight when you died
+ * stays lit and pointed at you for as long as the menu is up, which reads as
+ * being shot while you decide whether to play again.
+ */
+export function restWatcher(model) {
+  const d = model.userData;
+  if (d.beam) beamOff(d);
+}
+
 /** 1 HP. Anything that hits it, kills it — that is the whole trade. */
 export function hitWatcher(ai) {
   if (ai.state === STATE.DEAD) return;
