@@ -18,42 +18,42 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=efae637ed7';
+import { PALETTE, getMaterial } from './shared/materials.js?v=f04319f96b';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=efae637ed7';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=efae637ed7';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=f04319f96b';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=f04319f96b';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=efae637ed7';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=efae637ed7';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=f04319f96b';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=f04319f96b';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=efae637ed7';
+import { createController, updateController } from './player/controller.js?v=f04319f96b';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=efae637ed7';
-import { createSwarm } from './bosses/swarm.js?v=efae637ed7';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=efae637ed7';
-import { createTwins } from './bosses/twins.js?v=efae637ed7';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=efae637ed7';
-import { createBurrower } from './bosses/burrower.js?v=efae637ed7';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=f04319f96b';
+import { createSwarm } from './bosses/swarm.js?v=f04319f96b';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=f04319f96b';
+import { createTwins } from './bosses/twins.js?v=f04319f96b';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=f04319f96b';
+import { createBurrower } from './bosses/burrower.js?v=f04319f96b';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=efae637ed7';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=f04319f96b';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=efae637ed7';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=f04319f96b';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=efae637ed7';
+  from './map/grid_map.js?v=f04319f96b';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
-         buildAlienBoard, buildAlienPods,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=efae637ed7';
+         buildAlienBoard, buildAlienPods, prisonBrokenCell,
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=f04319f96b';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -134,12 +134,35 @@ const ALIEN_TYPES = {
 // Room ids: room1 Hangar · room2 Outpost 3 · room3 outpost 2 · room4 outpost 1
 // room5 armory · room6 prison · room7 outpost 4 · room8 alien pods
 // room9 Control Room (boss) · room10 Locked Door
+//
+// `spots` overrides the random scatter with exact positions. The pair in the
+// prison are in the BROKEN cell specifically — the one whose door is lying
+// in the walkway — because that is the whole point of them. Scattered on a
+// random floor cell of the prison they would stand in the corridor, and the
+// torn-open cell would go back to being scenery.
 const SPAWN_PLAN = [
   { room: 'room7', type: 'brute',   count: 4 },   // outpost 4
   { room: 'room2', type: 'watcher', count: 4 },   // Outpost 3
   { room: 'room3', type: 'floater', count: 4 },   // outpost 2
   { room: 'room4', type: 'crawler', count: 4 },   // outpost 1
+  { room: 'room6', type: 'crawler', count: 2, spots: brokenCellSpots() },
 ];
+
+/**
+ * Two standing spots inside the prison's torn-open cell.
+ *
+ * The cell is 2.6 deep and 3.6 across with a cot down its back wall, so
+ * there is one usable strip: forward of the cot, back from the bars. They
+ * sit either side of the doorway gap rather than in it, so you see them
+ * through the bars before the hole lines up and they come out.
+ */
+function brokenCellSpots() {
+  const prison = ROOMS.find((r) => r.id === 'room6');
+  if (!prison) return [];
+  const c = prisonBrokenCell(prison);
+  const x = c.x0 + 1.6;                     // clear of the cot, off the bars
+  return [{ x, z: c.z0 + 0.95 }, { x, z: c.z1 - 0.95 }];
+}
 
 // ─── GUN ────────────────────────────────────────────────────
 function createGun(camera) {
@@ -261,6 +284,25 @@ function spacedCellIn(roomId, placed, gap) {
   return best;
 }
 
+/** Build one alien and stand it at x,z. Shared by the scatter and by the
+ *  hand-placed pair in the prison. */
+function placeAlien(aliens, scene, reg, plan, x, z) {
+  const model = reg.build();
+  const ai = reg.createAI();
+  model.position.set(x, reg.baseY, z);
+  model.userData.baseY = reg.baseY;
+  model.userData.ai = ai;
+  scene.add(model);
+  aliens.push({
+    model, ai, type: plan.type, reg,
+    room: plan.room,          // used to park aliens in rooms you're not in
+    hp: reg.hp, maxHp: reg.hp,
+    alive: true, flashTimer: 0, deathTimer: 0,
+    spawnPos: new THREE.Vector3(x, reg.baseY, z),
+    attackTimer: reg.attackCD * (0.5 + Math.random()),
+  });
+}
+
 function spawnAliens(scene) {
   const aliens = [];
   // Where everything already stands, per room, so the next one can avoid it.
@@ -274,8 +316,15 @@ function spawnAliens(scene) {
     if (!reg) return;
 
     for (let i = 0; i < plan.count; i++) {
-      const model = reg.build();
-      const ai = reg.createAI();
+      // An exact spot, when the plan names one — see brokenCellSpots().
+      // Everything below is the scatter, which is wrong for a placement that
+      // only means anything in one particular corner of a room.
+      if (plan.spots) {
+        const want = plan.spots[i];
+        if (!want) continue;
+        placeAlien(aliens, scene, reg, plan, want.x, want.z);
+        continue;
+      }
 
       // Pick an actual painted cell. Scattering inside a bounding box would
       // drop aliens into the empty notches of an irregular room.
@@ -289,22 +338,8 @@ function spawnAliens(scene) {
       const spot = spacedCellIn(plan.room, taken[plan.room] || (taken[plan.room] = []),
                                 reg.spawnGap || 2);
       if (!spot) continue;
-      const sx = spot.x, sz = spot.z;
       taken[plan.room].push(spot);
-
-      model.position.set(sx, reg.baseY, sz);
-      model.userData.baseY = reg.baseY;
-      model.userData.ai = ai;
-      scene.add(model);
-
-      aliens.push({
-        model, ai, type: plan.type, reg,
-        room: plan.room,          // used to park aliens in rooms you're not in
-        hp: reg.hp, maxHp: reg.hp,
-        alive: true, flashTimer: 0, deathTimer: 0,
-        spawnPos: new THREE.Vector3(sx, reg.baseY, sz),
-        attackTimer: reg.attackCD * (0.5 + Math.random()),
-      });
+      placeAlien(aliens, scene, reg, plan, spot.x, spot.z);
     }
   });
 

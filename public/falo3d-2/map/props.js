@@ -12,15 +12,15 @@
 
 import * as THREE from 'three';
 import { roomIdAt, worldToCell, WALL_HEIGHT as WALL_H,
-         SURFACE_WHITE } from './grid_map.js?v=efae637ed7';
+         SURFACE_WHITE } from './grid_map.js?v=f04319f96b';
 // Specimens for the pods room. These come from workshop_models.js — the
 // current models, straight out of the Alien Workshop — not from the older
 // crawler/floater/brute modules the fightable aliens are still built from.
 import { buildCrawler, buildFloater, buildBrute, buildWatcher }
-  from '../aliens/workshop_models.js?v=efae637ed7';
+  from '../aliens/workshop_models.js?v=f04319f96b';
 // The control room's map screen is drawn from the same painted cells the
 // level itself is built from.
-import { GRID } from './grid_data.js?v=efae637ed7';
+import { GRID } from './grid_data.js?v=f04319f96b';
 
 // Deterministic jitter, so the wreck looks scattered but lands in the same
 // place every run. Math.random() here would move the bodies on every reload.
@@ -1330,6 +1330,25 @@ function pushBox(arr, cx, cy, cz, w, h, d) {
 }
 
 const CELL = { W: 3.6, D: 2.6, T: 0.2, BAR_TOP: 3.0, R: 0.04, GAP: 0.24 };
+// Of the three cells, the middle one is the one that failed — its door is
+// lying in the walkway. Named here rather than inside the builder because
+// prisonBrokenCell() below has to agree with it.
+const BROKEN_CELL = 1;
+
+/**
+ * The inside of the torn-open cell, in world space.
+ *
+ * The prison works its layout out from CELL and the room's corner, and
+ * anything that wants to put something INSIDE that cell needs exactly the
+ * same arithmetic. Copying the numbers into the caller is how a cell and its
+ * contents drift apart the first time the prison moves, so it lives here,
+ * next to the bars it has to line up with.
+ */
+export function prisonBrokenCell(room) {
+  const { W, D, T } = CELL;
+  const z0 = room.z0 + 0.8 + BROKEN_CELL * (W + T);
+  return { x0: room.x0, x1: room.x0 + D, z0, z1: z0 + W };
+}
 
 // A cot: welded frame, headboard, thin mattress and a pillow. Built with its
 // length along Z so it drops straight against the cells' back wall.
@@ -1526,10 +1545,9 @@ export function buildPrison(scene, room, seed = 6610) {
     }
   }
 
-  const BROKEN = 1;                             // the middle cell went first
   for (let c = 0; c < 3; c++) {
     const cz = z0 + c * pitch;                  // this cell's front edge, low z
-    const broken = c === BROKEN;
+    const broken = c === BROKEN_CELL;
 
     // Header above the bars, so the cell doesn't open onto bare ceiling.
     const head = new THREE.Mesh(
@@ -1640,7 +1658,7 @@ export function buildPrison(scene, room, seed = 6610) {
     const door = new THREE.Mesh(dg, barMat);
     // Laid flat, hinge end still near the cell it came out of.
     door.rotation.set(0, 0.5, -Math.PI / 2);
-    door.position.set(FX + 1.5, R * 1.6, z0 + BROKEN * pitch + 0.3);
+    door.position.set(FX + 1.5, R * 1.6, z0 + BROKEN_CELL * pitch + 0.3);
     group.add(door);
   }
 
@@ -1650,7 +1668,7 @@ export function buildPrison(scene, room, seed = 6610) {
   const burn = new THREE.MeshBasicMaterial({
     color: 0x16110e, transparent: true, opacity: 0.66, depthWrite: false });
   const mark = scorchPatch(rand, 2.4, 1.8, burn);
-  mark.position.set(FX + 0.3, 0.012, z0 + BROKEN * pitch + W / 2);
+  mark.position.set(FX + 0.3, 0.012, z0 + BROKEN_CELL * pitch + W / 2);
   group.add(mark);
 
   // ── WHAT THE PRISONERS LEFT ───────────────────────────────
@@ -1711,7 +1729,7 @@ export function buildPrison(scene, room, seed = 6610) {
     // Partition faces looking into this cell.
     const sides = [{ axis: 'z', pos: cz, off: 0.02 },
                    { axis: 'z', pos: cz + W, off: -0.02 }];
-    const hits = c === BROKEN ? 7 : 4;                   // this one fought
+    const hits = c === BROKEN_CELL ? 7 : 4;                   // this one fought
     for (let i = 0; i < hits; i++) {
       const pl = rand() < 0.45 ? back : sides[rand() < 0.5 ? 0 : 1];
       const u = pl === back ? cz + 0.6 + rand() * (W - 1.2)
