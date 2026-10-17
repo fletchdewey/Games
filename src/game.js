@@ -148,6 +148,7 @@ const SPAWN_PLAN = [
   { room: 'room6', type: 'crawler', count: 2, spots: brokenCellSpots() },
   { room: 'room5', type: 'brute',   count: 1 },   // armory
   { room: 'room8', type: 'floater', count: 2 },   // alien pods
+  { room: 'room1', type: 'watcher', count: 1 },   // Hangar — where you start
 ];
 
 /**

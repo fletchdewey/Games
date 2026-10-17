@@ -18,42 +18,42 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=0680edcab4';
+import { PALETTE, getMaterial } from './shared/materials.js?v=be72871c23';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=0680edcab4';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=0680edcab4';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=be72871c23';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=be72871c23';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=0680edcab4';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=0680edcab4';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=be72871c23';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=be72871c23';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=0680edcab4';
+import { createController, updateController } from './player/controller.js?v=be72871c23';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=0680edcab4';
-import { createSwarm } from './bosses/swarm.js?v=0680edcab4';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=0680edcab4';
-import { createTwins } from './bosses/twins.js?v=0680edcab4';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=0680edcab4';
-import { createBurrower } from './bosses/burrower.js?v=0680edcab4';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=be72871c23';
+import { createSwarm } from './bosses/swarm.js?v=be72871c23';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=be72871c23';
+import { createTwins } from './bosses/twins.js?v=be72871c23';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=be72871c23';
+import { createBurrower } from './bosses/burrower.js?v=be72871c23';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=0680edcab4';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=be72871c23';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=0680edcab4';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=be72871c23';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=0680edcab4';
+  from './map/grid_map.js?v=be72871c23';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
          buildAlienBoard, buildAlienPods, prisonBrokenCell,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=0680edcab4';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=be72871c23';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -148,6 +148,7 @@ const SPAWN_PLAN = [
   { room: 'room6', type: 'crawler', count: 2, spots: brokenCellSpots() },
   { room: 'room5', type: 'brute',   count: 1 },   // armory
   { room: 'room8', type: 'floater', count: 2 },   // alien pods
+  { room: 'room1', type: 'watcher', count: 1 },   // Hangar — where you start
 ];
 
 /**
