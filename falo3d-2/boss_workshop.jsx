@@ -554,20 +554,44 @@ function buildBurrower() {
   const ey = new THREE.MeshBasicMaterial({ color: PAL.eye });
   const floorMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
 
-  // Ground plane with crack
-  const groundG = new THREE.RingGeometry(0.3, 2.5, 16);
+  // SIZE. The arch spans SPAN units and rises RISE above the floor. The
+  // ceiling in the real rooms is 4 units, so the peak is kept under 3 — a
+  // worm you can walk under, not one that clips through the roof.
+  const SPAN = 11;
+  const RISE = 3.2;
+  const THICK = 0.62;       // body radius at the top of the arch
+  const arcPoints = 30;     // more segments, so a longer body still reads smooth
+
+  // The body curve. A plain sine arch puts both ends in the floor, which
+  // means the worm has no FRONT — the head could only ever sit somewhere
+  // along the middle of it. So the far end rears back up instead of diving:
+  // tail into the ground at one end, body over the top, head lifted clear
+  // and levelled off at the other.
+  const bodyY = (t) => {
+    const arch = Math.sin(t * Math.PI) * RISE - 0.3;
+    const lift = Math.max(0, (t - 0.72) / 0.28);   // nothing until 72% along
+    return arch + lift * lift * RISE * 0.55;
+  };
+  const bodyR = (t) => THICK * (0.35 + 0.65 * Math.sin(Math.min(t, 0.82) * Math.PI));
+
+  // Ground plane with crack — one hole now, at the tail. The head end no
+  // longer enters the floor, so there is nothing for a second one to be.
+  const groundG = new THREE.RingGeometry(0.8, 4.5, 24);
   const ground = new THREE.Mesh(groundG, floorMat);
-  ground.rotation.x = -Math.PI * 0.5; ground.position.y = -0.3; g.add(ground);
+  ground.rotation.x = -Math.PI * 0.5;
+  ground.position.set(-SPAN / 2, -0.3, 0);
+  g.add(ground);
 
   // Worm segments arcing out of ground
   const segments = [];
-  const arcPoints = 12;
   for (let i = 0; i < arcPoints; i++) {
     const t = i / (arcPoints - 1);
-    const arcY = Math.sin(t * Math.PI) * 1.8 - 0.3;
-    const arcX = (t - 0.5) * 3.0;
-    const radius = 0.3 - Math.abs(t - 0.5) * 0.2;
-    const sG = new THREE.SphereGeometry(radius, 7, 6);
+    const arcY = bodyY(t);
+    const arcX = (t - 0.5) * SPAN;
+    // Tapers into the floor at the tail, but stays thick toward the head —
+    // it shouldn't thin out to nothing at the end you're looking at.
+    const radius = bodyR(t);
+    const sG = new THREE.SphereGeometry(radius, 8, 6);
     sG.scale(1, 1, 1.3);
     const seg = new THREE.Mesh(sG, sk);
     seg.position.set(arcX, arcY, 0);
@@ -575,65 +599,77 @@ function buildBurrower() {
       g.add(seg);
       segments.push({ mesh: seg, baseX: arcX, baseY: arcY, t });
     }
+  }
 
-    // Ridges on each visible segment
-    if (arcY > -0.1 && i % 2 === 0) {
-      const rG = new THREE.TorusGeometry(radius + 0.05, 0.025, 4, 8);
-      const ridge = new THREE.Mesh(rG, bn);
-      ridge.position.set(arcX, arcY, 0);
-      ridge.rotation.y = Math.PI * 0.5;
-      g.add(ridge);
+  // Head — right at the leading tip, on the end that rears up.
+  const HEAD_T = 1;
+  const headPos = { x: (HEAD_T - 0.5) * SPAN, y: bodyY(HEAD_T) };
+  // Smaller than the body it sits on, so it reads as a mouth rather than as
+  // the whole end of the worm being a ring of teeth.
+  const MOUTH_R = THICK * 0.62;
+  const mouthG = new THREE.TorusGeometry(MOUTH_R, MOUTH_R * 0.25, 6, 12);
+  const mouth = new THREE.Mesh(mouthG, new THREE.MeshLambertMaterial({ color: 0x4a1a1a }));
+  mouth.position.set(headPos.x + 0.22, headPos.y, 0);
+  mouth.rotation.y = Math.PI * 0.5;
+  g.add(mouth);
+
+  // Two rings of teeth, the inner one set back inside the mouth — a single
+  // ring reads as a rim, two reads as a throat with something down it.
+  for (const ring of [
+    { count: 20, radius: MOUTH_R * 0.92, x: 0.34, r: 0.038, len: 0.26, lean: 0 },
+    { count: 13, radius: MOUTH_R * 0.55, x: 0.17, r: 0.03, len: 0.2, lean: 0.5 },
+  ]) {
+    for (let t = 0; t < ring.count; t++) {
+      const a = (t / ring.count) * Math.PI * 2 + (ring.lean ? Math.PI / ring.count : 0);
+      const tG = new THREE.ConeGeometry(ring.r, ring.len, 4);
+      const tooth = new THREE.Mesh(tG, bn);
+      tooth.position.set(headPos.x + ring.x,
+                         headPos.y + Math.sin(a) * ring.radius,
+                         Math.cos(a) * ring.radius);
+      // Points forward, and the inner ring also cants inward toward the axis.
+      tooth.rotation.z = -Math.PI * 0.5 + Math.sin(a) * ring.lean * 0.5;
+      tooth.rotation.y = -Math.cos(a) * ring.lean * 0.5;
+      g.add(tooth);
     }
   }
 
-  // Head — ring of teeth emerging at one end
-  const headPos = { x: 1.3, y: 0.1 };
-  const mouthG = new THREE.TorusGeometry(0.28, 0.06, 6, 10);
-  const mouth = new THREE.Mesh(mouthG, new THREE.MeshLambertMaterial({ color: 0x4a1a1a }));
-  mouth.position.set(headPos.x, headPos.y, 0);
-  mouth.rotation.y = Math.PI * 0.5;
-  mouth.rotation.x = 0.3;
-  g.add(mouth);
-
-  // Teeth ring
-  for (let t = 0; t < 10; t++) {
-    const a = (t / 10) * Math.PI * 2;
-    const tG = new THREE.ConeGeometry(0.025, 0.15, 3);
-    const tooth = new THREE.Mesh(tG, bn);
-    tooth.position.set(headPos.x + 0.15, headPos.y + Math.sin(a) * 0.25, Math.cos(a) * 0.25);
-    tooth.rotation.z = -Math.PI * 0.5;
-    g.add(tooth);
-  }
-
-  // Eyes inside mouth (deep set, glowing)
-  for (const ey2 of [0.08, -0.08]) {
-    const eG = new THREE.Mesh(new THREE.SphereGeometry(0.05, 5, 5), ey);
-    eG.position.set(headPos.x - 0.05, headPos.y + ey2, ey2);
+  // Eyes set back behind the mouth, on the head itself.
+  for (const ey2 of [0.17, -0.17]) {
+    const eG = new THREE.Mesh(new THREE.SphereGeometry(0.075, 6, 5), ey);
+    eG.position.set(headPos.x - 0.16, headPos.y + 0.16, ey2);
     g.add(eG);
   }
 
   // Glow along body
-  for (let i = 2; i < arcPoints - 2; i += 2) {
+  for (let i = 3; i < arcPoints - 3; i += 3) {
     const t = i / (arcPoints - 1);
-    const y = Math.sin(t * Math.PI) * 1.8 - 0.3;
-    const x = (t - 0.5) * 3.0;
+    const y = bodyY(t);
+    const x = (t - 0.5) * SPAN;
+    const r = bodyR(t);
     if (y > 0) {
-      const gM = new THREE.Mesh(new THREE.SphereGeometry(0.04, 4, 4), gl);
-      gM.position.set(x, y + 0.15, 0.2); g.add(gM);
+      const gM = new THREE.Mesh(new THREE.SphereGeometry(0.08, 5, 4), gl);
+      gM.position.set(x, y + r * 0.7, r * 0.6); g.add(gM);
     }
   }
 
-  // Debris around holes
-  for (let i = 0; i < 6; i++) {
-    const dG = new THREE.BoxGeometry(0.1 + Math.random() * 0.15, 0.06, 0.1 + Math.random() * 0.1);
+  // Debris around the one hole it came up through.
+  for (let i = 0; i < 12; i++) {
+    const dG = new THREE.BoxGeometry(0.18 + Math.random() * 0.3, 0.1,
+                                     0.18 + Math.random() * 0.22);
     const debris = new THREE.Mesh(dG, floorMat);
-    const side = i < 3 ? -1 : 1;
-    debris.position.set(side * 1.4 + (Math.random() - 0.5) * 0.4, -0.25, (Math.random() - 0.5) * 0.5);
+    const a = Math.random() * Math.PI * 2, r = 1.1 + Math.random() * 1.9;
+    debris.position.set(-SPAN / 2 + Math.cos(a) * r, -0.22, Math.sin(a) * r);
     debris.rotation.set(Math.random(), Math.random(), Math.random());
     g.add(debris);
   }
 
-  g.add(new THREE.PointLight(0xff2244, 1.5, 8));
+  // One over the hole, one on the head — a single light at the origin left
+  // both ends of an eleven-unit body in the dark.
+  for (const l of [[-SPAN / 2, 0.4], [headPos.x, headPos.y]]) {
+    const pl = new THREE.PointLight(0xff2244, 1.2, 9);
+    pl.position.set(l[0], l[1], 0);
+    g.add(pl);
+  }
   g.userData = { type: "burrower", segments };
   return g;
 }
@@ -1064,7 +1100,7 @@ const WILDCARDS = [
   { name: "Puppet Master", desc: "Tiny gleeful alien driving a headless brute body via nerve tendrils. Kill the pilot, the body drops.", build: buildPuppetMaster, meshCount: "~70", color: "#44ff88", accent: "#44ff88" },
   { name: "The Swarm", desc: "Not one alien — hundreds of tiny ones forming a humanoid shape. Shoot it and it scatters, then reforms.", build: buildSwarm, meshCount: "~82", color: "#ff2244", accent: "#ff2244" },
   { name: "The Mimic", desc: "Your own silhouette made of alien flesh. Wrong proportions, too-long arms. Uncanny valley horror.", build: buildMimic, meshCount: "~55", color: "#ff1122", accent: "#440022" },
-  { name: "Burrower", desc: "Giant worm. Only segments arc above floor. Burrows and re-emerges. You fight it in pieces.", build: buildBurrower, meshCount: "~60", color: "#ff2244", accent: "#ff6644" },
+  { name: "Burrower", desc: "Giant worm. Only segments arc above floor. Burrows and re-emerges. You fight it in pieces.", build: buildBurrower, meshCount: "~95", color: "#ff2244", accent: "#ff6644", view: { dist: 19, y: 5.5, look: 1.2 } },
   { name: "The Trojan", desc: "Looks like a supply crate until eyes peek out and legs unfold. Ambush boss.", build: buildTrojan, meshCount: "~50", color: "#ffaa22", accent: "#ffaa22" },
   { name: "The Twins", desc: "Two aliens that share a life. Kill one, the other revives it. Must damage both simultaneously.", build: buildTwins, meshCount: "~65", color: "#ff44cc", accent: "#ff44cc" },
 ];
@@ -1084,9 +1120,12 @@ function BossViewer({ boss, index }) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 50);
-    camera.position.set(0, 1.8, 6.5);
-    camera.lookAt(0, 1.0, 0);
+    // Each boss can ask for its own framing. One shared camera cannot hold a
+    // two-metre humanoid and an eleven-metre worm in the same card.
+    const view = boss.view || {};
+    const camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 120);
+    camera.position.set(0, view.y ?? 1.8, view.dist ?? 6.5);
+    camera.lookAt(0, view.look ?? 1.0, 0);
 
     scene.add(new THREE.AmbientLight(0x222233, 0.5));
     const dir = new THREE.DirectionalLight(0xffffff, 0.8);
