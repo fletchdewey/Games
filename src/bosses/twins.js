@@ -235,6 +235,13 @@ export function createTwins() {
   blue.kind = 'blue';
   brown.kind = 'brown';
 
+  // Stood apart here, not only by the AI. initTwins moves them to their
+  // fighting positions, but anything that just builds the model — the boss
+  // gallery, a screenshot, a future spawn preview — got both of them on the
+  // same spot, merged into one creature.
+  blue.group.position.set(-1.6, 0, 0);
+  brown.group.position.set(1.6, 0, 0);
+
   g.add(blue.group);
   g.add(brown.group);
 

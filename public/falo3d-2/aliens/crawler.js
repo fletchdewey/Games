@@ -17,9 +17,9 @@
 // The Crawler works the same way, just with a jump instead of a swing.
 
 import * as THREE from 'three';
-import { PALETTE, getMaterial } from '../shared/materials.js?v=2032983e1f';
-import { buildLegChain } from '../shared/geometry.js?v=2032983e1f';
-import { createBehaviorSpec } from '../shared/behavior.js?v=2032983e1f';
+import { PALETTE, getMaterial } from '../shared/materials.js?v=3a46e74894';
+import { buildLegChain } from '../shared/geometry.js?v=3a46e74894';
+import { createBehaviorSpec } from '../shared/behavior.js?v=3a46e74894';
 
 
 // ─── 1. GEOMETRY ────────────────────────────────────────────────

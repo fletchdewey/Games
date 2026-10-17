@@ -19,7 +19,7 @@
 // worked out. The brain is next door in twins_ai.js.
 
 import * as THREE from 'three';
-import { PALETTE } from '../shared/materials.js?v=2032983e1f';
+import { PALETTE } from '../shared/materials.js?v=3a46e74894';
 
 const COL = {
   blue: 0x2a2a3a,
@@ -234,6 +234,13 @@ export function createTwins() {
                             armBulk: 1.4, armLen: 1.18, hands: 'fists' });
   blue.kind = 'blue';
   brown.kind = 'brown';
+
+  // Stood apart here, not only by the AI. initTwins moves them to their
+  // fighting positions, but anything that just builds the model — the boss
+  // gallery, a screenshot, a future spawn preview — got both of them on the
+  // same spot, merged into one creature.
+  blue.group.position.set(-1.6, 0, 0);
+  brown.group.position.set(1.6, 0, 0);
 
   g.add(blue.group);
   g.add(brown.group);

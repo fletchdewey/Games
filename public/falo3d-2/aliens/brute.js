@@ -21,10 +21,10 @@
 // while the Brute charges in. That's the strategy.
 
 import * as THREE from 'three';
-import { PALETTE, getMaterial } from '../shared/materials.js?v=2032983e1f';
-import { buildLegChain } from '../shared/geometry.js?v=2032983e1f';
-import { createBehaviorSpec } from '../shared/behavior.js?v=2032983e1f';
-import { BRUTE_ATTACK } from '../shared/brute_attack.js?v=2032983e1f';
+import { PALETTE, getMaterial } from '../shared/materials.js?v=3a46e74894';
+import { buildLegChain } from '../shared/geometry.js?v=3a46e74894';
+import { createBehaviorSpec } from '../shared/behavior.js?v=3a46e74894';
+import { BRUTE_ATTACK } from '../shared/brute_attack.js?v=3a46e74894';
 
 
 // ─── 1. GEOMETRY ────────────────────────────────────────────────

@@ -1,6 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import * as THREE from "three";
 
+// The real models, out of the game itself. The gallery used to build its own
+// copies of these, which is how the Twins card ended up showing an older
+// design than the one in src/. There is one model per boss now, and this is
+// a view onto it.
+import { createPuppetMaster } from "/src/bosses/puppet_master.js";
+import { createSwarm, syncSwarm } from "/src/bosses/swarm.js";
+import { createTwins } from "/src/bosses/twins.js";
+import { createBurrower } from "/src/bosses/burrower.js";
+
 const PAL = {
   skin: 0x2a2a32, skinLight: 0x3a3a44, bone: 0xc8b8a0,
   armor: 0x1e1e2a, armorLt: 0x2e2e3e, glow: 0xff2244,
@@ -24,1064 +33,75 @@ function cfg(obj, props) {
 // ORIGINAL 3
 // =============================================
 
-function buildChimera() {
-  const g = new THREE.Group();
-  const sk = new THREE.MeshLambertMaterial({ color: PAL.skin });
-  const bn = new THREE.MeshLambertMaterial({ color: PAL.bone });
-  const ar = new THREE.MeshLambertMaterial({ color: PAL.armor });
-  const ey = new THREE.MeshBasicMaterial({ color: PAL.eye });
-  const gPu = new THREE.MeshBasicMaterial({ color: PAL.glowPurple });
-  const gOr = new THREE.MeshBasicMaterial({ color: PAL.glowOrange });
-
-  // Brute torso
-  const tGeo = new THREE.SphereGeometry(1.0, 8, 7);
-  tGeo.scale(1.2, 1.0, 1.0);
-  const torso = new THREE.Mesh(tGeo, sk);
-  torso.position.y = 1.2; torso.rotation.x = 0.35;
-  g.add(torso);
-
-  for (let i = 0; i < 3; i++) {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.8-i*0.15, 0.12, 0.5), ar);
-    p.position.set(0, 1.0+i*0.35, 0.7-i*0.1); p.rotation.x = -0.2+i*0.15;
-    g.add(p);
-  }
-
-  // Floater dome
-  const domeMat = new THREE.MeshLambertMaterial({ color: PAL.flesh, transparent: true, opacity: 0.6 });
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.55, 8, 6, 0, Math.PI*2, 0, Math.PI*0.55), domeMat);
-  dome.position.set(0, 2.35, 0.1); g.add(dome);
-
-  const folds = [];
-  for (let i = 0; i < 3; i++) {
-    const f = new THREE.Mesh(new THREE.TorusGeometry(0.3-i*0.06, 0.03, 4, 8, Math.PI),
-      new THREE.MeshLambertMaterial({ color: 0x4a2850 }));
-    f.position.set(0, 2.45+i*0.07, 0.1); f.rotation.x = -Math.PI*0.5; f.rotation.y = i*0.8;
-    g.add(f); folds.push(f);
-  }
-
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), gPu);
-  core.position.set(0, 2.35, 0.1); g.add(core);
-  const coreLight = new THREE.PointLight(0xff44cc, 2, 6);
-  coreLight.position.set(0, 2.35, 0.1); g.add(coreLight);
-
-  // Face
-  g.add(cfg(new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.3), ar), { position: new THREE.Vector3(0, 2.1, 0.55) }));
-  for (const ep of [{x:-0.3,y:2.0},{x:0.3,y:2.0},{x:-0.15,y:2.1},{x:0.15,y:2.1},{x:-0.08,y:1.92},{x:0.08,y:1.92}]) {
-    const s = new THREE.Mesh(new THREE.SphereGeometry(0.07,5,5), ar);
-    s.position.set(ep.x, ep.y, 0.6); g.add(s);
-    const e = new THREE.Mesh(new THREE.SphereGeometry(0.05,5,5), ey);
-    e.position.set(ep.x, ep.y, 0.66); g.add(e);
-  }
-
-  // Venom sac
-  const sacG = new THREE.SphereGeometry(0.22, 6, 5); sacG.scale(0.8, 1.2, 1);
-  const sac = new THREE.Mesh(sacG, new THREE.MeshLambertMaterial({ color: PAL.glowOrange, transparent: true, opacity: 0.5 }));
-  sac.position.set(0, 1.65, 0.55); g.add(sac);
-
-  // Crawler legs
-  const legs = [];
-  for (const side of [-1,1]) {
-    for (const angle of [-0.9, 0, 0.9]) {
-      const hip = new THREE.Group();
-      hip.position.set(side*0.8, 0.6, angle*0.5);
-      hip.rotation.z = side*0.9; hip.rotation.y = angle*0.25; g.add(hip);
-      const uGeo = new THREE.CylinderGeometry(0.08,0.06,0.9,5); uGeo.translate(0,-0.45,0);
-      const upper = new THREE.Mesh(uGeo, sk); upper.rotation.x = 0.3; hip.add(upper);
-      const knee = new THREE.Group(); knee.position.y = -0.9; upper.add(knee);
-      knee.add(new THREE.Mesh(new THREE.SphereGeometry(0.07,5,5), sk));
-      const lGeo = new THREE.CylinderGeometry(0.06,0.035,0.8,5); lGeo.translate(0,-0.4,0);
-      const lower = new THREE.Mesh(lGeo, sk); lower.rotation.x = -0.8; knee.add(lower);
-      const fGeo = new THREE.ConeGeometry(0.04,0.15,4); fGeo.translate(0,-0.08,0);
-      const foot = new THREE.Mesh(fGeo, bn); foot.position.y = -0.8; foot.rotation.x = -0.4; lower.add(foot);
-      legs.push({ hip, upper, lower, baseUpper: 0.3, baseLower: -0.8 });
-    }
-  }
-
-  // Arms
-  const arms = [];
-  for (const side of [-1,1]) {
-    const sp = new THREE.Group(); sp.position.set(side*1.0, 1.6, 0.2); g.add(sp);
-    sp.add(new THREE.Mesh(new THREE.SphereGeometry(0.2,6,5), sk));
-    const uG = new THREE.CylinderGeometry(0.12,0.1,0.6,6); uG.translate(0,-0.3,0);
-    const u = new THREE.Mesh(uG, sk); u.rotation.z = side*0.25; sp.add(u);
-    const ep = new THREE.Group(); ep.position.y = -0.6; u.add(ep);
-    ep.add(new THREE.Mesh(new THREE.SphereGeometry(0.1,5,5), sk));
-    const fG2 = new THREE.CylinderGeometry(0.1,0.13,0.55,6); fG2.translate(0,-0.28,0);
-    const fore = new THREE.Mesh(fG2, sk); fore.rotation.x = -0.3; ep.add(fore);
-    ep.add(cfg(new THREE.Mesh(new THREE.SphereGeometry(0.13,5,5), sk), { position: new THREE.Vector3(0,-0.55,0.08) }));
-    arms.push({ shoulderPivot: sp, elbowPivot: ep, side });
-  }
-
-  g.add(new THREE.PointLight(0xff2244, 2.5, 8));
-  g.userData = { type:"chimera", legs, arms, dome, core, coreLight, folds, sac };
-  return g;
-}
-
-function buildHiveQueen() {
-  const g = new THREE.Group();
-  const sk = new THREE.MeshLambertMaterial({ color: 0x2a2028 });
-  const fl = new THREE.MeshLambertMaterial({ color: PAL.flesh });
-  const bn = new THREE.MeshLambertMaterial({ color: PAL.bone });
-  const ar = new THREE.MeshLambertMaterial({ color: PAL.armor });
-  const gl = new THREE.MeshBasicMaterial({ color: PAL.glow });
-  const ey = new THREE.MeshBasicMaterial({ color: PAL.eye });
-  const sacMat = new THREE.MeshLambertMaterial({ color: 0x442244, transparent: true, opacity: 0.5 });
-
-  // Abdomen
-  const abG = new THREE.SphereGeometry(1.2, 8, 7); abG.scale(1.4, 0.7, 1.2);
-  const ab = new THREE.Mesh(abG, fl); ab.position.y = 0.3; g.add(ab);
-
-  // Egg sacs
-  const sacs = [];
-  for (let i = 0; i < 6; i++) {
-    const a = (i/6)*Math.PI*2;
-    const s = new THREE.Mesh(new THREE.SphereGeometry(0.25+Math.sin(i*2)*0.08, 6, 5), sacMat);
-    s.position.set(Math.cos(a)*1.3, 0.15, Math.sin(a)*1.1); g.add(s); sacs.push(s);
-    const inner = new THREE.Mesh(new THREE.SphereGeometry(0.08,4,4), gl);
-    inner.position.copy(s.position); g.add(inner);
-  }
-
-  // Torso
-  const tG = new THREE.SphereGeometry(0.7, 7, 6); tG.scale(1, 1.3, 0.8);
-  const torso = new THREE.Mesh(tG, sk); torso.position.y = 1.3; torso.rotation.x = 0.2; g.add(torso);
-
-  for (let i = 0; i < 4; i++) {
-    const rib = new THREE.Mesh(new THREE.TorusGeometry(0.5-i*0.06, 0.035, 4, 10, Math.PI), ar);
-    rib.position.set(0, 1.0+i*0.22, 0.3); rib.rotation.x = -0.1; g.add(rib);
-  }
-
-  // Head + crown
-  const skull = new THREE.Mesh((() => { const sg = new THREE.SphereGeometry(0.4,7,6); sg.scale(0.85,0.9,1.5); return sg; })(), sk);
-  skull.position.set(0, 2.2, 0.15); g.add(skull);
-  for (let i = 0; i < 5; i++) {
-    const c = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.4+i*0.08, 4), bn);
-    c.position.set((i-2)*0.15, 2.55+Math.abs(i-2)*-0.05, -0.1);
-    c.rotation.x = -0.3; c.rotation.z = (i-2)*0.15*0.4; g.add(c);
-  }
-
-  for (const ex of [-0.18, 0.18]) {
-    g.add(cfg(new THREE.Mesh(new THREE.SphereGeometry(0.1,5,5), ar), { position: new THREE.Vector3(ex, 2.2, 0.5) }));
-    g.add(cfg(new THREE.Mesh(new THREE.SphereGeometry(0.07,5,5), ey), { position: new THREE.Vector3(ex, 2.2, 0.56) }));
-  }
-
-  // 4 arms
-  const arms = [];
-  for (const side of [-1,1]) for (let pair = 0; pair < 2; pair++) {
-    const sp = new THREE.Group(); sp.position.set(side*0.65, 1.7-pair*0.5, 0.1); g.add(sp);
-    sp.add(new THREE.Mesh(new THREE.SphereGeometry(0.12,5,5), sk));
-    const uG = new THREE.CylinderGeometry(0.06,0.05,0.7,5); uG.translate(0,-0.35,0);
-    const u = new THREE.Mesh(uG, sk); u.rotation.z = side*(0.4+pair*0.2); sp.add(u);
-    const ep = new THREE.Group(); ep.position.y = -0.7; u.add(ep);
-    ep.add(new THREE.Mesh(new THREE.SphereGeometry(0.055,4,4), sk));
-    const fG = new THREE.CylinderGeometry(0.05,0.03,0.6,5); fG.translate(0,-0.3,0);
-    ep.add(cfg(new THREE.Mesh(fG, sk), { rotation: new THREE.Euler(-0.4,0,0) }));
-    arms.push({ shoulderPivot: sp, elbowPivot: ep, side });
-  }
-
-  // Tendrils
-  const tendrils = [];
-  for (let t = 0; t < 8; t++) {
-    const a = (t/8)*Math.PI*2;
-    const segs = [];
-    for (let s = 0; s < 4; s++) {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.02, 0.06-s*0.012), 4, 4), fl);
-      const bx = Math.cos(a)*(1.0+s*0.3), bz = Math.sin(a)*(0.8+s*0.25);
-      m.position.set(bx, -0.1-s*0.1, bz); g.add(m);
-      segs.push({ mesh: m, baseX: bx, baseZ: bz, seg: s });
-    }
-    tendrils.push(segs);
-  }
-
-  const aura = new THREE.PointLight(0xff2244, 2, 10); aura.position.set(0,1.5,0); g.add(aura);
-  g.userData = { type:"queen", arms, sacs, tendrils, aura };
-  return g;
-}
-
-function buildMechHybrid() {
-  const g = new THREE.Group();
-  const sk = new THREE.MeshLambertMaterial({ color: PAL.skin });
-  const bn = new THREE.MeshLambertMaterial({ color: PAL.bone });
-  const mc = new THREE.MeshLambertMaterial({ color: PAL.mech });
-  const md = new THREE.MeshLambertMaterial({ color: PAL.mechDark });
-  const ru = new THREE.MeshLambertMaterial({ color: PAL.rust });
-  const ey = new THREE.MeshBasicMaterial({ color: PAL.eye });
-  const gl = new THREE.MeshBasicMaterial({ color: PAL.glow });
-  const gc = new THREE.MeshBasicMaterial({ color: PAL.glowCyan });
-
-  // Torso
-  const tG = new THREE.SphereGeometry(0.8, 8, 7); tG.scale(1.1, 1.2, 0.9);
-  const torso = new THREE.Mesh(tG, sk); torso.position.y = 1.1; torso.rotation.x = 0.25; g.add(torso);
-
-  for (let i = 0; i < 4; i++) {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.18, 0.4), i%2===0? mc : md);
-    p.position.set(0.15, 0.7+i*0.28, 0.5); p.rotation.x = -0.15; g.add(p);
-  }
-  for (let i = 0; i < 3; i++) {
-    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.8,4), ru);
-    t.position.set(0.45+i*0.06, 1.1, 0.35); t.rotation.z = 0.15; g.add(t);
-  }
-
-  // Head
-  const skG = new THREE.SphereGeometry(0.4, 7, 6); skG.scale(0.85, 0.9, 1.3);
-  g.add(cfg(new THREE.Mesh(skG, sk), { position: new THREE.Vector3(0, 2.05, 0.2) }));
-  const hpG = new THREE.SphereGeometry(0.38, 6, 5, 0, Math.PI); hpG.scale(0.8, 0.85, 1.2);
-  const hp = new THREE.Mesh(hpG, mc); hp.position.set(0.05, 2.07, 0.22); hp.rotation.y = -0.3; g.add(hp);
-
-  // Eyes
-  g.add(cfg(new THREE.Mesh(new THREE.SphereGeometry(0.055,5,5), ey), { position: new THREE.Vector3(-0.2, 2.0, 0.6) }));
-  const mechEye = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.04), gc);
-  mechEye.position.set(0.2, 2.0, 0.58); g.add(mechEye);
-  const scanLight = new THREE.PointLight(0x44ccff, 1.5, 4); scanLight.position.set(0.2, 2.0, 0.7); g.add(scanLight);
-
-  // Organic arm (left)
-  const oaPivot = new THREE.Group(); oaPivot.position.set(-0.85, 1.5, 0.1); g.add(oaPivot);
-  oaPivot.add(new THREE.Mesh(new THREE.SphereGeometry(0.22,6,5), sk));
-  const ouG = new THREE.CylinderGeometry(0.15,0.12,0.8,6); ouG.translate(0,-0.4,0);
-  const ou = new THREE.Mesh(ouG, sk); ou.rotation.z = -0.3; oaPivot.add(ou);
-  const oElbow = new THREE.Group(); oElbow.position.y = -0.8; ou.add(oElbow);
-  oElbow.add(new THREE.Mesh(new THREE.SphereGeometry(0.12,5,5), sk));
-  const ofG = new THREE.CylinderGeometry(0.12,0.16,0.8,6); ofG.translate(0,-0.4,0);
-  oElbow.add(cfg(new THREE.Mesh(ofG, sk), { rotation: new THREE.Euler(-0.3,0,0) }));
-  oElbow.add(cfg(new THREE.Mesh(new THREE.SphereGeometry(0.16,5,5), sk), { position: new THREE.Vector3(0,-0.8,0.12) }));
-
-  // Mech arm (right) — cannon
-  const maPivot = new THREE.Group(); maPivot.position.set(0.85, 1.5, 0.1); g.add(maPivot);
-  maPivot.add(new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.25, 0.3), mc));
-  const muG = new THREE.CylinderGeometry(0.12,0.1,0.7,6); muG.translate(0,-0.35,0);
-  const mu = new THREE.Mesh(muG, md); mu.rotation.z = 0.3; maPivot.add(mu);
-  const mElbow = new THREE.Group(); mElbow.position.y = -0.7; mu.add(mElbow);
-  mElbow.add(new THREE.Mesh(new THREE.BoxGeometry(0.15,0.15,0.15), ru));
-  const bG = new THREE.CylinderGeometry(0.1,0.08,1.0,6); bG.translate(0,-0.5,0);
-  mElbow.add(cfg(new THREE.Mesh(bG, mc), { rotation: new THREE.Euler(-0.2,0,0) }));
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.06,5,5), gl);
-  tip.position.set(0, -1.0, 0.1); mElbow.add(tip);
-
-  // Legs
-  const legs = [];
-  for (const lx of [-0.35, 0.35]) {
-    const side = lx > 0 ? 1 : -1;
-    const hip = new THREE.Group(); hip.position.set(lx, 0.3, -0.05); g.add(hip);
-    const mat = side < 0 ? sk : md;
-    const uG2 = new THREE.CylinderGeometry(0.12,0.09,0.6,6); uG2.translate(0,-0.3,0);
-    const upper = new THREE.Mesh(uG2, mat); upper.rotation.x = 0.3; hip.add(upper);
-    const knee = new THREE.Group(); knee.position.y = -0.6; upper.add(knee);
-    knee.add(new THREE.Mesh(new THREE.SphereGeometry(0.09,5,5), side < 0 ? sk : ru));
-    const lG = new THREE.CylinderGeometry(0.08,0.06,0.6,5); lG.translate(0,-0.3,0);
-    const lower = new THREE.Mesh(lG, mat); lower.rotation.x = -0.5; knee.add(lower);
-    const fg = new THREE.Group(); fg.position.y = -0.6; lower.add(fg);
-    if (side < 0) {
-      const fG = new THREE.ConeGeometry(0.06,0.18,4); fG.translate(0,-0.09,0);
-      fg.add(cfg(new THREE.Mesh(fG, bn), { rotation: new THREE.Euler(-0.5,0,0) }));
-    } else {
-      fg.add(new THREE.Mesh(new THREE.BoxGeometry(0.18,0.06,0.22), mc));
-    }
-    legs.push({ hip, upper, lower, baseUpper: 0.3, baseLower: -0.5, side });
-  }
-
-  for (let s = 0; s < 4; s++) {
-    const r = new THREE.Mesh(new THREE.ConeGeometry(0.06,0.3,4), bn);
-    r.position.set(-0.1, 0.7+s*0.3, -0.45); r.rotation.x = -0.5; g.add(r);
-  }
-
-  g.add(new THREE.PointLight(0xff2244, 2, 8));
-  g.userData = { type:"mech", legs, orgArmPivot: oaPivot, orgElbow: oElbow, mechArmPivot: maPivot, mechElbow: mElbow, scanLight, tip };
-  return g;
-}
-
 // =============================================
 // WILD CARDS
 // =============================================
-
-function buildPuppetMaster() {
-  const g = new THREE.Group();
-  const sk = new THREE.MeshLambertMaterial({ color: PAL.skin });
-  const bn = new THREE.MeshLambertMaterial({ color: PAL.bone });
-  const ar = new THREE.MeshLambertMaterial({ color: PAL.armor });
-  const gl = new THREE.MeshBasicMaterial({ color: PAL.glowGreen });
-  const ey = new THREE.MeshBasicMaterial({ color: PAL.eye });
-  const pilotSk = new THREE.MeshLambertMaterial({ color: 0x3a4a3a });
-
-  // Big headless body
-  const tG = new THREE.SphereGeometry(0.8, 7, 6); tG.scale(1.1, 1.2, 0.9);
-  const torso = new THREE.Mesh(tG, sk); torso.position.y = 1.0; torso.rotation.x = 0.3; g.add(torso);
-
-  // Neck stump (ragged, open)
-  const stumpG = new THREE.CylinderGeometry(0.25, 0.2, 0.15, 6);
-  const stump = new THREE.Mesh(stumpG, new THREE.MeshLambertMaterial({ color: 0x4a2020 }));
-  stump.position.set(0, 1.85, 0.2); g.add(stump);
-
-  // === TINY PILOT sitting in neck cavity ===
-  const pilot = new THREE.Group();
-  pilot.position.set(0, 2.0, 0.2);
-  g.add(pilot);
-
-  // Pilot body (small)
-  const pbG = new THREE.SphereGeometry(0.15, 6, 5); pbG.scale(1, 1.2, 0.9);
-  pilot.add(new THREE.Mesh(pbG, pilotSk));
-
-  // Pilot head (big relative to its body, comically oversized)
-  const phG = new THREE.SphereGeometry(0.14, 6, 5); phG.scale(1, 0.9, 1.1);
-  const pilotHead = new THREE.Mesh(phG, pilotSk);
-  pilotHead.position.y = 0.22; pilot.add(pilotHead);
-
-  // Pilot eyes (beady, gleeful)
-  for (const ex of [-0.06, 0.06]) {
-    const pe = new THREE.Mesh(new THREE.SphereGeometry(0.035, 4, 4), ey);
-    pe.position.set(ex, 0.24, 0.12); pilot.add(pe);
-  }
-
-  // Pilot grin
-  const grinG = new THREE.TorusGeometry(0.05, 0.012, 4, 8, Math.PI);
-  const grin = new THREE.Mesh(grinG, ey);
-  grin.position.set(0, 0.17, 0.13); grin.rotation.x = Math.PI; pilot.add(grin);
-
-  // Pilot tiny arms reaching forward (holding reins)
-  for (const side of [-1, 1]) {
-    const armG = new THREE.CylinderGeometry(0.02, 0.015, 0.18, 4);
-    const arm = new THREE.Mesh(armG, pilotSk);
-    arm.position.set(side * 0.12, 0.05, 0.12);
-    arm.rotation.z = side * 0.8; arm.rotation.x = -0.5;
-    pilot.add(arm);
-  }
-
-  // Nerve tendrils from pilot down into body (puppet strings)
-  const tendrils = [];
-  const tendrilAnchors = [
-    { x: -0.08, z: 0.05 }, { x: 0.08, z: 0.05 },
-    { x: 0, z: -0.08 }, { x: -0.05, z: 0.1 }, { x: 0.05, z: 0.1 },
-  ];
-  for (const ta of tendrilAnchors) {
-    const segs = [];
-    for (let s = 0; s < 4; s++) {
-      const tM = new THREE.Mesh(new THREE.SphereGeometry(0.015, 4, 4), gl);
-      tM.position.set(ta.x, 1.85 - s * 0.25, 0.2 + ta.z);
-      g.add(tM); segs.push({ mesh: tM, baseX: ta.x, baseZ: 0.2 + ta.z, seg: s });
-    }
-    tendrils.push(segs);
-  }
-
-  // Body arms (big, limp-looking but functional)
-  const arms = [];
-  for (const side of [-1, 1]) {
-    const sp = new THREE.Group(); sp.position.set(side * 0.8, 1.3, 0.1); g.add(sp);
-    sp.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 6, 5), sk));
-    const uG = new THREE.CylinderGeometry(0.13, 0.1, 0.75, 6); uG.translate(0, -0.38, 0);
-    const u = new THREE.Mesh(uG, sk); u.rotation.z = side * 0.35; sp.add(u);
-    const ep = new THREE.Group(); ep.position.y = -0.75; u.add(ep);
-    ep.add(new THREE.Mesh(new THREE.SphereGeometry(0.1, 5, 5), sk));
-    const fG = new THREE.CylinderGeometry(0.1, 0.14, 0.7, 6); fG.translate(0, -0.35, 0);
-    ep.add(cfg(new THREE.Mesh(fG, sk), { rotation: new THREE.Euler(-0.4, 0, 0) }));
-    ep.add(cfg(new THREE.Mesh(new THREE.SphereGeometry(0.14, 5, 5), sk), { position: new THREE.Vector3(0, -0.7, 0.1) }));
-    arms.push({ shoulderPivot: sp, elbowPivot: ep, side });
-  }
-
-  // Legs
-  const legs = [];
-  for (const lx of [-0.3, 0.3]) {
-    const hip = new THREE.Group(); hip.position.set(lx, 0.2, -0.05); g.add(hip);
-    const uG = new THREE.CylinderGeometry(0.12, 0.09, 0.5, 5); uG.translate(0, -0.25, 0);
-    const upper = new THREE.Mesh(uG, sk); upper.rotation.x = 0.25; hip.add(upper);
-    const knee = new THREE.Group(); knee.position.y = -0.5; upper.add(knee);
-    knee.add(new THREE.Mesh(new THREE.SphereGeometry(0.09, 5, 5), sk));
-    const lG = new THREE.CylinderGeometry(0.08, 0.06, 0.5, 5); lG.translate(0, -0.25, 0);
-    const lower = new THREE.Mesh(lG, sk); lower.rotation.x = -0.4; knee.add(lower);
-    const fG2 = new THREE.ConeGeometry(0.06, 0.18, 4); fG2.translate(0, -0.09, 0);
-    const fg = new THREE.Group(); fg.position.y = -0.5; lower.add(fg);
-    fg.add(cfg(new THREE.Mesh(fG2, bn), { rotation: new THREE.Euler(-0.5, 0, 0) }));
-    legs.push({ hip, upper, lower, baseUpper: 0.25, baseLower: -0.4 });
-  }
-
-  g.userData = { type: "puppet", legs, arms, pilot, tendrils };
-  return g;
-}
-
-function buildSwarm() {
-  const g = new THREE.Group();
-  const gl = new THREE.MeshBasicMaterial({ color: PAL.glow });
-  const sk = new THREE.MeshLambertMaterial({ color: PAL.skin });
-  const ey = new THREE.MeshBasicMaterial({ color: PAL.eye });
-
-  // Humanoid shape made of floating particles
-  const particles = [];
-  // Define humanoid silhouette as regions
-  const regions = [
-    // Head
-    ...Array.from({ length: 15 }, () => ({
-      x: (Math.random() - 0.5) * 0.5, y: 2.0 + (Math.random() - 0.5) * 0.4,
-      z: (Math.random() - 0.5) * 0.4, r: 0.04 + Math.random() * 0.03, isEye: false,
-    })),
-    // Torso
-    ...Array.from({ length: 25 }, () => ({
-      x: (Math.random() - 0.5) * 0.7, y: 1.0 + Math.random() * 0.8,
-      z: (Math.random() - 0.5) * 0.5, r: 0.04 + Math.random() * 0.04, isEye: false,
-    })),
-    // Left arm
-    ...Array.from({ length: 10 }, (_, i) => ({
-      x: -0.5 - i * 0.08 + (Math.random() - 0.5) * 0.15,
-      y: 1.4 - i * 0.06 + (Math.random() - 0.5) * 0.1,
-      z: (Math.random() - 0.5) * 0.2, r: 0.03 + Math.random() * 0.025, isEye: false,
-    })),
-    // Right arm
-    ...Array.from({ length: 10 }, (_, i) => ({
-      x: 0.5 + i * 0.08 + (Math.random() - 0.5) * 0.15,
-      y: 1.4 - i * 0.06 + (Math.random() - 0.5) * 0.1,
-      z: (Math.random() - 0.5) * 0.2, r: 0.03 + Math.random() * 0.025, isEye: false,
-    })),
-    // Left leg
-    ...Array.from({ length: 10 }, (_, i) => ({
-      x: -0.2 + (Math.random() - 0.5) * 0.2,
-      y: 0.8 - i * 0.1 + (Math.random() - 0.5) * 0.05,
-      z: (Math.random() - 0.5) * 0.2, r: 0.035 + Math.random() * 0.03, isEye: false,
-    })),
-    // Right leg
-    ...Array.from({ length: 10 }, (_, i) => ({
-      x: 0.2 + (Math.random() - 0.5) * 0.2,
-      y: 0.8 - i * 0.1 + (Math.random() - 0.5) * 0.05,
-      z: (Math.random() - 0.5) * 0.2, r: 0.035 + Math.random() * 0.03, isEye: false,
-    })),
-  ];
-
-  // Eyes in the head area
-  regions.push({ x: -0.12, y: 2.05, z: 0.2, r: 0.06, isEye: true });
-  regions.push({ x: 0.12, y: 2.05, z: 0.2, r: 0.06, isEye: true });
-
-  for (const p of regions) {
-    const mat = p.isEye ? ey : (Math.random() > 0.8 ? gl : sk);
-    const pGeo = new THREE.SphereGeometry(p.r, 4, 4);
-    const mesh = new THREE.Mesh(pGeo, mat);
-    mesh.position.set(p.x, p.y, p.z);
-    g.add(mesh);
-    particles.push({ mesh, baseX: p.x, baseY: p.y, baseZ: p.z, phase: Math.random() * Math.PI * 2 });
-  }
-
-  const aura = new THREE.PointLight(0xff2244, 1.5, 6); aura.position.set(0, 1.2, 0); g.add(aura);
-  g.userData = { type: "swarm", particles, aura };
-  return g;
-}
-
-function buildMimic() {
-  const g = new THREE.Group();
-  const fleshMat = new THREE.MeshLambertMaterial({ color: 0x1a1a22 });
-  const corruptMat = new THREE.MeshLambertMaterial({ color: 0x2a1a2a });
-  const veinMat = new THREE.MeshBasicMaterial({ color: 0x440022 });
-  const ey = new THREE.MeshBasicMaterial({ color: PAL.eye });
-  const gl = new THREE.MeshBasicMaterial({ color: PAL.glow });
-
-  // Spartan-shaped silhouette but WRONG — slightly too tall, arms too long, proportions off
-  // Helmet shape
-  const helmG = new THREE.SphereGeometry(0.35, 7, 6); helmG.scale(0.9, 1.0, 1.1);
-  const helm = new THREE.Mesh(helmG, fleshMat);
-  helm.position.set(0, 2.1, 0); g.add(helm);
-
-  // Visor (single glowing slit)
-  const visorG = new THREE.BoxGeometry(0.4, 0.08, 0.06);
-  const visor = new THREE.Mesh(visorG, ey);
-  visor.position.set(0, 2.08, 0.35); g.add(visor);
-
-  // Torso — humanoid but lumpy, organic
-  const tG = new THREE.CylinderGeometry(0.35, 0.3, 1.0, 7);
-  const torso = new THREE.Mesh(tG, fleshMat);
-  torso.position.y = 1.4; g.add(torso);
-
-  // Chest piece (mimicking armor)
-  const chestG = new THREE.BoxGeometry(0.6, 0.5, 0.25);
-  const chest = new THREE.Mesh(chestG, corruptMat);
-  chest.position.set(0, 1.5, 0.2); g.add(chest);
-
-  // Veins crawling across surface
-  const veins = [];
-  for (let i = 0; i < 8; i++) {
-    const vG = new THREE.CylinderGeometry(0.015, 0.01, 0.3 + Math.random() * 0.4, 4);
-    const vein = new THREE.Mesh(vG, veinMat);
-    vein.position.set((Math.random() - 0.5) * 0.5, 1.0 + Math.random() * 1.0, 0.25 + Math.random() * 0.1);
-    vein.rotation.z = (Math.random() - 0.5) * 1.5;
-    vein.rotation.x = (Math.random() - 0.5) * 0.5;
-    g.add(vein); veins.push(vein);
-  }
-
-  // Arms — too long, wrong angle
-  const arms = [];
-  for (const side of [-1, 1]) {
-    const sp = new THREE.Group(); sp.position.set(side * 0.4, 1.7, 0); g.add(sp);
-    sp.add(new THREE.Mesh(new THREE.SphereGeometry(0.12, 5, 5), corruptMat));
-    const uG = new THREE.CylinderGeometry(0.08, 0.07, 0.85, 5); uG.translate(0, -0.43, 0);
-    const u = new THREE.Mesh(uG, fleshMat); u.rotation.z = side * 0.15; sp.add(u);
-    const ep = new THREE.Group(); ep.position.y = -0.85; u.add(ep);
-    ep.add(new THREE.Mesh(new THREE.SphereGeometry(0.07, 5, 5), fleshMat));
-    const fG = new THREE.CylinderGeometry(0.07, 0.05, 0.9, 5); fG.translate(0, -0.45, 0);
-    ep.add(cfg(new THREE.Mesh(fG, fleshMat), { rotation: new THREE.Euler(-0.2, 0, 0) }));
-    // Fingers that are too long, claw-like
-    for (let f = -1; f <= 1; f++) {
-      const clG = new THREE.ConeGeometry(0.015, 0.25, 3);
-      const claw = new THREE.Mesh(clG, corruptMat);
-      claw.position.set(f * 0.03, -0.9, 0.1); claw.rotation.x = -0.4;
-      ep.add(claw);
-    }
-    arms.push({ shoulderPivot: sp, elbowPivot: ep, side });
-  }
-
-  // Legs
-  const legs = [];
-  for (const lx of [-0.18, 0.18]) {
-    const hip = new THREE.Group(); hip.position.set(lx, 0.85, 0); g.add(hip);
-    const uG = new THREE.CylinderGeometry(0.1, 0.08, 0.6, 5); uG.translate(0, -0.3, 0);
-    const upper = new THREE.Mesh(uG, fleshMat); upper.rotation.x = 0.15; hip.add(upper);
-    const knee = new THREE.Group(); knee.position.y = -0.6; upper.add(knee);
-    knee.add(new THREE.Mesh(new THREE.SphereGeometry(0.08, 5, 5), fleshMat));
-    const lG = new THREE.CylinderGeometry(0.07, 0.06, 0.6, 5); lG.translate(0, -0.3, 0);
-    const lower = new THREE.Mesh(lG, fleshMat); lower.rotation.x = -0.3; knee.add(lower);
-    const fG = new THREE.BoxGeometry(0.14, 0.06, 0.2);
-    const fg = new THREE.Group(); fg.position.y = -0.6; lower.add(fg);
-    fg.add(new THREE.Mesh(fG, corruptMat));
-    legs.push({ hip, upper, lower, baseUpper: 0.15, baseLower: -0.3 });
-  }
-
-  // Glow patches where the "armor" cracks
-  for (const p of [{x:0,y:1.7,z:0.35},{x:-0.2,y:1.3,z:0.3},{x:0.2,y:1.3,z:0.3}]) {
-    g.add(cfg(new THREE.Mesh(new THREE.SphereGeometry(0.04, 4, 4), gl), { position: new THREE.Vector3(p.x,p.y,p.z) }));
-  }
-
-  g.add(new THREE.PointLight(0xff1122, 1.5, 6));
-  g.userData = { type: "mimic", legs, arms, veins, visor };
-  return g;
-}
-
-function buildBurrower() {
-  const g = new THREE.Group();
-  const sk = new THREE.MeshLambertMaterial({ color: 0x3a2a2a });
-  const bn = new THREE.MeshLambertMaterial({ color: PAL.bone });
-  const gl = new THREE.MeshBasicMaterial({ color: PAL.glow });
-  const ey = new THREE.MeshBasicMaterial({ color: PAL.eye });
-  const floorMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-
-  // SIZE. The arch spans SPAN units and rises RISE above the floor. The
-  // ceiling in the real rooms is 4 units, so the peak is kept under 3 — a
-  // worm you can walk under, not one that clips through the roof.
-  const SPAN = 11;
-  const RISE = 3.2;
-  const THICK = 0.62;       // body radius at the top of the arch
-  const arcPoints = 30;     // more segments, so a longer body still reads smooth
-
-  // The body curve. A plain sine arch puts both ends in the floor, which
-  // means the worm has no FRONT — the head could only ever sit somewhere
-  // along the middle of it. So the far end rears back up instead of diving:
-  // tail into the ground at one end, body over the top, head lifted clear
-  // and levelled off at the other.
-  const bodyY = (t) => {
-    const arch = Math.sin(t * Math.PI) * RISE - 0.3;
-    const lift = Math.max(0, (t - 0.72) / 0.28);   // nothing until 72% along
-    return arch + lift * lift * RISE * 0.55;
-  };
-  const bodyR = (t) => THICK * (0.35 + 0.65 * Math.sin(Math.min(t, 0.82) * Math.PI));
-
-  // Ground plane with crack — one hole now, at the tail. The head end no
-  // longer enters the floor, so there is nothing for a second one to be.
-  const groundG = new THREE.RingGeometry(0.8, 4.5, 24);
-  const ground = new THREE.Mesh(groundG, floorMat);
-  ground.rotation.x = -Math.PI * 0.5;
-  ground.position.set(-SPAN / 2, -0.3, 0);
-  g.add(ground);
-
-  // Worm segments arcing out of ground
-  const segments = [];
-  for (let i = 0; i < arcPoints; i++) {
-    const t = i / (arcPoints - 1);
-    const arcY = bodyY(t);
-    const arcX = (t - 0.5) * SPAN;
-    // Tapers into the floor at the tail, but stays thick toward the head —
-    // it shouldn't thin out to nothing at the end you're looking at.
-    const radius = bodyR(t);
-    const sG = new THREE.SphereGeometry(radius, 8, 6);
-    sG.scale(1, 1, 1.3);
-    const seg = new THREE.Mesh(sG, sk);
-    seg.position.set(arcX, arcY, 0);
-    if (arcY > -0.25) {
-      g.add(seg);
-      segments.push({ mesh: seg, baseX: arcX, baseY: arcY, t });
-    }
-  }
-
-  // Head — right at the leading tip, on the end that rears up.
-  const HEAD_T = 1;
-  const headPos = { x: (HEAD_T - 0.5) * SPAN, y: bodyY(HEAD_T) };
-  // Smaller than the body it sits on, so it reads as a mouth rather than as
-  // the whole end of the worm being a ring of teeth.
-  const MOUTH_R = THICK * 0.62;
-  const mouthG = new THREE.TorusGeometry(MOUTH_R, MOUTH_R * 0.25, 6, 12);
-  const mouth = new THREE.Mesh(mouthG, new THREE.MeshLambertMaterial({ color: 0x4a1a1a }));
-  mouth.position.set(headPos.x + 0.22, headPos.y, 0);
-  mouth.rotation.y = Math.PI * 0.5;
-  g.add(mouth);
-
-  // Two rings of teeth, the inner one set back inside the mouth — a single
-  // ring reads as a rim, two reads as a throat with something down it.
-  for (const ring of [
-    { count: 20, radius: MOUTH_R * 0.92, x: 0.34, r: 0.038, len: 0.26, lean: 0 },
-    { count: 13, radius: MOUTH_R * 0.55, x: 0.17, r: 0.03, len: 0.2, lean: 0.5 },
-  ]) {
-    for (let t = 0; t < ring.count; t++) {
-      const a = (t / ring.count) * Math.PI * 2 + (ring.lean ? Math.PI / ring.count : 0);
-      const tG = new THREE.ConeGeometry(ring.r, ring.len, 4);
-      const tooth = new THREE.Mesh(tG, bn);
-      tooth.position.set(headPos.x + ring.x,
-                         headPos.y + Math.sin(a) * ring.radius,
-                         Math.cos(a) * ring.radius);
-      // Points forward, and the inner ring also cants inward toward the axis.
-      tooth.rotation.z = -Math.PI * 0.5 + Math.sin(a) * ring.lean * 0.5;
-      tooth.rotation.y = -Math.cos(a) * ring.lean * 0.5;
-      g.add(tooth);
-    }
-  }
-
-  // Eyes set back behind the mouth, on the head itself.
-  for (const ey2 of [0.17, -0.17]) {
-    const eG = new THREE.Mesh(new THREE.SphereGeometry(0.075, 6, 5), ey);
-    eG.position.set(headPos.x - 0.16, headPos.y + 0.16, ey2);
-    g.add(eG);
-  }
-
-  // Glow along body
-  for (let i = 3; i < arcPoints - 3; i += 3) {
-    const t = i / (arcPoints - 1);
-    const y = bodyY(t);
-    const x = (t - 0.5) * SPAN;
-    const r = bodyR(t);
-    if (y > 0) {
-      const gM = new THREE.Mesh(new THREE.SphereGeometry(0.08, 5, 4), gl);
-      gM.position.set(x, y + r * 0.7, r * 0.6); g.add(gM);
-    }
-  }
-
-  // Debris around the one hole it came up through.
-  for (let i = 0; i < 12; i++) {
-    const dG = new THREE.BoxGeometry(0.18 + Math.random() * 0.3, 0.1,
-                                     0.18 + Math.random() * 0.22);
-    const debris = new THREE.Mesh(dG, floorMat);
-    const a = Math.random() * Math.PI * 2, r = 1.1 + Math.random() * 1.9;
-    debris.position.set(-SPAN / 2 + Math.cos(a) * r, -0.22, Math.sin(a) * r);
-    debris.rotation.set(Math.random(), Math.random(), Math.random());
-    g.add(debris);
-  }
-
-  // One over the hole, one on the head — a single light at the origin left
-  // both ends of an eleven-unit body in the dark.
-  for (const l of [[-SPAN / 2, 0.4], [headPos.x, headPos.y]]) {
-    const pl = new THREE.PointLight(0xff2244, 1.2, 9);
-    pl.position.set(l[0], l[1], 0);
-    g.add(pl);
-  }
-  g.userData = { type: "burrower", segments };
-  return g;
-}
-
-function buildTrojan() {
-  const g = new THREE.Group();
-  const crateMat = new THREE.MeshLambertMaterial({ color: PAL.crate });
-  const crateDk = new THREE.MeshLambertMaterial({ color: PAL.crateDark });
-  const sk = new THREE.MeshLambertMaterial({ color: PAL.skin });
-  const ey = new THREE.MeshBasicMaterial({ color: PAL.eye });
-  const gl = new THREE.MeshBasicMaterial({ color: PAL.glow });
-
-  // Main crate body (partially open, splitting apart)
-  // Left panel
-  const panelL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.2, 0.9), crateMat);
-  panelL.position.set(-0.55, 0.8, 0); panelL.rotation.z = -0.15; g.add(panelL);
-
-  // Right panel
-  const panelR = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.2, 0.9), crateMat);
-  panelR.position.set(0.55, 0.8, 0); panelR.rotation.z = 0.15; g.add(panelR);
-
-  // Back panel
-  const panelB = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.2, 0.05), crateDk);
-  panelB.position.set(0, 0.8, -0.45); g.add(panelB);
-
-  // Lid (tilted open)
-  const lid = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.06, 0.95), crateMat);
-  lid.position.set(0, 1.5, -0.2); lid.rotation.x = -0.4; g.add(lid);
-
-  // Bottom
-  g.add(cfg(new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.06, 0.9), crateDk), { position: new THREE.Vector3(0, 0.15, 0) }));
-
-  // Shipping straps
-  for (const sy of [0.5, 1.1]) {
-    const strap = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.04, 0.96), new THREE.MeshLambertMaterial({ color: 0x3a3a2a }));
-    strap.position.set(0, sy, 0); g.add(strap);
-  }
-
-  // === Alien guts spilling out ===
-  // Eyes peeking through crate gaps
-  for (const ep of [{x:-0.52,y:1.0,z:0.2},{x:0.52,y:0.9,z:-0.1},{x:0.1,y:1.48,z:0.1}]) {
-    const e = new THREE.Mesh(new THREE.SphereGeometry(0.05, 5, 5), ey);
-    e.position.set(ep.x, ep.y, ep.z); g.add(e);
-  }
-
-  // Flesh bulging through gaps
-  for (const fp of [{x:-0.48,y:0.7,z:0.3,r:0.12},{x:0.48,y:0.6,z:-0.2,r:0.1},{x:0,y:1.45,z:0.3,r:0.15}]) {
-    const fG = new THREE.SphereGeometry(fp.r, 5, 5);
-    const flesh = new THREE.Mesh(fG, sk);
-    flesh.position.set(fp.x, fp.y, fp.z); g.add(flesh);
-  }
-
-  // Legs folded under (partially visible)
-  const legs = [];
-  for (const lx of [-0.3, 0.3]) {
-    const hip = new THREE.Group(); hip.position.set(lx, 0.1, 0.2); g.add(hip);
-    const uG = new THREE.CylinderGeometry(0.08, 0.06, 0.4, 5); uG.translate(0, -0.2, 0);
-    const upper = new THREE.Mesh(uG, sk); upper.rotation.x = 0.8; hip.add(upper);
-    const knee = new THREE.Group(); knee.position.y = -0.4; upper.add(knee);
-    knee.add(new THREE.Mesh(new THREE.SphereGeometry(0.06, 4, 4), sk));
-    const lG = new THREE.CylinderGeometry(0.06, 0.04, 0.35, 5); lG.translate(0, -0.18, 0);
-    const lower = new THREE.Mesh(lG, sk); lower.rotation.x = -1.2; knee.add(lower);
-    legs.push({ hip, upper, lower, baseUpper: 0.8, baseLower: -1.2 });
-  }
-
-  // Tentacle reaching out from top
-  const tentSegs = [];
-  for (let s = 0; s < 5; s++) {
-    const tG = new THREE.SphereGeometry(0.04 - s * 0.005, 4, 4);
-    const tM = new THREE.Mesh(tG, sk);
-    tM.position.set(0.15 + s * 0.12, 1.5 + s * 0.05, 0.2 + s * 0.08);
-    g.add(tM);
-    tentSegs.push({ mesh: tM, baseX: tM.position.x, baseY: tM.position.y, baseZ: tM.position.z, seg: s });
-  }
-
-  // Glow from inside
-  g.add(cfg(new THREE.Mesh(new THREE.SphereGeometry(0.08, 4, 4), gl), { position: new THREE.Vector3(0, 0.8, 0.3) }));
-  g.add(new THREE.PointLight(0xff2244, 1, 3));
-
-  g.userData = { type: "trojan", legs, tentSegs };
-  return g;
-}
-
-function buildTwins() {
-  const g = new THREE.Group();
-  const sk1 = new THREE.MeshLambertMaterial({ color: 0x2a2a3a });
-  const sk2 = new THREE.MeshLambertMaterial({ color: 0x3a2a2a });
-  const bn = new THREE.MeshLambertMaterial({ color: PAL.bone });
-  const ey = new THREE.MeshBasicMaterial({ color: PAL.eye });
-  const gl = new THREE.MeshBasicMaterial({ color: PAL.glow });
-
-  // HIP_Y is where the legs hang from, and everything above it is placed
-  // relative to that rather than to the floor.
-  //
-  // The legs used to hang off y 0.3 while the torso's underside was at 0.45,
-  // so they were visibly detached — and worse, the chain is 0.9 long, which
-  // put the feet 0.55 BELOW the floor. It was never standing on anything.
-  //
-  // Rather than stubbing the legs to reach up to a low torso, the body is
-  // lifted to sit on top of them. They're lanky aliens; long legs suit them,
-  // and it brings them to about 2.3 tall, in line with the other bosses
-  // instead of being the smallest thing in the game.
-  const HIP_Y = 0.9;            // = the leg chain's reach, so toes touch 0
-  const TORSO_Y = HIP_Y + 0.55; // half the torso's height above the hips
-
-  // `scale` makes one twin bigger than the other. Scaling the whole group is
-  // safe here because the model's origin is on the floor between its feet —
-  // it grows upward and outward from the ground rather than sinking or
-  // lifting off it, so no heights need touching to compensate.
-  // Cool grey plate on a warm brown body. PAL.armor is near-black and would
-  // vanish into these two — armorLt is light enough to read as worn armour
-  // rather than as a darker patch of the same creature.
-  const plateMat = new THREE.MeshLambertMaterial({ color: PAL.armorLt });
-
-  // An alien blaster: a bulbous organic body, a bone barrel, and a lit muzzle.
-  // Built along -Y so it hangs from the hand the way the forearm does, with
-  // the muzzle leading.
-  function buildBlaster() {
-    const b = new THREE.Group();
-    const bodyGeo = new THREE.SphereGeometry(0.1, 6, 5);
-    bodyGeo.scale(0.8, 0.85, 1.5);
-    b.add(new THREE.Mesh(bodyGeo, new THREE.MeshLambertMaterial({ color: PAL.armorLt })));
-
-    const barrel = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.035, 0.045, 0.3, 6), bn);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.z = 0.2;
-    b.add(barrel);
-
-    const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), gl);
-    muzzle.position.z = 0.35;
-    b.add(muzzle);
-
-    // Vents along the top, so it reads as a thing that gets hot.
-    for (const vz of [-0.02, 0.06, 0.14]) {
-      const v = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.02, 0.04), gl);
-      v.position.set(0, 0.07, vz);
-      b.add(v);
-    }
-
-    // Grip, running back under the body into the hand.
-    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.06),
-      new THREE.MeshLambertMaterial({ color: PAL.armor }));
-    grip.position.set(0, -0.08, -0.06);
-    b.add(grip);
-    return b;
-  }
-
-  function buildTwin(skinMat, xOff, facingZ, scale = 1, armored = false,
-                     blaster = false) {
-    const twin = new THREE.Group();
-
-    // Torso
-    const tG = new THREE.SphereGeometry(0.5, 7, 6); tG.scale(1, 1.1, 0.85);
-    const torso = new THREE.Mesh(tG, skinMat);
-    torso.position.y = TORSO_Y; torso.rotation.x = facingZ > 0 ? 0.2 : -0.2;
-    twin.add(torso);
-
-    if (armored) {
-      // Breastplate. A child of the torso, so it leans with the body instead
-      // of hanging in front of it. The torso's squash is baked into its
-      // GEOMETRY rather than its scale, so this doesn't inherit the distortion.
-      const chestGeo = new THREE.SphereGeometry(0.32, 7, 6);
-      chestGeo.scale(1.25, 1.35, 0.6);
-      const chest = new THREE.Mesh(chestGeo, plateMat);
-      chest.position.set(0, 0.04, facingZ * 0.26);
-      torso.add(chest);
-    }
-
-    // Head
-    const hG = new THREE.SphereGeometry(0.28, 6, 5); hG.scale(0.85, 0.9, 1.2);
-    const head = new THREE.Mesh(hG, skinMat);
-    head.position.set(0, TORSO_Y + 0.65, facingZ * 0.15); twin.add(head);
-
-    // Brow
-    twin.add(cfg(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.07, 0.18),
-      new THREE.MeshLambertMaterial({ color: PAL.armor })),
-      { position: new THREE.Vector3(0, TORSO_Y + 0.72, facingZ * 0.35) }));
-
-    // Eyes
-    for (const ex of [-0.12, 0.12]) {
-      const e = new THREE.Mesh(new THREE.SphereGeometry(0.04, 4, 4), ey);
-      e.position.set(ex, TORSO_Y + 0.65, facingZ * 0.4); twin.add(e);
-    }
-
-    // Mandibles
-    for (const mx of [-0.1, 0.1]) {
-      const m = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.2, 4), bn);
-      m.position.set(mx, TORSO_Y + 0.45, facingZ * 0.4);
-      m.rotation.x = facingZ > 0 ? 0.4 : -0.4;
-      m.rotation.z = mx > 0 ? -0.3 : 0.3; twin.add(m);
-    }
-
-    // Arms
-    const arms = [];
-    for (const side of [-1, 1]) {
-      const sp = new THREE.Group(); sp.position.set(side * 0.5, TORSO_Y + 0.3, 0); twin.add(sp);
-      sp.add(new THREE.Mesh(new THREE.SphereGeometry(0.13, 5, 5), skinMat));
-      if (armored) {
-        const pGeo = new THREE.SphereGeometry(0.2, 6, 5);
-        pGeo.scale(1.05, 0.8, 1.05);
-        const pauldron = new THREE.Mesh(pGeo, plateMat);
-        pauldron.position.set(side * 0.05, 0.04, 0);
-        sp.add(pauldron);
-      }
-      const uG = new THREE.CylinderGeometry(0.07, 0.06, 0.55, 5); uG.translate(0, -0.28, 0);
-      const u = new THREE.Mesh(uG, skinMat); u.rotation.z = side * 0.35; sp.add(u);
-      const ep = new THREE.Group(); ep.position.y = -0.55; u.add(ep);
-      ep.add(new THREE.Mesh(new THREE.SphereGeometry(0.06, 4, 4), skinMat));
-      const fG = new THREE.CylinderGeometry(0.06, 0.04, 0.5, 5); fG.translate(0, -0.25, 0);
-      // Mirrored with the twin. This was a fixed -0.3 for both of them, so
-      // the one facing the other way had its forearm bending backwards.
-      const fore = new THREE.Mesh(fG, skinMat);
-      fore.rotation.x = facingZ > 0 ? -0.3 : 0.3;
-      ep.add(fore);
-
-      // Blaster in the right hand. Parented to the forearm, so it tracks the
-      // arm through the walk swing instead of hanging in the air beside it.
-      if (blaster && side === 1) {
-        const gun = buildBlaster();
-        gun.position.set(0, -0.5, facingZ * 0.08);
-        gun.rotation.y = facingZ > 0 ? 0 : Math.PI;
-        gun.rotation.x = 0.3;
-        fore.add(gun);
-      }
-      arms.push({ shoulderPivot: sp, elbowPivot: ep, fore, side });
-    }
-
-    // Legs
-    const legs = [];
-    for (const lx of [-0.2, 0.2]) {
-      const hip = new THREE.Group(); hip.position.set(lx, HIP_Y, 0); twin.add(hip);
-      const uG = new THREE.CylinderGeometry(0.08, 0.06, 0.45, 5); uG.translate(0, -0.23, 0);
-      // Knee forward, shin back under the body. The signs were inverted, which
-      // read as the legs being on backwards on BOTH twins — the mirroring
-      // between them was right, the base direction wasn't.
-      const upTilt = facingZ > 0 ? -0.2 : 0.2;
-      const loTilt = facingZ > 0 ? 0.35 : -0.35;
-      const upper = new THREE.Mesh(uG, skinMat); upper.rotation.x = upTilt; hip.add(upper);
-      const knee = new THREE.Group(); knee.position.y = -0.45; upper.add(knee);
-      knee.add(new THREE.Mesh(new THREE.SphereGeometry(0.06, 4, 4), skinMat));
-      if (armored) {
-        const kGeo = new THREE.SphereGeometry(0.1, 6, 5);
-        kGeo.scale(1.1, 0.95, 1.05);
-        const cap = new THREE.Mesh(kGeo, plateMat);
-        cap.position.set(0, 0, facingZ * 0.03);
-        knee.add(cap);
-      }
-      const lG = new THREE.CylinderGeometry(0.05, 0.04, 0.4, 5); lG.translate(0, -0.2, 0);
-      const lower = new THREE.Mesh(lG, skinMat); lower.rotation.x = loTilt; knee.add(lower);
-      const fg = new THREE.Group(); fg.position.y = -0.4; lower.add(fg);
-      // The toe follows the leg: it was a fixed -0.5 and pointed backwards
-      // on whichever twin the leg didn't happen to suit.
-      fg.add(cfg(new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12, 4), bn),
-        { rotation: new THREE.Euler(facingZ > 0 ? 0.5 : -0.5, 0, 0) }));
-      legs.push({ hip, upper, lower, baseUpper: upTilt, baseLower: loTilt });
-    }
-
-    twin.position.x = xOff;
-    twin.scale.setScalar(scale);
-    return { group: twin, arms, legs };
-  }
-
-  // The brown one is the bigger of the pair. The blue is untouched — same
-  // height, same width as before.
-  //
-  // It stands further out than the blue does: at 1.25 its torso and arms
-  // reach back across the centre line far enough to overlap its twin at the
-  // old 0.6, so the extra girth has to be given somewhere to go.
-  const twin1 = buildTwin(sk1, -0.6, 1, 1, false, true);
-  const twin2 = buildTwin(sk2, 0.82, -1, 1.25, true);
-  g.add(twin1.group);
-  g.add(twin2.group);
-
-  g.add(new THREE.PointLight(0xff2244, 1, 6));
-
-  // No tether. The animation still checks for one, so the keys stay present
-  // and empty rather than being deleted — otherwise animateBoss reaches into
-  // undefined the first frame it runs.
-  g.userData = { type: "twins", twin1, twin2, tether: [], tetherLight: null };
-  return g;
-}
 
 // =============================================
 // ANIMATION
 // =============================================
 
+// A gentle idle, so the cards aren't still photographs.
+//
+// Deliberately NOT the real behaviour: each boss's actual walk, attack and
+// death live in its own workshop, driven by its own AI. Two implementations
+// of the same motion is exactly how the models drifted apart in the first
+// place, so this does the least it can and leaves the rest alone.
 function animateBoss(model, time) {
   const d = model.userData;
 
-  // Shared walk helper
-  function walkLegs(legs, speed, amp) {
-    legs.forEach((leg, i) => {
-      const phase = (i / legs.length) * Math.PI * 2;
-      const cycle = Math.sin(time * speed + phase);
-      leg.upper.rotation.x = (leg.baseUpper || 0) + cycle * amp;
-      leg.lower.rotation.x = (leg.baseLower || 0) - Math.abs(cycle) * amp * 0.6;
+  if (d.type === 'puppet_master') {
+    d.legs.forEach((leg, i) => {
+      const cycle = Math.sin(time * 3.5 + i * Math.PI);
+      leg.upper.rotation.x = leg.baseUpper + cycle * 0.2;
+      leg.lower.rotation.x = leg.baseLower - Math.abs(cycle) * 0.12;
     });
-  }
-  function swingArms(arms, speed) {
-    arms.forEach((arm, i) => {
-      const swing = Math.sin(time * speed + (arm.side > 0 ? Math.PI : 0) + i * 0.5);
-      arm.shoulderPivot.rotation.x = swing * 0.2;
-      arm.elbowPivot.rotation.x = -0.3 + Math.abs(swing) * 0.15;
+    d.arms.forEach((arm, i) => {
+      arm.upper.rotation.x = Math.sin(time * 2 + i * Math.PI) * 0.2;
     });
-  }
-
-  if (d.type === "chimera") {
-    walkLegs(d.legs, 4, 0.2);
-    swingArms(d.arms, 2.5);
-    if (d.dome) { const p = 1 + Math.sin(time * 3.5) * 0.06; d.dome.scale.set(p, 0.9 * p, p); }
-    if (d.core) d.core.scale.setScalar(1 + Math.sin(time * 6) * 0.08);
-    if (d.coreLight) d.coreLight.intensity = 2 + Math.sin(time * 6);
-    if (d.sac) { const t = 1 + Math.sin(time * 2.5) * 0.12; d.sac.scale.set(0.8 * t, 1.2 * t, t); }
-    model.position.y = Math.abs(Math.sin(time * 8)) * 0.02;
-  }
-
-  if (d.type === "queen") {
-    swingArms(d.arms, 1.5);
-    if (d.sacs) d.sacs.forEach((s, i) => s.scale.setScalar(1 + Math.sin(time * 2 + i) * 0.15));
-    if (d.tendrils) d.tendrils.forEach((segs, ti) => segs.forEach(s => {
-      s.mesh.position.x = s.baseX + Math.sin(time * 1.8 + s.seg * 0.7 + ti * 0.9) * 0.08 * (s.seg + 1);
-      s.mesh.position.z = s.baseZ + Math.cos(time * 1.5 + ti) * 0.04 * s.seg;
-    }));
-    if (d.aura) d.aura.intensity = 2 + Math.sin(time * 2) * 0.8;
-    model.rotation.z = Math.sin(time * 0.8) * 0.02;
-  }
-
-  if (d.type === "mech") {
-    walkLegs(d.legs, 3, 0.2);
-    if (d.orgArmPivot) { d.orgArmPivot.rotation.x = Math.sin(time * 2.5) * 0.2; d.orgElbow.rotation.x = -0.3 + Math.abs(Math.sin(time * 2.5)) * 0.15; }
-    if (d.mechArmPivot) { d.mechArmPivot.rotation.x = Math.sin(time * 1.5) * 0.1; d.mechElbow.rotation.x = -0.2 + Math.sin(time * 2) * 0.08; }
-    if (d.scanLight) d.scanLight.intensity = 1.5 + Math.sin(time * 8) * 0.5;
-    if (d.tip) d.tip.scale.setScalar(1 + Math.sin(time * 5) * 0.2);
-    model.position.y = Math.abs(Math.sin(time * 6)) * 0.02;
-  }
-
-  if (d.type === "puppet") {
-    walkLegs(d.legs, 3.5, 0.2);
-    swingArms(d.arms, 2);
-    // Pilot bounces and sways
-    if (d.pilot) {
-      d.pilot.rotation.z = Math.sin(time * 3.5) * 0.15;
-      d.pilot.position.y = 2.0 + Math.sin(time * 7) * 0.03;
-    }
-    // Tendrils pulse
-    if (d.tendrils) d.tendrils.forEach((segs, ti) => segs.forEach(s => {
-      s.mesh.position.x = s.baseX + Math.sin(time * 3 + s.seg * 0.5 + ti) * 0.03;
-      s.mesh.position.z = s.baseZ + Math.cos(time * 2.5 + ti) * 0.02;
-    }));
+    if (d.pilotGroup) d.pilotGroup.rotation.z = Math.sin(time * 3.5) * 0.12;
+    if (d.tendrilLight) d.tendrilLight.intensity = 1 + Math.sin(time * 3) * 0.4;
     model.position.y = Math.abs(Math.sin(time * 7)) * 0.02;
+    return;
   }
 
-  if (d.type === "swarm") {
-    if (d.particles) d.particles.forEach(p => {
-      const drift = 0.06;
-      p.mesh.position.x = p.baseX + Math.sin(time * 2 + p.phase) * drift;
-      p.mesh.position.y = p.baseY + Math.cos(time * 2.5 + p.phase * 1.3) * drift;
-      p.mesh.position.z = p.baseZ + Math.sin(time * 1.8 + p.phase * 0.7) * drift;
-    });
-    if (d.aura) d.aura.intensity = 1.5 + Math.sin(time * 3) * 0.5;
+  if (d.type === 'swarm') {
+    // Its motes are positions in an array, drawn by instanced meshes, so
+    // moving them means writing the buffer back.
+    for (const m of d.motes) {
+      const ph = m.phase + time * 1.1 * m.spin;
+      m.pos.set(m.home.x + Math.sin(ph) * 0.07,
+                m.home.y + Math.sin(ph * 1.37 + 1.1) * 0.07,
+                m.home.z + Math.cos(ph * 0.83) * 0.07);
+    }
+    syncSwarm(model);
+    if (d.aura) d.aura.intensity = 1.4 + Math.sin(time * 3) * 0.5;
+    return;
   }
 
-  if (d.type === "mimic") {
-    walkLegs(d.legs, 3, 0.18);
-    swingArms(d.arms, 2.5);
-    // Veins pulse
-    if (d.veins) d.veins.forEach((v, i) => {
-      v.scale.x = 1 + Math.sin(time * 4 + i) * 0.3;
-    });
-    // Visor flicker
-    if (d.visor) d.visor.material.color.setHSL(0, 1, 0.4 + Math.sin(time * 8) * 0.1);
-    model.position.y = Math.abs(Math.sin(time * 6)) * 0.015;
+  if (d.type === 'burrower') {
+    for (const seg of d.segments) {
+      seg.mesh.position.y = seg.baseY + Math.sin(time * 2 - seg.t * 7) * 0.09;
+      seg.mesh.position.z = Math.cos(time * 1.4 - seg.t * 5) * 0.07;
+    }
+    return;
   }
 
-  if (d.type === "burrower") {
-    // Segments undulate
-    if (d.segments) d.segments.forEach(s => {
-      s.mesh.position.y = s.baseY + Math.sin(time * 2 + s.t * 8) * 0.08;
-      s.mesh.position.x = s.baseX + Math.cos(time * 1.5 + s.t * 6) * 0.03;
+  if (d.type === 'twins') {
+    // Blue is the quick, light one; brown is the heavy. Same split the
+    // fight uses, just hand-driven here.
+    d.twins.forEach((t) => {
+      const fast = t.kind === 'blue';
+      const rate = fast ? 6 : 2.6, amp = fast ? 0.26 : 0.15;
+      t.legs.forEach((leg, i) => {
+        const swing = Math.sin(time * rate + i * Math.PI) * amp;
+        leg.upper.rotation.x = leg.baseUpper + swing;
+        leg.lower.rotation.x = leg.baseLower - Math.abs(swing) * 0.5;
+      });
+      t.arms.forEach((arm, i) => {
+        arm.upper.rotation.x = Math.sin(time * rate + i * Math.PI + Math.PI) * amp * 0.6;
+      });
     });
-  }
-
-  if (d.type === "trojan") {
-    // Legs twitch
-    if (d.legs) d.legs.forEach((leg, i) => {
-      const twitch = Math.sin(time * 5 + i * 2) * 0.15;
-      leg.upper.rotation.x = leg.baseUpper + twitch;
-      leg.lower.rotation.x = leg.baseLower - twitch * 0.5;
-    });
-    // Tentacle reaches
-    if (d.tentSegs) d.tentSegs.forEach(s => {
-      s.mesh.position.y = s.baseY + Math.sin(time * 2 + s.seg * 0.8) * 0.05;
-      s.mesh.position.x = s.baseX + Math.sin(time * 1.5 + s.seg) * 0.04;
-    });
-    model.rotation.z = Math.sin(time * 1) * 0.01;
-  }
-
-  if (d.type === "twins") {
-    // The blue one is the fast, lightly built twin; the brown one is the
-    // heavy. The gait is the only place that reads at a glance before the
-    // fight's mechanics exist.
-    walkLegs(d.twin1.legs, 6.0, 0.26);
-    walkLegs(d.twin2.legs, 2.6, 0.15);
-    swingArms(d.twin1.arms, 4.5);
-    swingArms(d.twin2.arms, 1.9);
-    // Tether pulses and waves
-    if (d.tether) d.tether.forEach(t => {
-      t.mesh.position.y = 1.0 + Math.sin(time * 3 + t.t * Math.PI * 2) * 0.12;
-      t.mesh.scale.setScalar(1 + Math.sin(time * 5 + t.t * 4) * 0.3);
-    });
-    if (d.tetherLight) d.tetherLight.intensity = 1.5 + Math.sin(time * 5) * 0.8;
     model.position.y = Math.abs(Math.sin(time * 7)) * 0.015;
   }
 }
@@ -1090,22 +110,18 @@ function animateBoss(model, time) {
 // UI
 // =============================================
 
-const ORIGINALS = [
-  { name: "Chimera", desc: "Amalgam of all four types. Multi-phase fight cycling each type's attacks.", build: buildChimera, meshCount: "~85", color: "#ff2244", accent: "#ff44cc" },
-  { name: "Hive Queen", desc: "Massive matriarch. Spawns adds. Four arms, egg sacs, tendrils. She IS the room.", build: buildHiveQueen, meshCount: "~90", color: "#ff2244", accent: "#ff6644" },
-  { name: "Mech Hybrid", desc: "Alien grafted with stolen human tech. Organic left, cannon right.", build: buildMechHybrid, meshCount: "~80", color: "#ff2244", accent: "#44ccff" },
+// The four bosses being built. Chimera, Hive Queen, Mech Hybrid, the Mimic
+// and the Trojan were candidates that didn't get picked, and their models
+// have gone with them — a gallery of things nobody is making is just a place
+// to get lost.
+const BOSSES = [
+  { name: "Puppet Master", desc: "Tiny gleeful alien driving a headless brute body via nerve tendrils. Kill the pilot, the body drops.", build: createPuppetMaster, color: "#44ff88", accent: "#44ff88" },
+  { name: "The Swarm", desc: "Not one alien — hundreds of tiny ones forming a humanoid shape. Shoot it and it scatters, then reforms.", build: createSwarm, color: "#ff2244", accent: "#ff2244" },
+  { name: "The Twins", desc: "Two aliens that share a life. Kill one, the other revives it. Must damage both simultaneously.", build: createTwins, color: "#ff44cc", accent: "#ff44cc", view: { dist: 9, y: 2.6, look: 1.1 } },
+  { name: "Burrower", desc: "Giant worm. Only segments arc above floor. Burrows and re-emerges. You fight it in pieces.", build: createBurrower, color: "#ff2244", accent: "#ff6644", view: { dist: 19, y: 5.5, look: 1.2 } },
 ];
 
-const WILDCARDS = [
-  { name: "Puppet Master", desc: "Tiny gleeful alien driving a headless brute body via nerve tendrils. Kill the pilot, the body drops.", build: buildPuppetMaster, meshCount: "~70", color: "#44ff88", accent: "#44ff88" },
-  { name: "The Swarm", desc: "Not one alien — hundreds of tiny ones forming a humanoid shape. Shoot it and it scatters, then reforms.", build: buildSwarm, meshCount: "~82", color: "#ff2244", accent: "#ff2244" },
-  { name: "The Mimic", desc: "Your own silhouette made of alien flesh. Wrong proportions, too-long arms. Uncanny valley horror.", build: buildMimic, meshCount: "~55", color: "#ff1122", accent: "#440022" },
-  { name: "Burrower", desc: "Giant worm. Only segments arc above floor. Burrows and re-emerges. You fight it in pieces.", build: buildBurrower, meshCount: "~95", color: "#ff2244", accent: "#ff6644", view: { dist: 19, y: 5.5, look: 1.2 } },
-  { name: "The Trojan", desc: "Looks like a supply crate until eyes peek out and legs unfold. Ambush boss.", build: buildTrojan, meshCount: "~50", color: "#ffaa22", accent: "#ffaa22" },
-  { name: "The Twins", desc: "Two aliens that share a life. Kill one, the other revives it. Must damage both simultaneously.", build: buildTwins, meshCount: "~65", color: "#ff44cc", accent: "#ff44cc" },
-];
-
-function BossViewer({ boss, index }) {
+function BossViewer({ boss, index, onCount }) {
   const canvasRef = useRef(null);
   const frameRef = useRef(null);
 
@@ -1137,6 +153,23 @@ function BossViewer({ boss, index }) {
     grid.rotation.x = -Math.PI * 0.5; grid.position.y = -0.6; scene.add(grid);
 
     const model = boss.build();
+
+    // Measured, not written down. The badges carried hand-typed counts from
+    // the gallery's own old models, and the moment the cards started building
+    // the real ones every number on them was wrong.
+    //
+    // An InstancedMesh is ONE mesh however many copies it draws, which is the
+    // honest answer for cost — so the Swarm's hundreds of motes are a handful
+    // of draw calls. Instances are reported separately rather than folded in.
+    if (onCount) {
+      let meshes = 0, instances = 0;
+      model.traverse((o) => {
+        if (!o.isMesh) return;
+        meshes++;
+        if (o.isInstancedMesh) instances += o.count;
+      });
+      onCount({ meshes, instances });
+    }
     scene.add(model);
 
     let t = index * 2;
@@ -1155,6 +188,7 @@ function BossViewer({ boss, index }) {
 }
 
 function BossCard({ boss, index, active, onClick }) {
+  const [count, setCount] = useState(null);
   return (
     <div onClick={onClick} style={{
       background: active ? "rgba(255,34,68,0.06)" : "rgba(255,255,255,0.02)",
@@ -1164,12 +198,15 @@ function BossCard({ boss, index, active, onClick }) {
       boxShadow: active ? `0 0 25px ${boss.accent}22` : "none",
     }}>
       <div style={{ height: 300, position: "relative" }}>
-        <BossViewer boss={boss} index={index} />
+        <BossViewer boss={boss} index={index} onCount={setCount} />
         <div style={{
           position: "absolute", top: 10, right: 10,
           background: "rgba(0,0,0,0.7)", color: boss.accent,
           fontSize: 10, padding: "3px 8px", borderRadius: 4,
-        }}>{boss.meshCount} meshes</div>
+        }}>{count
+          ? `${count.meshes} meshes${count.instances
+              ? ` · ${count.instances} instances` : ""}`
+          : "counting…"}</div>
       </div>
       <div style={{ padding: "12px 16px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -1188,9 +225,8 @@ function BossCard({ boss, index, active, onClick }) {
 }
 
 export default function BossWorkshop() {
-  const [tab, setTab] = useState("originals");
   const [selected, setSelected] = useState(null);
-  const bosses = tab === "originals" ? ORIGINALS : WILDCARDS;
+  const bosses = BOSSES;
 
   return (
     <div style={{
@@ -1204,23 +240,9 @@ export default function BossWorkshop() {
         </h1>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 24 }}>
-        {[{ id: "originals", label: "Original 3" }, { id: "wildcards", label: "Wild Cards (6)" }].map(t => (
-          <button key={t.id} onClick={() => { setTab(t.id); setSelected(null); }} style={{
-            background: tab === t.id ? "rgba(255,34,68,0.15)" : "rgba(255,255,255,0.04)",
-            border: `1px solid ${tab === t.id ? "#ff2244" : "#222233"}`,
-            color: tab === t.id ? "#ff4466" : "#667",
-            padding: "8px 20px", borderRadius: 6, cursor: "pointer",
-            fontSize: 13, fontFamily: "'Courier New', monospace", fontWeight: 600,
-            letterSpacing: 1, textTransform: "uppercase",
-            transition: "all 0.2s ease",
-          }}>{t.label}</button>
-        ))}
-      </div>
-
       <div style={{
         display: "grid",
-        gridTemplateColumns: `repeat(auto-fit, minmax(${tab === "originals" ? "320px" : "280px"}, 1fr))`,
+        gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
         gap: 16, maxWidth: 1200, margin: "0 auto",
       }}>
         {bosses.map((boss, i) => (
