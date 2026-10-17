@@ -39,7 +39,7 @@
 // Frames, like the other boss files: 60 to the second.
 
 import * as THREE from 'three';
-import { BLOOD_MAX, BLOOD_PARKED, POOL_MAX } from './burrower.js?v=bb888d9f0a';
+import { BLOOD_MAX, BLOOD_PARKED, POOL_MAX } from './burrower.js?v=58f941327e';
 
 export const FX = {
   // ── Getting about ──
@@ -176,6 +176,7 @@ export function initBurrower(group, at = { x: 0, z: -6 }) {
   d.ambushAngle = Math.random() * Math.PI * 2;
   d.ambush = new THREE.Vector3();
   d.lungeSpeed = 0;
+  d.arena = null;
   d.hitThisLeap = false;
   d.wantsAttack = false;
   d.hp = FX.hp;
@@ -339,6 +340,8 @@ export function updateBurrower(group, playerPos, dtF) {
   if (d.mode === 'under') {
     d.ambush.set(playerPos.x + Math.sin(d.ambushAngle) * FX.ambushRadius, 0,
                  playerPos.z + Math.cos(d.ambushAngle) * FX.ambushRadius);
+    const inside = pen(d, d.ambush.x, d.ambush.z);
+    if (inside) d.ambush.set(inside.x, 0, inside.z);
     aimX = d.ambush.x - d.headPos.x;
     aimZ = d.ambush.z - d.headPos.z;
   }
@@ -367,6 +370,8 @@ export function updateBurrower(group, playerPos, dtF) {
   const step = speed * dtF;
   d.headPos.x += Math.sin(d.heading) * step;
   d.headPos.z += Math.cos(d.heading) * step;
+  const held = pen(d, d.headPos.x, d.headPos.z);
+  if (held) { d.headPos.x = held.x; d.headPos.z = held.z; }
   if (d.mode === 'diving') d.crossed += step;
 
   // ── The loop ──────────────────────────────────────────────
@@ -459,6 +464,25 @@ function beginDive(d) {
   markHole(d, 0, FX.holeLip * 0.5);     // it goes in HERE, and nowhere else
   const h = d.holes[0].position;
   burstDebris(d, h.x, h.z, FX.debrisBurst);
+}
+
+/**
+ * Pen it inside the room it is fought in. Unlike the others it doesn't home
+ * on the player — it deliberately overshoots, to a spot beside you and then
+ * past you through the leap — so without a leash it walks out through a wall.
+ */
+export function setBurrowerArena(group, cx, cz, radius) {
+  group.userData.arena = { x: cx, z: cz, r: Math.max(2, radius) };
+}
+
+/** Pull a point back inside the arena, if there is one. */
+function pen(d, x, z) {
+  if (!d.arena) return null;
+  const dx = x - d.arena.x, dz = z - d.arena.z;
+  const len = Math.hypot(dx, dz);
+  if (len <= d.arena.r || len < 1e-6) return null;
+  return { x: d.arena.x + dx / len * d.arena.r,
+           z: d.arena.z + dz / len * d.arena.r };
 }
 
 /**

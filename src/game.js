@@ -31,6 +31,13 @@ import { createController, updateController } from './player/controller.js';
 
 // === Boss ===
 import { createPuppetMaster } from './bosses/puppet_master.js';
+import { createSwarm } from './bosses/swarm.js';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js';
+import { createTwins } from './bosses/twins.js';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js';
+import { createBurrower } from './bosses/burrower.js';
+import { initBurrower, updateBurrower, damageBurrower,
+         setBurrowerArena } from './bosses/burrower_ai.js';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
          stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js';
 
@@ -249,35 +256,158 @@ function spawnAliens(scene) {
 // Door. The fight begins when the player first steps into it.
 const BOSS_ROOM = 'room9';
 
-// The Puppet Master is an old-version enemy like the rest. Flip this back to
-// true to put it in the Control Room again — spawnBoss and updateBoss are
-// untouched, every call site below just checks for null first.
-const BOSS_ENABLED = false;
+const BOSS_ENABLED = true;
+
+// ─── THE BOSSES ─────────────────────────────────────────────
+// One of the four is waiting in the Control Room, picked at random when the
+// level loads — a 25% chance each. You don't know which until you open the
+// door.
+//
+// They are built very differently from each other, so rather than teaching
+// this file about all four, each one says here how it is made, driven, shot
+// and shown. Everything below dispatches through this table, so adding a
+// fifth boss is a new entry and nothing else.
+//
+// Per-bullet damage differs because each was balanced against its own health
+// in its own workshop: the Burrower was tuned at 10 a shot (120 health, so a
+// dozen hits) and the rest at 1.
+const BOSS_KINDS = [
+  {
+    id: 'puppet_master',
+    bullet: 1,
+    create: () => createPuppetMaster(),
+    place(model, at, arena) {
+      model.position.set(at.x, 0, at.z);
+      initPuppetMaster(model);
+      // Pen the ejected pilot in. Unleashed it flees the player in a straight
+      // line and walks out through the wall and off the map.
+      setPuppetArena(model, arena.x, arena.z, arena.r);
+    },
+    // The Puppet Master stops being driven once it's beaten and does its own
+    // pilot flop instead — that was already working, so it is left alone.
+    update(model, playerPos, dtF, dt, defeated) {
+      const d = model.userData;
+      if (defeated) {
+        if (d.pilotGroup) {
+          d.pilotGroup.rotation.z =
+            Math.min(Math.PI / 2, (d.pilotGroup.rotation.z || 0) + dt * 3);
+        }
+        return;
+      }
+      updatePuppetMaster(model, playerPos, dtF);
+      // Blood, the pilot bailing out, the body going down, and the pilot's
+      // own end — all of it lives in the boss module, so its workshop plays
+      // back exactly what happens here rather than a copy of it.
+      stepPuppetMasterFx(model, dtF, scene);
+    },
+    hit: (model, part, point, amount) =>
+      damagePuppetMaster(model, amount, part, point),
+    dead: (d) => d.isDead,
+    // The pilot can eject out of the boss group, so it is raycast separately
+    // or it stops being shootable the moment it bails.
+    targets: (model) => [model.userData.pilotGroup],
+    flash: (model) => [[model, 'body'], [model.userData.pilotGroup, 'pilot']],
+    hud(d, defeated) {
+      const bodyPct = Math.max(0, d.bodyHp / d.bodyHpMax) * 100;
+      const pilotPct = Math.max(0, d.pilotHp / d.pilotHpMax) * 100;
+      if (defeated) return { label: 'PUPPET MASTER — DOWN', pct: 0 };
+      if (d.phase === 'ejected')
+        return { label: 'PILOT — SHOOT IT!', pct: pilotPct, colour: '#44ff88' };
+      if (d.pilotExposed)
+        return { label: 'PILOT EXPOSED — SHOOT IT!', pct: pilotPct, colour: '#44ff88' };
+      return { label: 'THE PUPPET MASTER', pct: bodyPct, colour: '#ff2244' };
+    },
+  },
+  {
+    id: 'swarm',
+    bullet: 1,
+    create: () => createSwarm(),
+    place(model, at) { model.position.set(at.x, 0, at.z); initSwarm(model); },
+    // Keeps being driven after it dies: the motes' frenzy-and-fall is inside
+    // updateSwarm, so stopping would freeze them in mid-air.
+    update: (model, playerPos, dtF) => updateSwarm(model, playerPos, dtF),
+    hit: (model, part, point, amount) => damageSwarm(model, amount, point),
+    dead: (d) => d.isDead,
+    hud(d, defeated) {
+      if (defeated) return { label: 'THE SWARM — SCATTERED', pct: 0 };
+      const pct = Math.max(0, d.hp / d.hpMax) * 100;
+      // It can't be hurt while it's blown apart, so say so rather than
+      // letting the player empty a magazine into it for nothing.
+      if (d.phase !== 'held')
+        return { label: 'SCATTERED — WAIT FOR IT', pct, colour: '#6a6a7a' };
+      return { label: 'THE SWARM', pct, colour: '#ff2244' };
+    },
+  },
+  {
+    id: 'twins',
+    bullet: 1,
+    create: () => createTwins(),
+    place(model, at) { model.position.set(at.x, 0, at.z); initTwins(model); },
+    update: (model, playerPos, dtF) => updateTwins(model, playerPos, dtF),
+    // Its meshes are tagged with which twin they belong to, so the hit goes
+    // to the one actually shot.
+    hit: (model, part, point, amount) => damageTwin(model, part, amount),
+    dead: (d) => d.defeated,
+    hud(d, defeated) {
+      if (defeated) return { label: 'THE TWINS — BOTH DOWN', pct: 0 };
+      const live = d.twins.filter((t) => t.state === 'up');
+      const pct = d.twins.reduce((a, t) => a + Math.max(0, t.hp), 0)
+                / d.twins.reduce((a, t) => a + t.hpMax, 0) * 100;
+      // One left standing means the other is being carried back into the
+      // fight — that's the bit the player has to interrupt.
+      if (live.length === 1)
+        return { label: 'KILL IT BEFORE IT REVIVES', pct, colour: '#ffaa22' };
+      return { label: 'THE TWINS', pct, colour: '#ff2244' };
+    },
+  },
+  {
+    id: 'burrower',
+    bullet: 10,
+    create: () => createBurrower(),
+    // The only one that doesn't ride its group: it lays its body out in the
+    // group's own space and expects the group left at the origin, so the
+    // spawn point goes into initBurrower instead of into model.position.
+    place(model, at, arena) {
+      initBurrower(model, { x: at.x, z: at.z });
+      setBurrowerArena(model, arena.x, arena.z, arena.r);
+    },
+    update: (model, playerPos, dtF) => updateBurrower(model, playerPos, dtF),
+    hit: (model, part, point, amount) =>
+      damageBurrower(model, amount, part, point),
+    dead: (d) => d.isDead,
+    hud(d, defeated) {
+      if (defeated) return { label: 'THE BURROWER — DOWN', pct: 0 };
+      const pct = Math.max(0, d.hp / 120) * 100;
+      if (d.surfaceAt >= 0.98)
+        return { label: 'UNDERGROUND — WATCH THE FLOOR', pct, colour: '#6a6a7a' };
+      return { label: 'THE BURROWER', pct, colour: '#ff2244' };
+    },
+  },
+];
+
 function spawnBoss(scene) {
-  const model = createPuppetMaster();
+  const kind = BOSS_KINDS[Math.floor(Math.random() * BOSS_KINDS.length)];
   // Middle of the arena. roomSpawn() always lands on a painted cell.
   const at = roomSpawn(BOSS_ROOM) || new THREE.Vector3(0, 0, 0);
-  model.position.set(at.x, 0, at.z);
-  initPuppetMaster(model);
 
-  // Pen the ejected pilot inside the Control Room. Unleashed it flees the
-  // player in a straight line and walks out through the wall and off the map.
-  // The inradius of the room, less a margin, keeps it off the walls wherever
-  // in there the body happens to come down.
+  // The room it is penned into, as a circle: the inradius less a margin keeps
+  // whatever it is off the walls wherever in there it ends up.
   const r = ROOMS.find((rm) => rm.id === BOSS_ROOM);
-  if (r) {
-    setPuppetArena(model, (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2,
-                   Math.min(r.x1 - r.x0, r.z1 - r.z0) / 2 - 1.5);
-  }
+  const arena = r
+    ? { x: (r.x0 + r.x1) / 2, z: (r.z0 + r.z1) / 2,
+        r: Math.min(r.x1 - r.x0, r.z1 - r.z0) / 2 - 1.5 }
+    : { x: at.x, z: at.z, r: 8 };
 
+  const model = kind.create();
+  kind.place(model, at, arena);
   scene.add(model);
 
   return {
+    kind,
     model,
     roomId: BOSS_ROOM,
     active: false,      // has the fight started?
-    defeated: false,    // pilot killed?
-    pilotDetached: false,
+    defeated: false,
   };
 }
 
@@ -529,72 +659,94 @@ function stepBossFlash(group, part) {
   }
 }
 
+// Turn one note from a boss brain into something that happens to the player.
+// Every boss queues its hits this way instead of reaching for the player
+// itself, so there is one place that decides what a boss attack does.
+function applyBossAttack(model, atk) {
+  switch (atk.type) {
+    case 'pilot_throw':
+      projectiles.push(createAlienProjectile(
+        scene, atk.origin, atk.target, 0x44ff88, 6, atk.damage,
+        { model: atk.model, spin: atk.spin }));
+      return;
+
+    case 'twin_bolt':
+      projectiles.push(createAlienProjectile(
+        scene, atk.from, atk.to, 0x66ccff, 9, atk.damage));
+      return;
+
+    case 'body_slam': {
+      const d = model.userData;
+      if (model.position.distanceTo(ctrl.position) <= (d.attackRange || 3) + 1) {
+        damagePlayer(atk.damage);
+      }
+      return;
+    }
+
+    // Swings and slams name the spot they landed on. Checking it here, against
+    // where the player is NOW, means stepping out of a wind-up gets you clear
+    // — the brain decided to swing, but it doesn't decide whether it connects.
+    case 'twin_swing':
+    case 'burrower_slam': {
+      const at = atk.at;
+      const reach = Math.hypot(ctrl.position.x - at.x, ctrl.position.z - at.z);
+      if (reach <= (atk.range || 2.5)) damagePlayer(atk.damage);
+      return;
+    }
+
+    // The Swarm's motes fly to you and bite on arrival, so there is nothing
+    // left to check by the time it says so.
+    default:
+      if (atk.damage) damagePlayer(atk.damage);
+  }
+}
+
 function updateBoss(dt) {
   const d = boss.model.userData;
+  const kind = boss.kind;
 
   // The fight starts when the player steps into the Control Room.
   if (!boss.active && playerInRoom(boss.roomId)) boss.active = true;
   if (!boss.active) return;
 
+  // The boss brains count time in frames, so hand them dt in frames.
+  const dtF = Math.min(dt * 60, 3);
+  kind.update(boss.model, ctrl.position, dtF, dt, boss.defeated);
+
   if (!boss.defeated) {
-    // The boss brain counts time in frames, so hand it dt in frames.
-    const dtF = Math.min(dt * 60, 3);
-    updatePuppetMaster(boss.model, ctrl.position, dtF);
-
-    // Blood, the pilot bailing out, the body going down, and the pilot's
-    // own end. All of it lives in the boss module now, so the Puppet Master
-    // workshop plays back exactly what happens here, not a copy of it.
-    stepPuppetMasterFx(boss.model, dt * 60, scene);
-
-    // Apply whatever attack the brain queued this frame.
-    const atk = d.currentAttack;
-    if (atk) {
-      if (atk.type === 'body_slam') {
-        if (boss.model.position.distanceTo(ctrl.position) <= d.attackRange + 1) {
-          damagePlayer(atk.damage);
-        }
-      } else if (atk.type === 'pilot_throw') {
-        projectiles.push(createAlienProjectile(
-          scene, atk.origin, atk.target, 0x44ff88, 6, atk.damage,
-          { model: atk.model, spin: atk.spin }));
-      }
-      d.currentAttack = null;
+    // Apply whatever the brain queued. Some bosses post one note a frame,
+    // others a list; drain both rather than making them agree.
+    if (d.currentAttack) { applyBossAttack(boss.model, d.currentAttack);
+                           d.currentAttack = null; }
+    if (d.attacks && d.attacks.length) {
+      for (const atk of d.attacks) applyBossAttack(boss.model, atk);
+      d.attacks.length = 0;
     }
 
-    // Victory — the pilot is dead.
-    if (d.isDead) {
+    if (kind.dead(d)) {
       boss.defeated = true;
       killCount++;
       updateHUD();
       if (bossBannerEl) bossBannerEl.style.display = 'flex';
     }
-  } else if (d.pilotGroup) {
-    // Pilot death flop.
-    d.pilotGroup.rotation.z = Math.min(Math.PI / 2, (d.pilotGroup.rotation.z || 0) + dt * 3);
+  } else if (d.attacks) {
+    // Nothing a dying boss queues should still land on the player.
+    d.attacks.length = 0;
+    d.currentAttack = null;
   }
 
-  // Hit flashes.
-  stepBossFlash(boss.model, 'body');
-  stepBossFlash(d.pilotGroup, 'pilot');
+  // Hit flashes, for the bosses that have them.
+  if (kind.flash) {
+    for (const [group, part] of kind.flash(boss.model)) stepBossFlash(group, part);
+  }
 
   // HUD.
   if (bossHudEl) {
     bossHudEl.style.display = 'block';
-    const bodyPct = Math.max(0, d.bodyHp / d.bodyHpMax) * 100;
-    const pilotPct = Math.max(0, d.pilotHp / d.pilotHpMax) * 100;
-    if (boss.defeated) {
-      bossNameEl.textContent = 'PUPPET MASTER — DOWN';
-      bossBarEl.style.width = '0%';
-    } else if (d.phase === 'ejected') {
-      bossNameEl.textContent = 'PILOT — SHOOT IT!';
-      bossBarEl.style.width = pilotPct + '%';
-      bossBarEl.style.background = '#44ff88';
-    } else {
-      const exposed = d.pilotExposed;
-      bossNameEl.textContent = exposed ? 'PILOT EXPOSED — SHOOT IT!' : 'THE PUPPET MASTER';
-      bossBarEl.style.width = (exposed ? pilotPct : bodyPct) + '%';
-      bossBarEl.style.background = exposed ? '#44ff88' : '#ff2244';
-    }
+    const h = kind.hud(d, boss.defeated);
+    bossNameEl.textContent = h.label;
+    bossBarEl.style.width = Math.max(0, Math.min(100, h.pct)) + '%';
+    if (h.colour) bossBarEl.style.background = h.colour;
   }
 }
 
@@ -743,11 +895,15 @@ function gameLoop(now) {
           a.model.traverse((c) => { if (c.isMesh && c.visible) hitMeshes.push(c); });
         }
       });
-      // Boss meshes (body under boss.model; pilot may have ejected to the
-      // scene, so traverse the pilot group separately to still catch it).
+      // Boss meshes. Some bosses keep part of themselves outside their own
+      // group — the Puppet Master's pilot ejects into the scene — so each
+      // kind names any extra groups that still have to be shootable.
       if (boss && boss.active && !boss.defeated) {
-        boss.model.traverse((c) => { if (c.isMesh && c.visible) hitMeshes.push(c); });
-        boss.model.userData.pilotGroup.traverse((c) => { if (c.isMesh && c.visible) hitMeshes.push(c); });
+        const push = (o) => { if (o.isMesh && o.visible) hitMeshes.push(o); };
+        boss.model.traverse(push);
+        for (const extra of (boss.kind.targets ? boss.kind.targets(boss.model) : [])) {
+          if (extra) extra.traverse(push);
+        }
       }
       // Walls too, so a shot stops at the nearest surface — it can't punch
       // through a wall (which used to hide the tracer) or hit an enemy behind one.
@@ -766,10 +922,11 @@ function gameLoop(now) {
         if (hitObj.userData.isWall) {
           // Shot blocked by a wall — no damage, tracer stops here.
         } else if (boss && boss.active && !boss.defeated && hitObj.userData.hitPart) {
-          // Boss hit (its meshes carry a hitPart tag).
-          // hits[0].point is the exact impact, so the blood comes out of the
-          // hole rather than the middle of whatever was hit.
-          damagePuppetMaster(boss.model, 1, hitObj.userData.hitPart, hits[0].point);
+          // Boss hit — its meshes carry a hitPart tag saying which bit of it
+          // was shot. hits[0].point is the exact impact, so blood comes out
+          // of the hole rather than the middle of whatever was hit.
+          boss.kind.hit(boss.model, hitObj.userData.hitPart, hits[0].point,
+                        boss.kind.bullet);
         } else {
           for (const alien of aliens) {
             let found = false;
@@ -946,6 +1103,21 @@ function gameLoop(now) {
 
   // --- Render ---
   renderer.render(scene, camera);
+}
+
+// A way into the running game from the console, for checking a boss fight
+// without playing through to the Control Room every time. Localhost only —
+// the deployed game exposes nothing.
+if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+  window.__game = {
+    boss, ctrl, scene, BOSS_KINDS,
+    get hp() { return playerHp; },
+    /** Drop the player into the arena so the fight starts. */
+    toBoss() {
+      const at = roomSpawn(BOSS_ROOM);
+      if (at) ctrl.position.set(at.x, ctrl.position.y, at.z);
+    },
+  };
 }
 
 // Start the loop
