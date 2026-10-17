@@ -72,6 +72,7 @@ const ALIEN_TYPES = {
     hit: hitCrawler, kill: killCrawler,
     hp: 3, baseY: 0.32, attackType: 'melee', attackRange: 2.5,   // feet measured at -0.32
     attackDmg: 8, attackCD: 1.5, speed: 0.04,
+    spawnGap: 2.8,          // 2.6 wide across the legs, plus a little air
     // States where the idle walk cycle should play (see aliens/crawler.js).
     // During action states (pounce/recover/hurt) the AI drives the pose.
     idleStates: ['patrol', 'chase'],
@@ -82,6 +83,7 @@ const ALIEN_TYPES = {
     hit: hitFloater, kill: killFloater,
     hp: 2, baseY: 1.5, attackType: 'ranged', attackRange: 10,   // hovers; no feet to land
     attackDmg: 12, attackCD: 2.0, speed: 0.025,
+    spawnGap: 2.0,          // the smallest of the four, at 1.3 across
     projSpeed: 6, projColor: 0xff44cc,
     idleStates: ['hover', 'chase'],
   },
@@ -93,6 +95,7 @@ const ALIEN_TYPES = {
     hit: hitWatcher, kill: killWatcher,
     hp: 1, baseY: 0.05, attackType: 'beam', attackRange: 12,   // feet measured at -0.05
     attackDmg: 15, attackCD: 0, speed: 0,
+    spawnGap: 3.4,          // 2.6 across the tripod, and it never moves off it
     // Its beam lands on the one frame the shot connects, like the Brute's
     // slam — not on a proximity timer. Standing beside one does nothing at
     // all until it actually fires, which is what makes the telegraph worth
@@ -110,6 +113,7 @@ const ALIEN_TYPES = {
     hit: hitBrute, kill: killBrute,
     hp: 6, baseY: 0.86, attackType: 'melee', attackRange: 3.5,   // feet measured at -0.86
     attackDmg: 10, attackCD: 2.0, speed: 0.035,   // 10% of the player's 100 HP
+    spawnGap: 3.2,          // the widest of the four, at 3.0 shoulder to shoulder
     // The Brute lands damage on its slam's impact frame, not on a proximity
     // timer — otherwise the charge/dodge is decorative and it hits you for
     // simply being near it. See the alien update loop.
@@ -119,18 +123,19 @@ const ALIEN_TYPES = {
 };
 
 // ─── ALIEN SPAWN PLAN ───────────────────────────────────────
-// Which aliens spawn in which rooms.
-// Empty on purpose — for now. All four aliens use their Alien Workshop models
-// and stand at measured heights, so the machinery below is ready and filling
-// this list in is the only thing left to do.
+// Which aliens spawn in which rooms. One outpost per species, four of each,
+// so every room you walk into is a different problem rather than a different
+// mix of the same one.
 //
-//   { room: 'room1', type: 'brute', count: 2 },
-//
-// Types: crawler · floater · brute · watcher
 // Room ids: room1 Hangar · room2 Outpost 3 · room3 outpost 2 · room4 outpost 1
 // room5 armory · room6 prison · room7 outpost 4 · room8 alien pods
 // room9 Control Room (boss) · room10 Locked Door
-const SPAWN_PLAN = [];
+const SPAWN_PLAN = [
+  { room: 'room7', type: 'brute',   count: 4 },   // outpost 4
+  { room: 'room2', type: 'watcher', count: 4 },   // Outpost 3
+  { room: 'room3', type: 'floater', count: 4 },   // outpost 2
+  { room: 'room4', type: 'crawler', count: 4 },   // outpost 1
+];
 
 // ─── GUN ────────────────────────────────────────────────────
 function createGun(camera) {
@@ -230,8 +235,32 @@ function disposeModel(model) {
 
 // ─── SPAWN ALIENS ───────────────────────────────────────────
 
+/**
+ * A painted cell in `roomId` at least `gap` from everything in `placed`.
+ * Falls back to whichever candidate was furthest from its nearest neighbour,
+ * so a room too small to space everyone out still spreads them as well as it
+ * can instead of giving up and stacking them.
+ */
+function spacedCellIn(roomId, placed, gap) {
+  let best = null, bestClearance = -1;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const spot = randomCellIn(roomId);
+    if (!spot) return null;
+    let nearest = Infinity;
+    for (const p of placed) {
+      const d = Math.hypot(spot.x - p.x, spot.z - p.z);
+      if (d < nearest) nearest = d;
+    }
+    if (nearest >= gap) return spot;
+    if (nearest > bestClearance) { bestClearance = nearest; best = spot; }
+  }
+  return best;
+}
+
 function spawnAliens(scene) {
   const aliens = [];
+  // Where everything already stands, per room, so the next one can avoid it.
+  const taken = {};
 
   SPAWN_PLAN.forEach((plan) => {
     const roomDef = ROOMS.find(r => r.id === plan.room);
@@ -246,9 +275,18 @@ function spawnAliens(scene) {
 
       // Pick an actual painted cell. Scattering inside a bounding box would
       // drop aliens into the empty notches of an irregular room.
-      const spot = randomCellIn(plan.room);
+      //
+      // And keep it clear of the ones already placed in this room. Cells are
+      // 2 units and a Brute is nearly 3 wide, so four of them dropped on
+      // random cells don't just risk sharing one — neighbouring cells overlap
+      // too, and you would walk in on a single knot of bodies. Try for a cell
+      // that is a whole body-width from everything already down; if the room
+      // is too cramped for that, take the roomiest one we saw.
+      const spot = spacedCellIn(plan.room, taken[plan.room] || (taken[plan.room] = []),
+                                reg.spawnGap || 2);
       if (!spot) continue;
       const sx = spot.x, sz = spot.z;
+      taken[plan.room].push(spot);
 
       model.position.set(sx, reg.baseY, sz);
       model.userData.baseY = reg.baseY;
