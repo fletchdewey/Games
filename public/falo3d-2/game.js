@@ -18,42 +18,42 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=e42df49782';
+import { PALETTE, getMaterial } from './shared/materials.js?v=42bd2ee3b7';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=e42df49782';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=e42df49782';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=42bd2ee3b7';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=42bd2ee3b7';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=e42df49782';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=e42df49782';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=42bd2ee3b7';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=42bd2ee3b7';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=e42df49782';
+import { createController, updateController } from './player/controller.js?v=42bd2ee3b7';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=e42df49782';
+import { buildSoldier } from './npc/soldier.js?v=42bd2ee3b7';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=e42df49782';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=42bd2ee3b7';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=e42df49782';
-import { createSwarm } from './bosses/swarm.js?v=e42df49782';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=e42df49782';
-import { createTwins } from './bosses/twins.js?v=e42df49782';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=e42df49782';
-import { createBurrower } from './bosses/burrower.js?v=e42df49782';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=42bd2ee3b7';
+import { createSwarm } from './bosses/swarm.js?v=42bd2ee3b7';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=42bd2ee3b7';
+import { createTwins } from './bosses/twins.js?v=42bd2ee3b7';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=42bd2ee3b7';
+import { createBurrower } from './bosses/burrower.js?v=42bd2ee3b7';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=e42df49782';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=42bd2ee3b7';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=e42df49782';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=42bd2ee3b7';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=e42df49782';
+  from './map/grid_map.js?v=42bd2ee3b7';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -61,7 +61,8 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildAlienBoard, buildAlienPods, prisonBrokenCell,
          buildEscapePod, setEscapePodUnlocked, updateEscapePod,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=e42df49782';
+         buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor,
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=42bd2ee3b7';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -570,19 +571,23 @@ wallMeshes.push(...hangarProps.meshes);
 const propColliders = hangarProps.colliders;
 
 // ─── THE WAY OUT ────────────────────────────────────────────
-// In the open at the south end of the Hangar, nose pointed at the hull
-// breach — which is where it goes, and why it is parked facing a hole rather
-// than a wall. Far enough back from the lip that you never have to walk into
-// the vacuum's pull to reach it.
+// In the Control Room, nose pointed at the launch door in its north wall.
 //
-// In plain sight from where you start, and sealed, with a red lamp on it. The
-// exit is something you walk past at the beginning and have to come back to.
-// Measured, not guessed: the floor in this bay runs z 48 to 57, and the pod
-// is about 5.2 long nose to engine bell. Centred at 51 it sits tail 48.4 to
-// nose 53.6, clear of the floor edge behind it, and the spot you board from
-// is 7 units back from the breach — outside the 6 where the vacuum starts
-// pulling, so getting in is never a fight with the hull.
-const escapePod = buildEscapePod(scene, { x: 28, z: 51, rot: -Math.PI / 2 });
+// It used to stand in the Hangar beside the hull breach, and that was a
+// mistake you found by playing it: the breach drags you toward it from six
+// units away and kills you at the lip, so walking back across that end of
+// the Hangar after winning kept killing people on the way to the exit. The
+// Control Room has no breach in it at all. You kill the boss, the door
+// behind him opens, and the pod is right there.
+const CONTROL_ROOM = ROOMS.find((r) => r.id === 'room9');
+const spaceDoor = buildSpaceDoor(scene, {
+  x0: 38, x1: 48, z: CONTROL_ROOM.z0, side: 1,
+});
+walls.push(spaceDoor.wall);
+
+// Turned a quarter so its nose faces the door and its hatch faces back into
+// the room, which is the side you come from.
+const escapePod = buildEscapePod(scene, { x: 43, z: 0, rot: Math.PI / 2 });
 propColliders.push(...escapePod.colliders);
 let escaped = false;
 // How long the BOSS DEFEATED banner stays up. It used to sit there for the
@@ -1063,6 +1068,8 @@ function resetRun() {
   escapeScreen.style.display = 'none';
   usePromptEl.style.display = 'none';
   setEscapePodUnlocked(escapePod, false);
+  setSpaceDoorOpen(spaceDoor, false);
+  if (!walls.includes(spaceDoor.wall)) walls.push(spaceDoor.wall);
 
   // The player.
   killCount = 0;
@@ -1426,6 +1433,12 @@ function updateBoss(dt) {
       // And the way out comes alive. The bolts blow somewhere across the
       // station and the lamp on the pod turns green.
       setEscapePodUnlocked(escapePod, true);
+      // And the wall behind him opens onto space. Its wall segment comes out
+      // of the level, though nothing can walk through it anyway — the pod is
+      // in the way, and there is nothing out there to walk to.
+      setSpaceDoorOpen(spaceDoor, true);
+      const wi = walls.indexOf(spaceDoor.wall);
+      if (wi >= 0) walls.splice(wi, 1);
     }
   } else if (d.attacks) {
     // Nothing a dying boss queues should still land on the player.
@@ -1607,6 +1620,7 @@ function gameLoop(now) {
   // PROMPT is not scenery though — it only belongs on screen while you are
   // actually stood there able to press the key.
   updateEscapePod(escapePod, dt, time);
+  updateSpaceDoor(spaceDoor, dt);
 
   // One prompt, whichever thing you are stood at.
   let promptText = null;

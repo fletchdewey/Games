@@ -4188,3 +4188,104 @@ export function buildSecretRoom(scene, at, seed = 4413) {
     bounds: { x0: at.x + x0, x1: at.x + x1, z0: at.z + z0, z1: at.z + z1 },
   };
 }
+
+// ─── THE SPACE DOOR ─────────────────────────────────────────
+//
+// FLETCHER'S GUIDE:
+// A launch door in the Control Room's north wall, which is one of the walls
+// with nothing behind it but the outside. Shut, it is a slab of armour with
+// a red lamp. Open, it is a hole in the station with the stars behind it,
+// and the escape pod parked in front of it goes out through it.
+//
+// It does NOT suck you out. The breach in the Hangar does, because that is a
+// hole something tore; this is a door, with the station still holding its
+// air on this side of it. That is the whole reason the pod moved in here.
+export function buildSpaceDoor(scene, at) {
+  const g = new THREE.Group();
+  const { x0, x1, z, side = 1 } = at;
+  const W = x1 - x0, cx = (x0 + x1) / 2, H = WALL_H;
+
+  // The outside, behind everything else.
+  g.add(spaceWall(x0, x1, z, side));
+
+  const steel = M.metal(), dark = M.hullDk(), stripe = M.hazard();
+
+  // Frame: jambs either side and a head across the top.
+  for (const jx of [x0, x1]) {
+    const jamb = new THREE.Mesh(new THREE.BoxGeometry(0.5, H, 0.7), dark);
+    jamb.position.set(jx + (jx === x0 ? 0.25 : -0.25), H / 2, z + side * 0.35);
+    g.add(jamb);
+  }
+  const head = new THREE.Mesh(new THREE.BoxGeometry(W + 1.0, 0.6, 0.8), dark);
+  head.position.set(cx, H - 0.3, z + side * 0.35);
+  g.add(head);
+
+  // Two leaves, meeting in the middle, sliding apart into the jambs.
+  const leafW = W / 2 - 0.02;
+  const leafH = H - 0.6;
+  const leaves = [];
+  for (const sideSign of [-1, 1]) {
+    const lg = new THREE.Group();
+    g.add(lg);
+    leaves.push({ group: lg, side: sideSign });
+    const lx = cx + sideSign * (leafW / 2 + 0.01);
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(leafW, leafH, 0.42), steel);
+    leaf.position.set(lx, leafH / 2, z + side * 0.3);
+    lg.add(leaf);
+    // Ribs across it, and hazard stripes along the bottom edge.
+    for (let i = 0; i < 3; i++) {
+      const rib = new THREE.Mesh(
+        new THREE.BoxGeometry(leafW * 0.86, 0.18, 0.1), dark);
+      rib.position.set(lx, leafH * (0.25 + i * 0.26), z + side * 0.52);
+      lg.add(rib);
+    }
+    for (let i = 0; i < 5; i++) {
+      const st = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.26, 0.06), stripe);
+      st.position.set(lx - leafW * 0.35 + i * leafW * 0.18, 0.3, z + side * 0.54);
+      st.rotation.z = 0.5;
+      lg.add(st);
+    }
+  }
+
+  // The lamp over it: red while it is shut, green once it is open.
+  const lampMat = new THREE.MeshBasicMaterial({ color: 0xff2233 });
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), lampMat);
+  lamp.position.set(cx, H - 0.72, z + side * 0.8);
+  g.add(lamp);
+  const glow = new THREE.PointLight(0xff2233, 1.2, 9);
+  glow.position.copy(lamp.position);
+  g.add(glow);
+
+  g.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
+  scene.add(g);
+  g.userData = { leaves, lampMat, glow, open: false, openAmount: 0,
+                 travel: leafW };
+
+  return {
+    group: g,
+    // Shut, it is a wall. The caller puts this in the level's wall list and
+    // takes it back out when it opens.
+    wall: { axis: 'z', pos: z, min: x0, max: x1 },
+  };
+}
+
+/** Tell it to open. The movement is in updateSpaceDoor. */
+export function setSpaceDoorOpen(door, open) {
+  const d = door.group.userData;
+  d.open = open;
+  d.lampMat.color.setHex(open ? 0x44ff88 : 0xff2233);
+  d.glow.color.setHex(open ? 0x44ff88 : 0xff2233);
+  if (!open) {
+    d.openAmount = 0;
+    for (const l of d.leaves) l.group.position.x = 0;
+  }
+}
+
+export function updateSpaceDoor(door, dt) {
+  const d = door.group.userData;
+  const want = d.open ? 1 : 0;
+  if (d.openAmount === want) return;
+  d.openAmount = Math.min(1, d.openAmount + dt * 0.35);
+  const e = d.openAmount * d.openAmount * (3 - 2 * d.openAmount);
+  for (const l of d.leaves) l.group.position.x = l.side * e * d.travel;
+}
