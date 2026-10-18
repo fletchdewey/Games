@@ -62,6 +62,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildEscapePod, setEscapePodUnlocked, updateEscapePod,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
+         addAftermath,
          buildStudyScreen, buildControlRoom } from './map/props.js';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
@@ -692,6 +693,42 @@ const PICTURE_PLAN = [
 for (const [id, kinds, avoid] of PICTURE_PLAN) {
   const rm = ROOMS.find((r) => r.id === id);
   if (rm) hangPictures(scene, rm, kinds, { avoid, seed: 3300 + id.length * 7 });
+}
+
+// ─── WHAT HAPPENED HERE ─────────────────────────────────────
+// Drag marks, handprints up the walls, claw gouges, dropped kit and floor
+// plates lifted out. Weighted per room by what went on in it: the prison and
+// the pods room are where people were taken, the outposts are where the
+// aliens live, and the armory and Control Room are where somebody was still
+// trying to work when it reached them.
+//
+// Same avoid lists as the photographs, plus the floor-level things each room
+// already has — you do not want a toolbox inside a specimen tank.
+const AFTERMATH_PLAN = [
+  ['room1', { drags: 2, hands: 1, claws: 1, kit: 2, panel: 1 },           // Hangar
+    [], [{ x: 10, z: 33, r: 9 }, { x: 42, z: 53.5, r: 7 },                // crash site, fuel tank
+         { x: 28, z: 51, r: 5 }]],
+  ['room2', { drags: 1, hands: 1, claws: 2, kit: 1 }, [], []],            // Outpost 3
+  ['room3', { drags: 1, claws: 2, kit: 1 }, [], []],                      // outpost 2
+  ['room4', { drags: 2, hands: 1, claws: 2 }, [], []],                    // outpost 1
+  ['room5', { drags: 1, claws: 1, kit: 2, panel: 1 },                     // armory
+    [{ x: 3.88, z: -24.5, r: 4 }], []],
+  ['room6', { drags: 2, hands: 2, claws: 2 }, [], []],                    // prison
+  ['room7', { drags: 1, claws: 2, kit: 1 }, [], []],                      // outpost 4
+  ['room8', { drags: 2, hands: 1, claws: 1 },                             // alien pods
+    [{ x: -12, z: -12, r: 6 }],
+    [{ x: -14.5, z: -11.5, r: 3.4 }, { x: -17, z: -15, r: 4.5 }]],        // broken pod, tanks
+  ['room9', { hands: 1, claws: 1, kit: 1, panel: 2 },                     // Control Room
+    [{ x: 56, z: 8, r: 16 }, { x: 43, z: -4, r: 9 }],
+    [{ x: 43, z: 0, r: 4 }, { x: 55, z: 8, r: 3 }]],                      // the pod, the desk
+];
+for (const [id, want, avoid, floorAvoid] of AFTERMATH_PLAN) {
+  const rm = ROOMS.find((r) => r.id === id);
+  if (!rm) continue;
+  const a = addAftermath(scene, rm, want, { avoid, floorAvoid,
+                                            solid: propColliders,
+                                            seed: 4100 + id.length * 13 });
+  propColliders.push(...a.colliders);
 }
 
 // ─── THE SOLDIER ────────────────────────────────────────────

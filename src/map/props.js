@@ -4600,3 +4600,299 @@ export function hangPictures(scene, room, kinds, opts = {}) {
   scene.add(group);
   return { group, hung: chosen.length, wanted: kinds.length };
 }
+
+// ─── WHAT HAPPENED HERE ─────────────────────────────────────
+//
+// FLETCHER'S GUIDE:
+// Marks left behind. Not decoration — each of these says something, and the
+// saying is the point:
+//
+//   DRAG MARKS   somebody did not walk out of this room
+//   HANDPRINTS   they went UP the wall, which means they went backwards
+//   CLAW GOUGES  what did it is about this tall and came through here often
+//   SPILLED KIT  somebody dropped what they were carrying and ran
+//   LIFTED PANEL somebody was under the floor trying to fix it when it came
+//
+// All of them are flat geometry in one or two draw calls each, because there
+// are a lot of them and none of them needs to be more than a stain.
+
+/** A tapering smear, from a point and heading somewhere. */
+function dragMark(len, angle, seed) {
+  const g = new THREE.Group();
+  const rand = rng(seed);
+  const mat = M.blood();
+  const steps = Math.max(4, Math.round(len * 3));
+  const verts = [];
+  for (let i = 0; i < steps; i++) {
+    const t = i / (steps - 1);
+    const d = t * len;
+    const w = (0.55 - t * 0.42) * (0.7 + rand() * 0.6);   // thins as it goes
+    const cx = Math.sin(angle) * d + (rand() - 0.5) * 0.14;
+    const cz = Math.cos(angle) * d + (rand() - 0.5) * 0.14;
+    pushBox(verts, cx, 0.014, cz, w, 0.004, w * (0.8 + rand() * 0.5));
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.computeVertexNormals();
+  g.add(new THREE.Mesh(geo, mat));
+  return g;
+}
+
+/** Four fingers and a palm, smeared downward. `face` is the way it looks. */
+function handPrints(count, seed) {
+  const g = new THREE.Group();
+  const rand = rng(seed);
+  const mat = M.blood();
+  const verts = [];
+  for (let h = 0; h < count; h++) {
+    // Each print lower and further along than the last: he was going
+    // backwards and holding on.
+    const ox = h * (0.42 + rand() * 0.2);
+    const oy = -h * (0.3 + rand() * 0.18);
+    pushBox(verts, ox, oy, 0, 0.11, 0.13, 0.01);                  // palm
+    for (let f = 0; f < 4; f++) {
+      pushBox(verts, ox - 0.05 + f * 0.034, oy + 0.11, 0, 0.022,
+              0.08 + rand() * 0.05, 0.01);                        // fingers
+    }
+    // And the streak it left on the way down.
+    pushBox(verts, ox, oy - 0.2, 0, 0.055, 0.34, 0.008);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.computeVertexNormals();
+  g.add(new THREE.Mesh(geo, mat));
+  return g;
+}
+
+/** Parallel scoring, the width of something's hand. */
+function clawGouges(sets, seed) {
+  const g = new THREE.Group();
+  const rand = rng(seed);
+  const mat = new THREE.MeshLambertMaterial({ color: 0x5c524a });
+  const verts = [];
+  for (let s = 0; s < sets; s++) {
+    const bx = (rand() - 0.5) * 1.1;
+    const by = (rand() - 0.5) * 0.5;
+    const lean = (rand() - 0.5) * 0.5;
+    for (let c = 0; c < 4; c++) {
+      const h = 0.4 + rand() * 0.5;
+      pushBox(verts, bx + c * 0.075 + lean * c * 0.05, by, 0, 0.022, h, 0.012);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.computeVertexNormals();
+  g.add(new THREE.Mesh(geo, mat));
+  return g;
+}
+
+/** A dropped box with its contents thrown clear. */
+function spilledKit(kind, seed) {
+  const g = new THREE.Group();
+  const rand = rng(seed);
+  const boxMat = kind === 'ammo' ? M.ammoBox() : M.crateMetal();
+  const bits = kind === 'ammo' ? M.brass() : M.gunMetal();
+
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.26, 0.34), boxMat);
+  box.position.set(0, 0.13, 0);
+  box.rotation.z = 1.35;                       // tipped over
+  box.rotation.y = rand() * 0.7;
+  g.add(box);
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.04, 0.32), boxMat);
+  lid.position.set(0.42, 0.02, 0.2);
+  lid.rotation.y = 0.8 + rand();
+  g.add(lid);
+
+  // The contents, thrown in the direction it fell.
+  const verts = [];
+  for (let i = 0; i < 11; i++) {
+    const a = rand() * Math.PI * 2, d = 0.35 + rand() * 1.1;
+    pushBox(verts, Math.cos(a) * d, 0.025, Math.sin(a) * d,
+            0.05 + rand() * 0.1, 0.05, 0.03 + rand() * 0.07);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.computeVertexNormals();
+  g.add(new THREE.Mesh(geo, bits));
+  return g;
+}
+
+/** A floor plate lifted out and leaned aside, cables in the hole. */
+function liftedPanel(seed) {
+  const g = new THREE.Group();
+  const rand = rng(seed);
+  const plate = M.metal(), dark = M.hullDk();
+
+  // The hole, and the dark underneath it.
+  const hole = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.06, 1.1),
+    new THREE.MeshBasicMaterial({ color: 0x0d1013 }));
+  hole.position.y = 0.012;
+  g.add(hole);
+  for (let i = 0; i < 4; i++) {
+    const cable = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.035, 0.9 + rand() * 0.2, 5),
+      i % 2 ? dark : M.crateTrim());
+    cable.rotation.z = Math.PI / 2;
+    cable.rotation.y = rand() * Math.PI;
+    cable.position.set((rand() - 0.5) * 0.4, 0.05, (rand() - 0.5) * 0.5);
+    g.add(cable);
+  }
+  // The plate itself, stood on edge against the hole.
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.07, 1.1), plate);
+  panel.position.set(0.72, 0.5, 0.1);
+  panel.rotation.z = 1.25;
+  panel.rotation.y = 0.2 + rand() * 0.3;
+  g.add(panel);
+  // And the tool left in the hole.
+  const tool = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.05, 0.07), M.gunMetal());
+  tool.position.set(-0.2, 0.06, 0.25);
+  tool.rotation.y = 0.9;
+  g.add(tool);
+  return g;
+}
+
+/**
+ * Wall spots in a room: every cell edge where the floor stops.
+ *
+ * Pulled out of hangPictures so the marks can hang off the same walls the
+ * photographs do, and so there is one place that knows how to find a wall in
+ * a room that was painted cell by cell rather than drawn as a rectangle.
+ */
+export function wallSpotsIn(room, opts = {}) {
+  const CS = 2, EPS = opts.eps === undefined ? 0.06 : opts.eps;
+  const avoid = opts.avoid || [];
+  const out = [];
+  const rand = rng(opts.seed || 5150);
+  for (let x = room.x0 + CS / 2; x < room.x1; x += CS) {
+    for (let z = room.z0 + CS / 2; z < room.z1; z += CS) {
+      if (!isFloorAt(x, z)) continue;
+      const sides = [
+        [!isFloorAt(x - CS, z), x - CS / 2 + EPS, z, 'x+'],
+        [!isFloorAt(x + CS, z), x + CS / 2 - EPS, z, 'x-'],
+        [!isFloorAt(x, z - CS), x, z - CS / 2 + EPS, 'z+'],
+        [!isFloorAt(x, z + CS), x, z + CS / 2 - EPS, 'z-'],
+      ];
+      for (const [isWall, wx, wz, face] of sides) {
+        if (!isWall) continue;
+        if (avoid.some((a) => Math.hypot(wx - a.x, wz - a.z) < a.r)) continue;
+        out.push({ x: wx, z: wz, face, k: rand() });
+      }
+    }
+  }
+  out.sort((a, b) => a.k - b.k);
+  return out;
+}
+
+const FACE_ROT = { 'x+': Math.PI / 2, 'x-': -Math.PI / 2, 'z-': Math.PI, 'z+': 0 };
+
+/** Floor spots: painted cells clear of everything in `avoid`. */
+function floorSpotsIn(room, avoid, seed) {
+  const CS = 2;
+  const out = [];
+  const rand = rng(seed || 2468);
+  for (let x = room.x0 + CS / 2; x < room.x1; x += CS) {
+    for (let z = room.z0 + CS / 2; z < room.z1; z += CS) {
+      if (!isFloorAt(x, z)) continue;
+      if (avoid.some((a) => Math.hypot(x - a.x, z - a.z) < a.r)) continue;
+      out.push({ x, z, k: rand() });
+    }
+  }
+  out.sort((a, b) => a.k - b.k);
+  return out;
+}
+
+/**
+ * Scatter the aftermath through one room.
+ *
+ * `want` says how many of each: { drags, hands, claws, kit, panel }. Spots
+ * are found from the room's own floor rather than written down, for the same
+ * reason the photographs are — most of these rooms are not rectangles.
+ */
+export function addAftermath(scene, room, want = {}, opts = {}) {
+  const group = new THREE.Group();
+  // Everything the room already has standing in it, grown by a margin. The
+  // room scan only knows where the FLOOR stops — it has no idea that the
+  // prison's west wall has a block of cells in front of it, so the first
+  // version painted handprints on the inside of a sealed cell where nobody
+  // could ever see them. The props all carry colliders; using them is both
+  // more accurate than a hand-written list and impossible to forget to
+  // update when a room gains something new.
+  const solid = (opts.solid || []).map((c) => ({ x: c.x, z: c.z, r: c.r + 1.1 }));
+  const avoid = (opts.avoid || []).concat(solid);
+  const seed = opts.seed || 9090;
+  const rand = rng(seed);
+  const colliders = [];
+
+  // ── Walls ─────────────────────────────────────────────────
+  const wallSpots = wallSpotsIn(room, { avoid, seed: seed + 11, eps: 0.05 });
+  let wi = 0;
+  const takeWall = (minApart, used) => {
+    while (wi < wallSpots.length) {
+      const s = wallSpots[wi++];
+      if (used.some((u) => Math.hypot(u.x - s.x, u.z - s.z) < minApart)) continue;
+      used.push(s);
+      return s;
+    }
+    return null;
+  };
+  const usedWall = [];
+  for (let i = 0; i < (want.hands || 0); i++) {
+    const s = takeWall(5, usedWall);
+    if (!s) break;
+    const m = handPrints(2 + Math.round(rand()), seed + 70 + i);
+    m.position.set(s.x, 1.55, s.z);
+    m.rotation.y = FACE_ROT[s.face];
+    group.add(m);
+  }
+  for (let i = 0; i < (want.claws || 0); i++) {
+    const s = takeWall(4, usedWall);
+    if (!s) break;
+    const m = clawGouges(1 + Math.round(rand()), seed + 130 + i);
+    m.position.set(s.x, 1.25 + rand() * 0.35, s.z);
+    m.rotation.y = FACE_ROT[s.face];
+    group.add(m);
+  }
+
+  // ── Floor ─────────────────────────────────────────────────
+  const floorSpots = floorSpotsIn(room, avoid.concat(opts.floorAvoid || []), seed + 23);
+  let fi = 0;
+  const usedFloor = [];
+  const takeFloor = (minApart) => {
+    while (fi < floorSpots.length) {
+      const s = floorSpots[fi++];
+      if (usedFloor.some((u) => Math.hypot(u.x - s.x, u.z - s.z) < minApart)) continue;
+      usedFloor.push(s);
+      return s;
+    }
+    return null;
+  };
+  for (let i = 0; i < (want.drags || 0); i++) {
+    const s = takeFloor(4.5);
+    if (!s) break;
+    const m = dragMark(1.6 + rand() * 1.8, rand() * Math.PI * 2, seed + 200 + i);
+    m.position.set(s.x, 0, s.z);
+    group.add(m);
+  }
+  for (let i = 0; i < (want.kit || 0); i++) {
+    const s = takeFloor(4);
+    if (!s) break;
+    const m = spilledKit(rand() < 0.5 ? 'ammo' : 'tools', seed + 300 + i);
+    m.position.set(s.x, 0, s.z);
+    m.rotation.y = rand() * Math.PI * 2;
+    group.add(m);
+    colliders.push({ x: s.x, z: s.z, r: 0.42 });
+  }
+  for (let i = 0; i < (want.panel || 0); i++) {
+    const s = takeFloor(5);
+    if (!s) break;
+    const m = liftedPanel(seed + 400 + i);
+    m.position.set(s.x, 0, s.z);
+    m.rotation.y = rand() * Math.PI * 2;
+    group.add(m);
+    colliders.push({ x: s.x + 0.7, z: s.z, r: 0.5 });   // the plate on edge
+  }
+
+  group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
+  scene.add(group);
+  return { group, colliders };
+}
