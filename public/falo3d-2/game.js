@@ -18,43 +18,43 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=1bad2bc9b1';
+import { PALETTE, getMaterial } from './shared/materials.js?v=0b04e48cd1';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=1bad2bc9b1';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=1bad2bc9b1';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=0b04e48cd1';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=0b04e48cd1';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=1bad2bc9b1';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=1bad2bc9b1';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=0b04e48cd1';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=0b04e48cd1';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=1bad2bc9b1';
+import { createController, updateController } from './player/controller.js?v=0b04e48cd1';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=1bad2bc9b1';
-import { createSwarm } from './bosses/swarm.js?v=1bad2bc9b1';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=1bad2bc9b1';
-import { createTwins } from './bosses/twins.js?v=1bad2bc9b1';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=1bad2bc9b1';
-import { createBurrower } from './bosses/burrower.js?v=1bad2bc9b1';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=0b04e48cd1';
+import { createSwarm } from './bosses/swarm.js?v=0b04e48cd1';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=0b04e48cd1';
+import { createTwins } from './bosses/twins.js?v=0b04e48cd1';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=0b04e48cd1';
+import { createBurrower } from './bosses/burrower.js?v=0b04e48cd1';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=1bad2bc9b1';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=0b04e48cd1';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=1bad2bc9b1';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=0b04e48cd1';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=1bad2bc9b1';
+  from './map/grid_map.js?v=0b04e48cd1';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
          buildAlienBoard, buildAlienPods, prisonBrokenCell,
-         buildEscapePod, setEscapePodUnlocked, updateEscapePod,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=1bad2bc9b1';
+         buildEscapePod, setEscapePodUnlocked, updateEscapePod, buildLockedDoor,
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=0b04e48cd1';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -613,6 +613,17 @@ propColliders.push(...prison.colliders);
 
 // The armory: rusted lockers, a weapon rack and the bench the rifles were
 // serviced on.
+// ─── THE LOCKED DOOR ────────────────────────────────────────
+// Across the room named after it, between you and the Control Room. Solid in
+// both of the ways this game means solid: a wall segment so you cannot walk
+// through it, and its meshes in wallMeshes so shots stop on it.
+//
+// Nothing opens it yet. That is deliberate — the look first, the mechanism
+// after — and it does mean the boss is sealed off behind it for now.
+const lockedDoor = buildLockedDoor(scene, ROOMS.find((r) => r.id === 'room10'));
+walls.push(lockedDoor.wall);
+wallMeshes.push(...lockedDoor.meshes);
+
 const armory = buildArmory(scene, ROOMS.find((r) => r.id === 'room5'));
 propColliders.push(...armory.colliders);
 

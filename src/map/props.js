@@ -3698,3 +3698,155 @@ export function updateEscapePod(pod, dt, time) {
                        : 0.7 + Math.sin(time * 2) * 0.35;
   d.glow.intensity = p;
 }
+
+// ─── THE LOCKED DOOR ────────────────────────────────────────
+//
+// FLETCHER'S GUIDE:
+// The room called "Locked Door" is a 4-wide chamber you cross east to west:
+// in from the hallway on one side, out to the Control Room on the other. So
+// the door stands ACROSS it, filling the whole ten units from wall to wall
+// and the full height of the room. It is the thing between you and the boss.
+//
+// No window, on purpose. A window would tell you what is behind it, and the
+// point of this door is that it doesn't.
+//
+// It is built as two leaves meeting down the middle even though nothing opens
+// yet, because that is what a blast door looks like — and when the mechanic
+// to open it arrives, the leaves are already there to slide apart.
+//
+// Solid in two separate ways, because the game has two separate ideas of
+// solid: a wall SEGMENT stops you walking through it, and its meshes join
+// wallMeshes so bullets stop on it too. Both are returned for the caller to
+// install; see the comment on the return value.
+const DOOR = {
+  thick: 0.62,        // heavy. This is not an office door
+  jamb: 0.5,          // the frame either side
+  lintelH: 0.55,
+};
+
+export function buildLockedDoor(scene, room) {
+  const g = new THREE.Group();
+  const meshes = [];
+  const add = (m) => { g.add(m); meshes.push(m); return m; };
+
+  const steel = M.metal(), dark = M.hullDk(), stripe = M.hazard();
+  const bolt = M.bar(), mark = M.stencil();
+
+  // Across the room's long axis, half way along the short one.
+  const DX = (room.x0 + room.x1) / 2;
+  const z0 = room.z0, z1 = room.z1, span = z1 - z0;
+  const mid = (z0 + z1) / 2;
+  const H = WALL_H;
+
+  // ── Frame ─────────────────────────────────────────────────
+  for (const jz of [z0, z1]) {
+    const jamb = add(new THREE.Mesh(
+      new THREE.BoxGeometry(DOOR.thick + 0.5, H, DOOR.jamb), dark));
+    jamb.position.set(DX, H / 2, jz + (jz === z0 ? DOOR.jamb / 2 : -DOOR.jamb / 2));
+  }
+  const lintel = add(new THREE.Mesh(
+    new THREE.BoxGeometry(DOOR.thick + 0.5, DOOR.lintelH, span), dark));
+  lintel.position.set(DX, H - DOOR.lintelH / 2, mid);
+
+  // ── The leaves ────────────────────────────────────────────
+  // Two of them, meeting at the middle. The gap between is a hair under
+  // nothing — it should read as a seam, not a crack you could see through.
+  const leafW = span / 2 - DOOR.jamb - 0.02;
+  const leafH = H - DOOR.lintelH;
+  for (const side of [-1, 1]) {
+    const cz = mid + side * (leafW / 2 + 0.02);
+    const leaf = add(new THREE.Mesh(
+      new THREE.BoxGeometry(DOOR.thick, leafH, leafW), steel));
+    leaf.position.set(DX, leafH / 2, cz);
+
+    // Recessed armour panels, two rows. Proud of the face rather than cut
+    // into it — a box standing off the surface reads as plating at this
+    // size, and costs one mesh instead of a hole in the geometry.
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 2; col++) {
+        const panel = add(new THREE.Mesh(
+          new THREE.BoxGeometry(0.1, leafH * 0.3, leafW * 0.36), dark));
+        panel.position.set(DX + (DOOR.thick / 2 + 0.05) * -1,
+                           leafH * (0.3 + row * 0.38),
+                           cz + (col ? 1 : -1) * leafW * 0.21);
+      }
+    }
+    // And the same on the far face, so it isn't flat from the Control Room.
+    for (let row = 0; row < 2; row++) {
+      const panel = add(new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, leafH * 0.3, leafW * 0.78), dark));
+      panel.position.set(DX + DOOR.thick / 2 + 0.05,
+                         leafH * (0.3 + row * 0.38), cz);
+    }
+
+    // A grab handle, the size the door deserves.
+    const handle = add(new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, 0.14, leafW * 0.3), bolt));
+    handle.position.set(DX - DOOR.thick / 2 - 0.12, leafH * 0.52,
+                        cz - side * leafW * 0.26);
+  }
+
+  // ── The seam ──────────────────────────────────────────────
+  // A raised strip down the join with locking bolts driven across it, so the
+  // door reads as SEALED rather than merely shut.
+  const seam = add(new THREE.Mesh(
+    new THREE.BoxGeometry(DOOR.thick + 0.14, leafH, 0.2), dark));
+  seam.position.set(DX, leafH / 2, mid);
+  for (let i = 0; i < 4; i++) {
+    const y = leafH * (0.18 + i * 0.22);
+    const lug = add(new THREE.Mesh(
+      new THREE.BoxGeometry(DOOR.thick + 0.3, 0.3, 0.9), bolt));
+    lug.position.set(DX, y, mid);
+  }
+
+  // ── Markings ──────────────────────────────────────────────
+  // Hazard stripes along the bottom of both leaves, and a stencil block
+  // where a door number would be.
+  const stripeCount = Math.floor(span / 0.9);
+  for (let i = 0; i < stripeCount; i++) {
+    const sz = z0 + DOOR.jamb + 0.3 + i * 0.9;
+    if (sz > z1 - DOOR.jamb - 0.3) break;
+    const s = add(new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.5, 0.42), stripe));
+    s.position.set(DX - DOOR.thick / 2 - 0.04, 0.42, sz);
+    s.rotation.x = 0.55;
+  }
+  for (const [mz, mw] of [[-1.5, 0.3], [-1.0, 0.18], [-0.6, 0.3]]) {
+    const m = add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.4, mw), mark));
+    m.position.set(DX - DOOR.thick / 2 - 0.04, leafH * 0.82, mid + mz);
+  }
+
+  // ── The panel that will one day open it ───────────────────
+  // Dead for now — unlit, and nothing reads it. It is here so the mechanic
+  // has somewhere to live, and so the door looks like something that COULD
+  // be opened rather than a wall pretending to be a door.
+  const post = add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.3, 0.2), steel));
+  post.position.set(DX - 1.2, 0.65, z0 + 1.3);
+  const panel = add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.12), dark));
+  panel.position.set(DX - 1.2, 1.45, z0 + 1.3);
+  const readerMat = new THREE.MeshBasicMaterial({ color: 0x5a1016 });
+  const reader = add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.06), readerMat));
+  reader.position.set(DX - 1.44, 1.45, z0 + 1.3);
+  reader.rotation.y = Math.PI / 2;
+
+  // Tagged the way the level's own walls are, so the shooting code treats a
+  // hit on it as "stopped by a wall" rather than falling through to ask
+  // whether it was an alien. Without this the tracer still stops in the right
+  // place, but only by accident.
+  for (const m of meshes) m.userData.isWall = true;
+
+  scene.add(g);
+  g.userData = { readerMat, open: false };
+
+  return {
+    group: g,
+    // Push this into the level's wall list and you cannot walk through it.
+    // One exact segment rather than a row of circles: it is a flat slab, and
+    // this is how every other wall in the station is done.
+    wall: { axis: 'x', pos: DX, min: z0, max: z1 },
+    // And into wallMeshes, so shots stop on it instead of passing through to
+    // whatever is in the Control Room.
+    meshes,
+    at: { x: DX, z: mid },
+  };
+}

@@ -53,7 +53,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
          buildAlienBoard, buildAlienPods, prisonBrokenCell,
-         buildEscapePod, setEscapePodUnlocked, updateEscapePod,
+         buildEscapePod, setEscapePodUnlocked, updateEscapePod, buildLockedDoor,
          buildStudyScreen, buildControlRoom } from './map/props.js';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
@@ -613,6 +613,17 @@ propColliders.push(...prison.colliders);
 
 // The armory: rusted lockers, a weapon rack and the bench the rifles were
 // serviced on.
+// ─── THE LOCKED DOOR ────────────────────────────────────────
+// Across the room named after it, between you and the Control Room. Solid in
+// both of the ways this game means solid: a wall segment so you cannot walk
+// through it, and its meshes in wallMeshes so shots stop on it.
+//
+// Nothing opens it yet. That is deliberate — the look first, the mechanism
+// after — and it does mean the boss is sealed off behind it for now.
+const lockedDoor = buildLockedDoor(scene, ROOMS.find((r) => r.id === 'room10'));
+walls.push(lockedDoor.wall);
+wallMeshes.push(...lockedDoor.meshes);
+
 const armory = buildArmory(scene, ROOMS.find((r) => r.id === 'room5'));
 propColliders.push(...armory.colliders);
 
