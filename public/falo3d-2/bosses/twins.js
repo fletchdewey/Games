@@ -19,14 +19,26 @@
 // worked out. The brain is next door in twins_ai.js.
 
 import * as THREE from 'three';
-import { PALETTE } from '../shared/materials.js?v=3716dcd7e3';
+import { PALETTE } from '../shared/materials.js?v=b88ad87179';
 
 const COL = {
   blue: 0x2a2a3a,
   brown: 0x3a2a2a,
   armor: 0x1e1e2a,
   armorLt: 0x2e2e3e,
+  // They bleed the same green the Burrower does — same station, same thing
+  // inside them.
+  blood: 0x7ad426,
+  pool: 0x4e8f18,
+  // What a body turns on its way to coming apart.
+  rot: 0x5a6a32,
 };
+
+// Specks in the air at once. One burst is a whole body, and there are two
+// bodies, so this has to cover both going off together with room to spare.
+export const BLOOD_MAX = 320;
+export const BLOOD_PARKED = -999;
+export const POOL_MAX = 8;
 
 // The leg chain's reach, so the toes touch the floor. Everything above the
 // hips is placed relative to this rather than to the ground — the model used
@@ -37,6 +49,9 @@ const TORSO_Y = HIP_Y + 0.55;
 
 // An alien blaster: organic body, bone barrel, lit muzzle, vents along the
 // top so it reads as something that gets hot. Built facing +Z.
+// Everything in here is marked kit: when a twin bursts, the flesh goes and
+// the hardware stays, and a blaster that left its barrel behind in the blood
+// would not read as a weapon on the floor.
 function buildBlaster(boneMat, glowMat) {
   const b = new THREE.Group();
   const bodyGeo = new THREE.SphereGeometry(0.1, 6, 5);
@@ -60,6 +75,7 @@ function buildBlaster(boneMat, glowMat) {
     new THREE.MeshLambertMaterial({ color: COL.armor }));
   grip.position.set(0, -0.08, -0.06);
   b.add(grip);
+  b.traverse((o) => { if (o.isMesh) o.userData.kit = true; });
   return { group: b, muzzle };
 }
 
@@ -221,7 +237,26 @@ function buildTwin({ skin, scale = 1, armored = false, blaster = false,
   }
 
   twin.scale.setScalar(scale);
-  return { group: twin, arms, legs, eyes, muzzle, skinMat, scale };
+  // ── What is meat and what is kit ──────────────────────────
+  // Sorted by material rather than by hand at each of thirty-odd creation
+  // sites, so adding a part to the model can't quietly forget to say which
+  // it is. Skin, bone and eyes are the creature; plating and the blaster are
+  // what it was carrying, and what is still there afterwards.
+  const flesh = [], kit = [];
+  twin.traverse((o) => {
+    if (!o.isMesh) return;
+    if (o.userData.kit) { kit.push(o); return; }
+    if (o.material === skinMat || o.material === eyeMat || o.material === boneMat) {
+      flesh.push(o);
+    } else {
+      kit.push(o);
+    }
+  });
+
+  // eyeMat and skinMat are each made fresh per twin rather than shared, so
+  // the death can put ONE of them out without the other going dark too.
+  return { group: twin, arms, legs, eyes, eyeMat, muzzle, skinMat, scale,
+           flesh, kit };
 }
 
 export function createTwins() {
@@ -245,11 +280,47 @@ export function createTwins() {
   g.add(blue.group);
   g.add(brown.group);
 
+  // ── Blood ─────────────────────────────────────────────────
+  // One Points object for both twins, as a ring buffer — the same shape as
+  // the Burrower's, for the same reasons: one draw call, nothing allocated
+  // when a body goes, and spent specks parked far below the floor rather
+  // than removed. Culling off, because the parked ones would otherwise drag
+  // the bounding sphere down with them.
+  const bloodPos = new Float32Array(BLOOD_MAX * 3);
+  for (let i = 0; i < BLOOD_MAX; i++) bloodPos[i * 3 + 1] = BLOOD_PARKED;
+  const bloodGeo = new THREE.BufferGeometry();
+  bloodGeo.setAttribute('position', new THREE.BufferAttribute(bloodPos, 3));
+  const bloodPoints = new THREE.Points(bloodGeo, new THREE.PointsMaterial({
+    color: COL.blood, size: 0.13, sizeAttenuation: true,
+    transparent: true, opacity: 0.95, depthWrite: false,
+  }));
+  bloodPoints.frustumCulled = false;
+  g.add(bloodPoints);
+  const blood = { points: bloodPoints, pos: bloodPos,
+                  vel: new Float32Array(BLOOD_MAX * 3),
+                  life: new Float32Array(BLOOD_MAX), next: 0 };
+
+  // What's left on the floor underneath. Each at its own height so two
+  // overlapping discs can't z-fight.
+  const pools = [];
+  for (let i = 0; i < POOL_MAX; i++) {
+    const pool = new THREE.Mesh(
+      new THREE.CircleGeometry(1, 14),
+      new THREE.MeshBasicMaterial({ color: COL.pool,
+                                    transparent: true, opacity: 0.9 }));
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.y = 0.03 + i * 0.0015;
+    pool.visible = false;
+    g.add(pool);
+    pools.push(pool);
+  }
+
   // Tagged for the game's hit detection. Each twin's meshes carry its own
   // name, so a bullet knows which of the two it struck.
   blue.group.traverse((o) => { if (o.isMesh) o.userData.hitPart = 'blue'; });
   brown.group.traverse((o) => { if (o.isMesh) o.userData.hitPart = 'brown'; });
 
-  g.userData = { type: 'twins', blue, brown, twins: [blue, brown] };
+  g.userData = { type: 'twins', blue, brown, twins: [blue, brown],
+                 blood, pools, nextPool: 0, debris: [], rotColor: COL.rot };
   return g;
 }

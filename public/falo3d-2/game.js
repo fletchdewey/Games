@@ -18,36 +18,36 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=3716dcd7e3';
+import { PALETTE, getMaterial } from './shared/materials.js?v=b88ad87179';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=3716dcd7e3';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=3716dcd7e3';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=b88ad87179';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=b88ad87179';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=3716dcd7e3';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=3716dcd7e3';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=b88ad87179';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=b88ad87179';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=3716dcd7e3';
+import { createController, updateController } from './player/controller.js?v=b88ad87179';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=3716dcd7e3';
-import { createSwarm } from './bosses/swarm.js?v=3716dcd7e3';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=3716dcd7e3';
-import { createTwins } from './bosses/twins.js?v=3716dcd7e3';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=3716dcd7e3';
-import { createBurrower } from './bosses/burrower.js?v=3716dcd7e3';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=b88ad87179';
+import { createSwarm } from './bosses/swarm.js?v=b88ad87179';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=b88ad87179';
+import { createTwins } from './bosses/twins.js?v=b88ad87179';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=b88ad87179';
+import { createBurrower } from './bosses/burrower.js?v=b88ad87179';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=3716dcd7e3';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=b88ad87179';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=3716dcd7e3';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=b88ad87179';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=3716dcd7e3';
+  from './map/grid_map.js?v=b88ad87179';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -55,7 +55,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildAlienBoard, buildAlienPods, prisonBrokenCell,
          buildEscapePod, setEscapePodUnlocked, updateEscapePod,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=3716dcd7e3';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=b88ad87179';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
