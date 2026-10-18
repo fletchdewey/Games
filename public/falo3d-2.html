@@ -214,6 +214,19 @@
   .class-card.locked .cstats { color: #7a7a86; }
   .class-card .cwon { font-size: 9px; color: #44ff88; margin-top: 4px; }
 
+  /* How hard, above the classes. */
+  #difficulty-row { display: flex; gap: 7px; justify-content: center; margin-top: 14px; }
+  #difficulty-row button {
+    font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 2px;
+    padding: 5px 13px; border-radius: 6px; cursor: pointer;
+    color: #99a; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.14);
+  }
+  #difficulty-row button:hover { background: rgba(255,255,255,0.09); }
+  #difficulty-row button.picked { color: #ffaa22; border-color: #ffaa22;
+                                  background: rgba(255,170,34,0.12); }
+  #difficulty-note { font-size: 10px; color: #778; margin-top: 7px; min-height: 13px; }
+
   /* The Commander's weapon choice, shown only once it is unlocked. */
   #weapon-pick { display: none; margin-top: 4px; font-size: 10px; color: #99a; }
   #weapon-pick button {
@@ -335,6 +348,8 @@
     <div style="text-align:center">
       <div class="title">Falo 3D-2</div>
       <div class="sub">Space Station Crawler</div>
+      <div id="difficulty-row"></div>
+      <div id="difficulty-note"></div>
       <div id="class-picker"></div>
       <div id="weapon-pick"></div>
       <div class="play">Click to Play</div>
@@ -354,6 +369,6 @@
 
   <div id="controls-hint">WASD move · mouse look · click shoot · space jump · E use · esc pause</div>
 
-  <script type="module" src="falo3d-2/game.js?v=c849ddd5cb"></script>
+  <script type="module" src="falo3d-2/game.js?v=3e37415611"></script>
 </body>
 </html>

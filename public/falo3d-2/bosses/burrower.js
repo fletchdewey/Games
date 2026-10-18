@@ -22,7 +22,7 @@
 // Nothing here moves. The brain is in burrower_ai.js.
 
 import * as THREE from 'three';
-import { PALETTE } from '../shared/materials.js?v=c849ddd5cb';
+import { PALETTE } from '../shared/materials.js?v=3e37415611';
 
 export const SHAPE = {
   length: 11,        // nose to tail, in units

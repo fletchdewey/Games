@@ -141,6 +141,51 @@ export function classById(id) {
   return CLASSES.find((c) => c.id === id) || CLASSES[0];
 }
 
+// ─── HOW HARD ───────────────────────────────────────────────
+// Three knobs, because three is enough to change how a fight goes and few
+// enough that you can predict what picking one will do:
+//
+//   incoming  what everything hits YOU for
+//   health    your class's health, scaled
+//   enemyHp   what everything else is made of
+//
+// Nothing here touches how the aliens think. A harder game is one where the
+// same creature behaving the same way is more dangerous — not one where it
+// suddenly gets cleverer, which would make the difficulty a different game
+// rather than the same game turned up.
+export const DIFFICULTIES = [
+  { id: 'easy', name: 'EASY',
+    note: 'They hit softer and die quicker. You have more to give.',
+    incoming: 0.5, health: 1.3, enemyHp: 0.75 },
+  { id: 'normal', name: 'NORMAL',
+    note: 'The game as it is meant to be played.',
+    incoming: 1, health: 1, enemyHp: 1 },
+  { id: 'hard', name: 'HARD',
+    note: 'Everything hits most of twice as hard and takes more killing.',
+    incoming: 1.7, health: 0.85, enemyHp: 1.3 },
+  { id: 'impossible', name: 'IMPOSSIBLE',
+    note: 'Three times the damage coming in, and you are made of paper.',
+    incoming: 3, health: 0.7, enemyHp: 1.8 },
+];
+
+export function difficultyById(id) {
+  return DIFFICULTIES.find((d) => d.id === id) || DIFFICULTIES[1];
+}
+
+const DIFF_KEY = 'falo3d2.difficulty';
+
+export function savedDifficulty() {
+  try {
+    return difficultyById(localStorage.getItem(DIFF_KEY) || 'normal');
+  } catch (e) {
+    return difficultyById('normal');
+  }
+}
+
+export function saveDifficulty(id) {
+  try { localStorage.setItem(DIFF_KEY, id); } catch (e) { /* no save, no matter */ }
+}
+
 // ─── WHAT YOU HAVE FINISHED ─────────────────────────────────
 // Kept in the browser, because it has to outlive the page: beating the game
 // as all three is the only way to the Commander, and nobody is doing that in

@@ -30,7 +30,9 @@ import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killB
 // === Player ===
 import { createController, updateController } from './player/controller.js';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
-         commanderUnlocked, stillNeeded } from './player/classes.js';
+         commanderUnlocked, stillNeeded,
+         DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
+  from './player/classes.js';
 
 // === The one on your side ===
 import { buildSoldier } from './npc/soldier.js';
@@ -334,7 +336,7 @@ function placeAlien(aliens, scene, reg, plan, x, z) {
   aliens.push({
     model, ai, type: plan.type, reg,
     room: plan.room,          // used to park aliens in rooms you're not in
-    hp: reg.hp, maxHp: reg.hp,
+    hp: enemyHp(reg.hp), maxHp: enemyHp(reg.hp),
     alive: true, gone: false, flashTimer: 0, deathTimer: 0,
     spawnPos: new THREE.Vector3(x, reg.baseY, z),
     attackTimer: reg.attackCD * (0.5 + Math.random()),
@@ -960,6 +962,13 @@ function clearShot(from, to) {
 }
 
 let gun = createGun(camera, 'assault');
+
+// Declared here rather than down with the rest of the player's state,
+// because spawnAliens() below asks how hard the game is in order to decide
+// how much health to give each alien — and a `let` read before its own line
+// is not undefined, it throws.
+let difficulty = savedDifficulty();
+
 const aliens = spawnAliens(scene);
 const boss = BOSS_ENABLED ? spawnBoss(scene) : null;
 const raycaster = new THREE.Raycaster();
@@ -1057,6 +1066,11 @@ function updateHUD() {
 }
 
 /** Put the chosen class into effect. Called when a run begins. */
+/** How much of a thing there is to shoot through, at this difficulty. */
+function enemyHp(base) {
+  return Math.max(1, Math.round(base * difficulty.enemyHp));
+}
+
 /** What one round takes off, weapon and class together. */
 function shotDamage() {
   return (gun.weapon.damage || 1) * (playerClass.damageMul || 1);
@@ -1065,7 +1079,7 @@ function shotDamage() {
 function applyClass() {
   const w = playerClass.id === 'commander' ? commanderWeapon : playerClass.weapon;
   swapGun(w);
-  playerHpMax = playerClass.hp;
+  playerHpMax = Math.max(1, Math.round(playerClass.hp * difficulty.health));
   playerHp = playerHpMax;
   shotCooldown = 0;
   updateHUD();
@@ -1075,7 +1089,10 @@ function damagePlayer(amount) {
   // Belt and braces: every caller is already behind worldIsLive(), but this
   // is the one function that can actually hurt you, so it checks too.
   if (!worldIsLive()) return;
-  playerHp = Math.max(0, playerHp - amount);
+  // One place for the difficulty to bite: every alien, every boss, the
+  // vacuum and the floor tentacles all arrive here.
+  const taken = Math.max(1, Math.round(amount * difficulty.incoming));
+  playerHp = Math.max(0, playerHp - taken);
   dmgFlashTimer = 0.3;
   dmgFlashEl.style.opacity = '1';
   updateHUD();
@@ -1138,6 +1155,9 @@ function resetRun() {
     a.model = model;
     a.alive = true;
     a.gone = false;
+    // Re-read rather than reused: the difficulty may have changed since
+    // these were built, and maxHp was fixed at the old one.
+    a.maxHp = enemyHp(a.reg.hp);
     a.hp = a.maxHp;
     a.deathTimer = 0;
     a.flashTimer = 0;
@@ -1223,6 +1243,7 @@ function quitToTitle() {
   resetRun();
   started = false;         // back to a station that is standing still
   drawClassPicker();       // in case this run unlocked something
+  drawDifficulty();
   deathScreen.style.display = 'none';
   startOverlay.style.display = 'flex';
 }
@@ -1605,6 +1626,30 @@ function updateBoss(dt) {
 // can change between runs — finish as the last of the three and the
 // Commander is waiting the moment you come back to this screen.
 const classPickerEl = document.getElementById('class-picker');
+const difficultyRowEl = document.getElementById('difficulty-row');
+const difficultyNoteEl = document.getElementById('difficulty-note');
+
+function drawDifficulty() {
+  difficultyRowEl.innerHTML = '';
+  for (const d of DIFFICULTIES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = d.name;
+    if (difficulty.id === d.id) b.className = 'picked';
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();           // the overlay itself starts the game
+      difficulty = d;
+      saveDifficulty(d.id);
+      // Health and the aliens' health both move, so the run has to be
+      // rebuilt rather than just re-labelled.
+      resetRun();
+      drawDifficulty();
+      drawClassPicker();
+    });
+    difficultyRowEl.appendChild(b);
+  }
+  difficultyNoteEl.textContent = difficulty.note;
+}
 const weaponPickEl = document.getElementById('weapon-pick');
 
 function drawClassPicker() {
@@ -1660,6 +1705,7 @@ function drawClassPicker() {
   }
 }
 drawClassPicker();
+drawDifficulty();
 
 // ─── START ──────────────────────────────────────────────────
 startOverlay.addEventListener('click', () => {
@@ -1902,8 +1948,11 @@ function gameLoop(now) {
           // Boss hit — its meshes carry a hitPart tag saying which bit of it
           // was shot. hits[0].point is the exact impact, so blood comes out
           // of the hole rather than the middle of whatever was hit.
+          // A boss's health is set inside its own module, so instead of
+          // reaching in to change it, the bullet is worth less. From the
+          // player's side those are the same thing.
           boss.kind.hit(boss.model, hitObj.userData.hitPart, hits[0].point,
-                        boss.kind.bullet * shotDamage());
+                        boss.kind.bullet * shotDamage() / difficulty.enemyHp);
         } else {
           for (const alien of aliens) {
             let found = false;
