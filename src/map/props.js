@@ -11,7 +11,7 @@
 // a metre. The helicopter is sized as a real one would be — ~13 long.
 
 import * as THREE from 'three';
-import { roomIdAt, worldToCell, WALL_HEIGHT as WALL_H,
+import { roomIdAt, worldToCell, isFloorAt, WALL_HEIGHT as WALL_H,
          SURFACE_WHITE } from './grid_map.js';
 // Specimens for the pods room. These come from workshop_models.js — the
 // current models, straight out of the Alien Workshop — not from the older
@@ -4288,4 +4288,275 @@ export function updateSpaceDoor(door, dt) {
   d.openAmount = Math.min(1, d.openAmount + dt * 0.35);
   const e = d.openAmount * d.openAmount * (3 - 2 * d.openAmount);
   for (const l of d.leaves) l.group.position.x = l.side * e * d.travel;
+}
+
+// ─── PHOTOGRAPHS ────────────────────────────────────────────
+//
+// FLETCHER'S GUIDE:
+// Framed pictures on the walls of every room: the people who lived here,
+// doing the things people do. Fighting, eating, training, standing about
+// having their photo taken.
+//
+// There are no textures in this game, so a photograph has to be BUILT — each
+// one is a little flat diorama of coloured boxes standing a few millimetres
+// off a backing board. Drawn small and seen from across a room that reads as
+// a picture, which is all it has to do.
+//
+// Everything is in picture space: x and y from 0 to 1 across the frame, so a
+// scene can be written down once and then hung at any size.
+const PIC = {
+  sepia:  0xb9a888,     // the paper
+  ink:    0x3b332a,     // figures
+  inkLt:  0x6d6050,     // figures further back
+  frame:  0x4a4036,
+  glass:  0x2b2721,
+  flash:  0xe8c87a,     // muzzle flare
+  alien:  0x2f3a30,
+  table:  0x6b5a44,
+  metal:  0x7c7a72,
+};
+
+/**
+ * A person in picture space, standing about 0.42 of the frame's height.
+ *
+ * The first version drew them at a sixth of that and the pictures read as
+ * blank sepia rectangles from anywhere but nose-to-the-glass. A figure in a
+ * photograph on a wall has to be a large fraction of the photograph or there
+ * is no picture, only a frame.
+ */
+function picFigure(out, x, y, s, col, pose = 'stand') {
+  const H = 0.42 * s;            // head to foot
+  const bw = 0.09 * s;           // shoulders
+  const hd = 0.085 * s;          // head
+  const legH = H * 0.38, torsoH = H * 0.4;
+
+  if (pose === 'sit') {
+    out.push({ x, y: y + torsoH * 0.5, w: bw, h: torsoH, c: col });
+    out.push({ x, y: y + torsoH + hd * 0.55, w: hd, h: hd, c: col });
+    out.push({ x: x + bw * 0.95, y: y - legH * 0.1, w: bw * 1.5, h: bw * 0.55, c: col });
+    return;
+  }
+  if (pose === 'press') {        // flat out, arms under
+    out.push({ x, y: y + bw * 0.5, w: H * 0.82, h: bw * 0.62, c: col });
+    out.push({ x: x - H * 0.44, y: y + bw * 0.75, w: hd, h: hd, c: col });
+    for (const ox of [-H * 0.2, H * 0.2]) {
+      out.push({ x: x + ox, y: y + bw * 0.1, w: bw * 0.42, h: bw * 0.8, c: col });
+    }
+    return;
+  }
+
+  // Legs, torso, head — the shared spine of every upright pose.
+  out.push({ x: x - bw * 0.26, y: y + legH * 0.5, w: bw * 0.36, h: legH, c: col });
+  out.push({ x: x + bw * 0.26, y: y + legH * 0.5, w: bw * 0.36, h: legH, c: col });
+  out.push({ x, y: y + legH + torsoH * 0.5, w: bw, h: torsoH, c: col });
+  out.push({ x, y: y + legH + torsoH + hd * 0.55, w: hd, h: hd, c: col });
+
+  const shoulderY = y + legH + torsoH * 0.82;
+  if (pose === 'star') {         // arms out and up
+    for (const sdir of [-1, 1]) {
+      out.push({ x: x + sdir * bw * 0.92, y: shoulderY + torsoH * 0.22,
+                 w: bw * 0.9, h: bw * 0.34, c: col });
+    }
+  } else if (pose === 'aim') {   // both arms forward, holding something
+    out.push({ x: x + bw * 0.95, y: shoulderY, w: bw * 1.0, h: bw * 0.34, c: col });
+  } else if (pose === 'crouch') {
+    out.push({ x: x + bw * 0.9, y: shoulderY - torsoH * 0.1,
+               w: bw * 0.95, h: bw * 0.32, c: col });
+  } else {                       // arms down by the sides
+    for (const sdir of [-1, 1]) {
+      out.push({ x: x + sdir * bw * 0.72, y: y + legH + torsoH * 0.42,
+                 w: bw * 0.3, h: torsoH * 0.82, c: col });
+    }
+  }
+}
+
+/** A rifle held out level, from a figure at x. */
+function picRifle(out, x, y, s, col) {
+  out.push({ x: x + 0.14 * s, y, w: 0.2 * s, h: 0.022 * s, c: col });
+}
+
+const PIC_SCENES = {
+  // Two of them firing at something coming out of the dark.
+  fighting(out) {
+    out.push({ x: 0.5, y: 0.1, w: 1.0, h: 0.2, c: PIC.inkLt });          // ground
+    picFigure(out, 0.2, 0.2, 1.0, PIC.ink, 'aim');
+    picRifle(out, 0.2, 0.47, 1.0, PIC.ink);
+    picFigure(out, 0.42, 0.2, 1.0, PIC.ink, 'aim');
+    picRifle(out, 0.42, 0.47, 1.0, PIC.ink);
+    out.push({ x: 0.62, y: 0.47, w: 0.07, h: 0.045, c: PIC.flash });
+    out.push({ x: 0.4, y: 0.47, w: 0.06, h: 0.04, c: PIC.flash });
+    // The thing they are shooting at.
+    out.push({ x: 0.84, y: 0.36, w: 0.26, h: 0.14, c: PIC.alien });
+    for (const lx of [0.73, 0.8, 0.88, 0.95]) {
+      out.push({ x: lx, y: 0.22, w: 0.022, h: 0.17, c: PIC.alien });
+    }
+    out.push({ x: 0.79, y: 0.4, w: 0.035, h: 0.035, c: 0xa8302a });      // eye
+  },
+
+  // Mess table.
+  eating(out) {
+    out.push({ x: 0.5, y: 0.3, w: 0.84, h: 0.055, c: PIC.table });       // top
+    out.push({ x: 0.14, y: 0.17, w: 0.045, h: 0.21, c: PIC.table });
+    out.push({ x: 0.86, y: 0.17, w: 0.045, h: 0.21, c: PIC.table });
+    picFigure(out, 0.26, 0.3, 0.92, PIC.ink, 'sit');
+    picFigure(out, 0.52, 0.3, 0.92, PIC.ink, 'sit');
+    picFigure(out, 0.78, 0.3, 0.92, PIC.ink, 'sit');
+    for (const px of [0.3, 0.56, 0.82]) {
+      out.push({ x: px, y: 0.335, w: 0.08, h: 0.022, c: PIC.sepia });    // trays
+    }
+  },
+
+  // Drill, in a line.
+  training(out) {
+    out.push({ x: 0.5, y: 0.1, w: 1.0, h: 0.2, c: PIC.inkLt });
+    picFigure(out, 0.17, 0.2, 0.95, PIC.ink, 'star');
+    picFigure(out, 0.39, 0.2, 0.95, PIC.ink, 'stand');
+    picFigure(out, 0.61, 0.2, 0.95, PIC.ink, 'star');
+    picFigure(out, 0.83, 0.2, 0.95, PIC.ink, 'stand');
+  },
+
+  // Press-ups, watched by the one counting.
+  pressups(out) {
+    out.push({ x: 0.5, y: 0.1, w: 1.0, h: 0.2, c: PIC.inkLt });
+    picFigure(out, 0.3, 0.2, 1.05, PIC.ink, 'press');
+    picFigure(out, 0.3, 0.42, 1.05, PIC.ink, 'press');
+    picFigure(out, 0.82, 0.2, 1.0, PIC.ink, 'stand');
+  },
+
+  // The squad, lined up for the camera.
+  squad(out) {
+    out.push({ x: 0.5, y: 0.09, w: 1.0, h: 0.18, c: PIC.inkLt });
+    let x = 0.16;
+    for (let i = 0; i < 4; i++) {
+      picFigure(out, x, 0.18, i === 1 ? 1.06 : 0.96, PIC.ink, 'stand');
+      x += 0.23;
+    }
+  },
+
+  // On shift at the consoles.
+  console(out) {
+    out.push({ x: 0.5, y: 0.74, w: 0.9, h: 0.34, c: PIC.inkLt });        // bank
+    for (let i = 0; i < 4; i++) {
+      out.push({ x: 0.18 + i * 0.215, y: 0.75, w: 0.16, h: 0.26, c: PIC.glass });
+    }
+    out.push({ x: 0.5, y: 0.3, w: 0.94, h: 0.07, c: PIC.table });        // desk
+    picFigure(out, 0.3, 0.3, 0.95, PIC.ink, 'stand');
+    picFigure(out, 0.68, 0.3, 0.95, PIC.ink, 'stand');
+  },
+
+  // The station from outside, before any of this.
+  station(out) {
+    out.push({ x: 0.5, y: 0.5, w: 1.0, h: 1.0, c: PIC.glass });
+    out.push({ x: 0.48, y: 0.47, w: 0.66, h: 0.16, c: PIC.metal });
+    out.push({ x: 0.26, y: 0.47, w: 0.14, h: 0.36, c: PIC.metal });
+    out.push({ x: 0.72, y: 0.47, w: 0.14, h: 0.28, c: PIC.metal });
+    out.push({ x: 0.48, y: 0.66, w: 0.1, h: 0.14, c: PIC.metal });
+    for (const [sx, sy] of [[0.12,0.84],[0.3,0.76],[0.84,0.86],[0.9,0.62],
+                            [0.16,0.18],[0.74,0.14],[0.5,0.9],[0.62,0.26]]) {
+      out.push({ x: sx, y: sy, w: 0.022, h: 0.022, c: PIC.sepia });
+    }
+  },
+};
+
+/**
+ * One framed picture, hung flat on a wall.
+ * `face` is the direction it looks out in: 'x+', 'x-', 'z+', 'z-'.
+ */
+export function buildWallPicture(parent, { x, y, z, face, kind, w = 1.5 }) {
+  const g = new THREE.Group();
+  const h = w * 0.72;
+  const shapes = [];
+  (PIC_SCENES[kind] || PIC_SCENES.squad)(shapes);
+
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(w + 0.08, h + 0.08, 0.05),
+    new THREE.MeshLambertMaterial({ color: PIC.frame })));
+  const paper = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
+    new THREE.MeshLambertMaterial({ color: PIC.sepia }));
+  paper.position.z = 0.027;
+  g.add(paper);
+
+  // Everything in the scene, merged by colour so one picture is a handful of
+  // draw calls rather than forty.
+  const byColour = new Map();
+  for (const s of shapes) {
+    if (!byColour.has(s.c)) byColour.set(s.c, []);
+    byColour.get(s.c).push(s);
+  }
+  let depth = 0.03;
+  for (const [col, list] of byColour) {
+    const verts = [];
+    for (const s of list) {
+      pushBox(verts, (s.x - 0.5) * w, (s.y - 0.5) * h, depth,
+              s.w * w, s.h * h, 0.004);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.computeVertexNormals();
+    g.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: col })));
+    depth += 0.0015;                       // so coplanar colours can't z-fight
+  }
+
+  g.position.set(x, y, z);
+  g.rotation.y = face === 'x+' ? Math.PI / 2 : face === 'x-' ? -Math.PI / 2
+               : face === 'z-' ? Math.PI : 0;
+  parent.add(g);
+  return g;
+}
+
+/**
+ * Hang pictures round a room, on walls that actually exist.
+ *
+ * The rooms are irregular — painted cell by cell in the Map Editor — so the
+ * bounding box is a poor guide to where the walls are. Rather than writing
+ * down twenty positions by hand and getting several of them wrong, this
+ * walks the room's floor and finds every cell edge where the floor stops.
+ * That edge IS a wall, and the picture faces back into the room.
+ *
+ * `avoid` is a list of {x, z, r} to keep clear of: the big window, the
+ * attack board, the launch door — the walls that are already something.
+ */
+export function hangPictures(scene, room, kinds, opts = {}) {
+  const group = new THREE.Group();
+  const CS = 2, EPS = 0.06;
+  const avoid = opts.avoid || [];
+  const y = opts.y === undefined ? 2.05 : opts.y;
+  const minApart = opts.minApart === undefined ? 4.5 : opts.minApart;
+  const rand = rng(opts.seed || 7781);
+
+  const spots = [];
+  for (let x = room.x0 + CS / 2; x < room.x1; x += CS) {
+    for (let z = room.z0 + CS / 2; z < room.z1; z += CS) {
+      if (!isFloorAt(x, z)) continue;
+      const sides = [
+        [!isFloorAt(x - CS, z), x - CS / 2 + EPS, z, 'x+'],
+        [!isFloorAt(x + CS, z), x + CS / 2 - EPS, z, 'x-'],
+        [!isFloorAt(x, z - CS), x, z - CS / 2 + EPS, 'z+'],
+        [!isFloorAt(x, z + CS), x, z + CS / 2 - EPS, 'z-'],
+      ];
+      for (const [isWall, wx, wz, face] of sides) {
+        if (!isWall) continue;
+        if (avoid.some((a) => Math.hypot(wx - a.x, wz - a.z) < a.r)) continue;
+        spots.push({ x: wx, z: wz, face, k: rand() });
+      }
+    }
+  }
+
+  // Spread them out rather than clustering three in one corner.
+  spots.sort((a, b) => a.k - b.k);
+  const chosen = [];
+  for (const s of spots) {
+    if (chosen.length >= kinds.length) break;
+    if (chosen.some((c) => Math.hypot(c.x - s.x, c.z - s.z) < minApart)) continue;
+    chosen.push(s);
+  }
+
+  chosen.forEach((s, i) => {
+    buildWallPicture(group, { x: s.x, y, z: s.z, face: s.face,
+                              kind: kinds[i % kinds.length],
+                              w: opts.w || 1.5 });
+  });
+
+  group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
+  scene.add(group);
+  return { group, hung: chosen.length, wanted: kinds.length };
 }

@@ -18,42 +18,42 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=857f4c18ef';
+import { PALETTE, getMaterial } from './shared/materials.js?v=0182a20fc6';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=857f4c18ef';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=857f4c18ef';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=0182a20fc6';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=0182a20fc6';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=857f4c18ef';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=857f4c18ef';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=0182a20fc6';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=0182a20fc6';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=857f4c18ef';
+import { createController, updateController } from './player/controller.js?v=0182a20fc6';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=857f4c18ef';
+import { buildSoldier } from './npc/soldier.js?v=0182a20fc6';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=857f4c18ef';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=0182a20fc6';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=857f4c18ef';
-import { createSwarm } from './bosses/swarm.js?v=857f4c18ef';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=857f4c18ef';
-import { createTwins } from './bosses/twins.js?v=857f4c18ef';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=857f4c18ef';
-import { createBurrower } from './bosses/burrower.js?v=857f4c18ef';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=0182a20fc6';
+import { createSwarm } from './bosses/swarm.js?v=0182a20fc6';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=0182a20fc6';
+import { createTwins } from './bosses/twins.js?v=0182a20fc6';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=0182a20fc6';
+import { createBurrower } from './bosses/burrower.js?v=0182a20fc6';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=857f4c18ef';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=0182a20fc6';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=857f4c18ef';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=0182a20fc6';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=857f4c18ef';
+  from './map/grid_map.js?v=0182a20fc6';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -61,8 +61,8 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildAlienBoard, buildAlienPods, prisonBrokenCell,
          buildEscapePod, setEscapePodUnlocked, updateEscapePod,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
-         buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=857f4c18ef';
+         buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=0182a20fc6';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -662,6 +662,37 @@ buildAlienBoard(scene, ALIEN_BOARD);
 const secretRoom = buildSecretRoom(scene, { x: 160, z: -60 });
 walls.push(...secretRoom.walls);
 propColliders.push(...secretRoom.colliders);
+
+// ─── PHOTOGRAPHS ────────────────────────────────────────────
+// The people who were here, on the walls of every room. Each room gets the
+// pictures that suit it — drill in the outposts, the mess in the prison
+// block, the squad in the Hangar — and the spots are found by walking the
+// room's own floor for edges where it stops, because the rooms are painted
+// cell by cell and their bounding boxes are a poor guide to where the walls
+// actually are.
+//
+// `avoid` keeps them off the walls that are already something: the Control
+// Room's window and its launch door, the armory's attack board, the pods
+// room's study screen.
+const PICTURE_PLAN = [
+  ['room1', ['squad', 'station', 'fighting', 'eating'], []],
+  ['room2', ['training', 'fighting'], []],
+  ['room3', ['pressups', 'squad'], []],
+  ['room4', ['fighting', 'training'], []],
+  ['room5', ['squad', 'pressups', 'fighting'],          // armory
+    [{ x: 3.88, z: -24.5, r: 4.0 }]],                   // the attack board
+  ['room6', ['eating', 'squad'], []],                   // prison block
+  ['room7', ['training', 'station'], []],
+  ['room8', ['console', 'squad'],                       // alien pods
+    [{ x: -12, z: -12, r: 6.0 }]],                      // the study screen wall
+  ['room9', ['console', 'squad', 'station'],            // control room
+    [{ x: 56, z: 8, r: 16.0 },                          // the window + desk
+     { x: 43, z: -4, r: 9.0 }]],                        // the launch door
+];
+for (const [id, kinds, avoid] of PICTURE_PLAN) {
+  const rm = ROOMS.find((r) => r.id === id);
+  if (rm) hangPictures(scene, rm, kinds, { avoid, seed: 3300 + id.length * 7 });
+}
 
 // ─── THE SOLDIER ────────────────────────────────────────────
 // Tied up against the back wall of the hidden room, which is the only reason

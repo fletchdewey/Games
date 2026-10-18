@@ -61,7 +61,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildAlienBoard, buildAlienPods, prisonBrokenCell,
          buildEscapePod, setEscapePodUnlocked, updateEscapePod,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
-         buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor,
+         buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          buildStudyScreen, buildControlRoom } from './map/props.js';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
@@ -662,6 +662,37 @@ buildAlienBoard(scene, ALIEN_BOARD);
 const secretRoom = buildSecretRoom(scene, { x: 160, z: -60 });
 walls.push(...secretRoom.walls);
 propColliders.push(...secretRoom.colliders);
+
+// ─── PHOTOGRAPHS ────────────────────────────────────────────
+// The people who were here, on the walls of every room. Each room gets the
+// pictures that suit it — drill in the outposts, the mess in the prison
+// block, the squad in the Hangar — and the spots are found by walking the
+// room's own floor for edges where it stops, because the rooms are painted
+// cell by cell and their bounding boxes are a poor guide to where the walls
+// actually are.
+//
+// `avoid` keeps them off the walls that are already something: the Control
+// Room's window and its launch door, the armory's attack board, the pods
+// room's study screen.
+const PICTURE_PLAN = [
+  ['room1', ['squad', 'station', 'fighting', 'eating'], []],
+  ['room2', ['training', 'fighting'], []],
+  ['room3', ['pressups', 'squad'], []],
+  ['room4', ['fighting', 'training'], []],
+  ['room5', ['squad', 'pressups', 'fighting'],          // armory
+    [{ x: 3.88, z: -24.5, r: 4.0 }]],                   // the attack board
+  ['room6', ['eating', 'squad'], []],                   // prison block
+  ['room7', ['training', 'station'], []],
+  ['room8', ['console', 'squad'],                       // alien pods
+    [{ x: -12, z: -12, r: 6.0 }]],                      // the study screen wall
+  ['room9', ['console', 'squad', 'station'],            // control room
+    [{ x: 56, z: 8, r: 16.0 },                          // the window + desk
+     { x: 43, z: -4, r: 9.0 }]],                        // the launch door
+];
+for (const [id, kinds, avoid] of PICTURE_PLAN) {
+  const rm = ROOMS.find((r) => r.id === id);
+  if (rm) hangPictures(scene, rm, kinds, { avoid, seed: 3300 + id.length * 7 });
+}
 
 // ─── THE SOLDIER ────────────────────────────────────────────
 // Tied up against the back wall of the hidden room, which is the only reason

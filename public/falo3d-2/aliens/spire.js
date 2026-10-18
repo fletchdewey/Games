@@ -21,9 +21,9 @@
 // it panics and slashes, but it's weaker there.
 
 import * as THREE from 'three';
-import { PALETTE, getMaterial } from '../shared/materials.js?v=857f4c18ef';
-import { buildLegChain } from '../shared/geometry.js?v=857f4c18ef';
-import { createBehaviorSpec } from '../shared/behavior.js?v=857f4c18ef';
+import { PALETTE, getMaterial } from '../shared/materials.js?v=0182a20fc6';
+import { buildLegChain } from '../shared/geometry.js?v=0182a20fc6';
+import { createBehaviorSpec } from '../shared/behavior.js?v=0182a20fc6';
 
 
 // ─── 1. GEOMETRY ────────────────────────────────────────────────
