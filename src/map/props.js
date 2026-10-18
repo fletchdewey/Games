@@ -4060,3 +4060,131 @@ export function updateLockedDoor(door, dt) {
 export function lockedDoorIsOpen(door) {
   return door.group.userData.openAmount >= 1;
 }
+
+// ─── THE ROOM BEHIND THE BOARD ──────────────────────────────
+//
+// FLETCHER'S GUIDE:
+// A room that is not on the map. The station's floor is baked from the grid
+// you paint in the Map Editor, so a room that is deliberately not in that
+// grid has no floor, no walls and no name — it has to bring its own.
+//
+// That turns out to be the easy way to do a secret: rather than cutting a
+// hole in the station and hoping nobody walks into it by accident, the room
+// is built somewhere nothing else will ever be, and the only way in is the
+// one we choose. Walk the whole station and you will never find its door,
+// because it hasn't got one.
+//
+// It returns its own wall segments for the caller to push into the level's
+// collision list. Without them you would walk straight out into the dark.
+export function buildSecretRoom(scene, at, seed = 4413) {
+  const rand = rng(seed);
+  const group = new THREE.Group();
+  group.position.set(at.x, 0, at.z);
+
+  const W = 11, D = 9, H = 3.4;                 // lower than the station: tight
+  const x0 = -W / 2, x1 = W / 2, z0 = -D / 2, z1 = D / 2;
+
+  // Lighter than they look right, because out here there is nothing but the
+  // station's thin ambient and this room's one bulb — the grid's ceiling
+  // lamps only exist over painted floor, and this floor was never painted.
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0x9aa0a6 });
+  const trimMat = new THREE.MeshLambertMaterial({ color: 0x575f66 });
+  const floorMat = new THREE.MeshLambertMaterial({ color: 0x8a8f94 });
+
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  group.add(floor);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, D), trimMat);
+  ceil.rotation.x = Math.PI / 2;
+  ceil.position.y = H;
+  group.add(ceil);
+
+  // Four walls, drawn and solid. The solid half goes back to the caller.
+  const slabs = [[0, z0, W, 0.2], [0, z1, W, 0.2]];
+  for (const [cx, cz, w, d] of slabs) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, H, d), wallMat);
+    m.position.set(cx, H / 2, cz);
+    group.add(m);
+  }
+  for (const cx of [x0, x1]) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.2, H, D), wallMat);
+    m.position.set(cx, H / 2, 0);
+    group.add(m);
+  }
+  // Ribs, so the walls aren't four blank slabs.
+  for (let i = 1; i < 5; i++) {
+    for (const cz of [z0 + 0.14, z1 - 0.14]) {
+      const rib = new THREE.Mesh(new THREE.BoxGeometry(0.12, H, 0.06), trimMat);
+      rib.position.set(x0 + (W / 5) * i, H / 2, cz);
+      group.add(rib);
+    }
+  }
+
+  // One caged lamp, and it is the only light in here.
+  const cage = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.2, 8), trimMat);
+  cage.position.set(0, H - 0.18, 0);
+  group.add(cage);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xffe9b0 }));
+  bulb.position.set(0, H - 0.34, 0);
+  group.add(bulb);
+  const lamp = new THREE.PointLight(0xffe2a0, 2.2, 22, 1.1);
+  lamp.position.set(0, H - 0.5, 0);
+  group.add(lamp);
+  // A second, dimmer one down the far end, or the hatch sits in the dark.
+  const fill = new THREE.PointLight(0xdfe6f0, 0.8, 14, 1.3);
+  fill.position.set(x0 + 2.4, H - 0.9, 0);
+  group.add(fill);
+
+  // Crates and a footlocker, shoved against the walls.
+  const colliders = [];
+  for (const [cx, cz, cw, ch, cd, rot] of [
+    [x0 + 1.3, z0 + 1.1, 1.0, 0.8, 0.9, 0.2],
+    [x0 + 1.1, z0 + 2.3, 0.8, 0.6, 0.8, -0.4],
+    [x1 - 1.4, z1 - 1.2, 1.2, 0.7, 0.9, 0.35],
+  ]) {
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(cw, ch, cd), M.crateMetal());
+    crate.position.set(cx, ch / 2, cz);
+    crate.rotation.y = rot;
+    group.add(crate);
+    colliders.push({ x: at.x + cx, z: at.z + cz, r: Math.max(cw, cd) * 0.6 });
+  }
+
+  // Scratches, low down. Something was kept in here before he was.
+  for (let i = 0; i < 9; i++) {
+    const s = new THREE.Mesh(
+      new THREE.BoxGeometry(0.03, 0.26 + rand() * 0.4, 0.02),
+      new THREE.MeshBasicMaterial({ color: 0x2a2320 }));
+    s.position.set(x1 - 0.12, 0.5 + rand() * 0.9, z0 + 1.4 + i * 0.55);
+    s.rotation.z = (rand() - 0.5) * 0.5;
+    group.add(s);
+  }
+
+  // The way out: a hatch in the far wall, lit so you can find it.
+  const hatch = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.0, 1.3), trimMat);
+  hatch.position.set(x0 + 0.12, 1.0, 0);
+  group.add(hatch);
+  const hatchLamp = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 5),
+    new THREE.MeshBasicMaterial({ color: 0x44ff88 }));
+  hatchLamp.position.set(x0 + 0.24, 2.2, 0);
+  group.add(hatchLamp);
+
+  group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
+  scene.add(group);
+
+  return {
+    group,
+    // Pushed into the level's wall list by the caller, or you walk out of it.
+    walls: [
+      { axis: 'z', pos: at.z + z0, min: at.x + x0, max: at.x + x1 },
+      { axis: 'z', pos: at.z + z1, min: at.x + x0, max: at.x + x1 },
+      { axis: 'x', pos: at.x + x0, min: at.z + z0, max: at.z + z1 },
+      { axis: 'x', pos: at.x + x1, min: at.z + z0, max: at.z + z1 },
+    ],
+    colliders,
+    // Where you land coming in, and where you stand to leave.
+    arrive: { x: at.x + x1 - 1.6, z: at.z },
+    exit: { x: at.x + x0 + 1.4, z: at.z },
+    bounds: { x0: at.x + x0, x1: at.x + x1, z0: at.z + z0, z1: at.z + z1 },
+  };
+}

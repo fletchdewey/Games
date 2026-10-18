@@ -52,7 +52,19 @@ V2_OUT=public/falo3d-2
 rm -rf "$V2_OUT"
 mkdir -p "$V2_OUT"
 cp "$V2_SRC/game.js" "$V2_OUT/game.js"
-cp -R "$V2_SRC/aliens" "$V2_SRC/bosses" "$V2_SRC/map" "$V2_SRC/player" "$V2_SRC/shared" "$V2_OUT/"
+# Every source folder EXCEPT falo3d, which is v1 and gets concatenated into
+# its own single file above. This used to be a hand-written list of five
+# directories, and adding a sixth shipped a build whose game.js imported a
+# module that was never copied — the whole game failed to load, with nothing
+# in the console but "failed to fetch dynamically imported module".
+for d in "$V2_SRC"/*/; do
+  name=$(basename "$d")
+  [ "$name" = "falo3d" ] && continue
+  # The trailing slash matters: cp -R "dir/" copies the CONTENTS, which
+  # flattens every module into the output root and breaks every relative
+  # import in the game. Strip it so the directory itself is copied.
+  cp -R "${d%/}" "$V2_OUT/"
+done
 cp "$V2_SRC/falo3d-2.html" public/falo3d-2.html
 find "$V2_OUT" -name '.DS_Store' -delete
 
@@ -76,7 +88,7 @@ echo "✓ Built falo3d-2 ($(find "$V2_OUT" -name '*.js' | wc -l | tr -d ' ') mod
 # === Build index.html from template ===
 GAMES=$(ls public/*.html 2>/dev/null | grep -cv 'index\.html' || echo 0)
 LINES=0
-for f in src/falo3d/* src/game.js src/aliens/* src/bosses/* src/map/* src/player/* src/shared/* public/falo.html; do
+for f in src/falo3d/* src/game.js src/*/*.js public/falo.html; do
   [ -f "$f" ] && LINES=$((LINES + $(wc -l < "$f")))
 done
 

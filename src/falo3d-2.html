@@ -167,6 +167,22 @@
   }
   #start-overlay .controls { font-size: 11px; color: #556; margin-top: 16px; line-height: 1.8; }
 
+  /* The soldier's health, under yours — he is the other thing you can lose. */
+  #soldier-hud {
+    display: none;
+    position: fixed; bottom: 30px; left: 50%;
+    transform: translateX(-50%);
+    width: 180px;
+    font-family: 'Courier New', monospace;
+    pointer-events: none; z-index: 11;
+  }
+  #soldier-hud .tag { font-size: 9px; color: #8a9a7a; letter-spacing: 2px; }
+  #soldier-hud .track {
+    height: 4px; background: rgba(0,0,0,0.45); border-radius: 2px;
+    margin-top: 2px; overflow: hidden;
+  }
+  #soldier-bar { height: 100%; width: 100%; background: #9ad46a; }
+
   #objective {
     position: fixed; top: 40px; right: 10px;
     font-family: 'Courier New', monospace;
@@ -293,6 +309,11 @@
         🎮 Xbox controller: left stick move · right stick look · A jump · RT shoot
       </div>
     </div>
+  </div>
+
+  <div id="soldier-hud">
+    <div class="tag">SOLDIER</div>
+    <div class="track"><div id="soldier-bar"></div></div>
   </div>
 
   <div id="objective">OUTPOSTS CLEARED 0/4</div>

@@ -30,6 +30,12 @@ import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killB
 // === Player ===
 import { createController, updateController } from './player/controller.js';
 
+// === The one on your side ===
+import { buildSoldier } from './npc/soldier.js';
+import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
+         soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
+         FX as SOLDIER_FX } from './npc/soldier_ai.js';
+
 // === Boss ===
 import { createPuppetMaster } from './bosses/puppet_master.js';
 import { createSwarm } from './bosses/swarm.js';
@@ -54,7 +60,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildHumanDebris, buildPrison, buildArmory,
          buildAlienBoard, buildAlienPods, prisonBrokenCell,
          buildEscapePod, setEscapePodUnlocked, updateEscapePod,
-         buildLockedDoor, setLockedDoorOpen, updateLockedDoor,
+         buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildStudyScreen, buildControlRoom } from './map/props.js';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
@@ -640,7 +646,97 @@ propColliders.push(...armory.colliders);
 // The board the aliens planned the helicopter ambush on, left up in the
 // armory. East wall, south of the lockers — the room's longest clear run.
 // rotY turns the board's face (+Z) to point back into the room, at -X.
-buildAlienBoard(scene, { x: 3.88, y: 1.85, z: -24.5, rotY: -Math.PI / 2 });
+const ALIEN_BOARD = { x: 3.88, y: 1.85, z: -24.5, rotY: -Math.PI / 2 };
+buildAlienBoard(scene, ALIEN_BOARD);
+
+// ─── THE ROOM BEHIND THE BOARD ──────────────────────────────
+// Built a long way from the station, because it is not part of it: the floor
+// out here is baked from the painted grid and this room is deliberately not
+// in it, so it brings its own floor, walls and light. Nothing can wander in.
+// The only way through is the jump, below.
+const secretRoom = buildSecretRoom(scene, { x: 160, z: -60 });
+walls.push(...secretRoom.walls);
+propColliders.push(...secretRoom.colliders);
+
+// ─── THE SOLDIER ────────────────────────────────────────────
+// Tied up against the back wall of the hidden room, which is the only reason
+// the room is worth finding.
+const soldier = buildSoldier();
+scene.add(soldier);
+// Against the far wall, clear of the crates — he was standing inside one,
+// and since everything that moves asks the level whether it may stand
+// somewhere, a man inside a crate cannot take a single step.
+const SOLDIER_SPOT = { x: secretRoom.bounds.x0 + 2.6,
+                       z: secretRoom.bounds.z1 - 1.6,
+                       rot: 2.1 };
+initSoldier(soldier, SOLDIER_SPOT);
+let soldierFreedAnnounced = false;
+
+// Where you were stood when you went through, so leaving puts you back.
+let cameFrom = null;
+
+/** Inside the hidden room? Used for the HUD name and for the way out. */
+function inSecretRoom() {
+  const b = secretRoom.bounds;
+  return ctrl.position.x > b.x0 && ctrl.position.x < b.x1 &&
+         ctrl.position.z > b.z0 && ctrl.position.z < b.z1;
+}
+
+/**
+ * Jumping into the attack board.
+ *
+ * The board is flat on the armory's east wall, so this is the patch of air
+ * in front of it. You have to be OFF THE FLOOR — walking into it does
+ * nothing, which is what keeps it a secret rather than a door you find by
+ * brushing past. The height is reachable: a standing jump peaks about 1.2
+ * above eye level and the gate is 0.4 above that floor.
+ */
+function atBoardJump() {
+  return ctrl.position.x > 3.2 &&
+         Math.abs(ctrl.position.z - ALIEN_BOARD.z) < 2.2 &&
+         ctrl.position.y > 2.0;
+}
+
+function enterSecretRoom() {
+  cameFrom = { x: 2.4, z: ALIEN_BOARD.z };
+  ctrl.position.set(secretRoom.arrive.x, 1.6, secretRoom.arrive.z);
+  ctrl.velocity.set(0, 0, 0);
+  ctrl.yaw = Math.PI / 2;          // facing back down the room
+  ctrl.pitch = 0;
+  bringSoldier(secretRoom.arrive.x, secretRoom.arrive.z);
+}
+
+function leaveSecretRoom() {
+  const back = cameFrom || { x: 2.4, z: ALIEN_BOARD.z };
+  ctrl.position.set(back.x, 1.6, back.z);
+  ctrl.velocity.set(0, 0, 0);
+  ctrl.yaw = -Math.PI / 2;         // looking at the board you came through
+  ctrl.pitch = 0;
+  bringSoldier(back.x, back.z);
+}
+
+/**
+ * He comes through with you.
+ *
+ * He walks toward you and nothing else, so without this he would set off
+ * across a hundred and fifty units of nothing trying to reach the armory,
+ * and you would never see him again. Teleporting is the honest answer: you
+ * both went through the board, and he was stood next to you when you did.
+ */
+function bringSoldier(x, z) {
+  if (!soldierIsFree(soldier) || soldierIsDown(soldier)) return;
+  // A step behind and to one side, rather than inside you.
+  const a = ctrl.yaw + Math.PI;
+  soldier.position.set(x + Math.sin(a) * 1.4, 0, z + Math.cos(a) * 1.4);
+  soldier.rotation.y = ctrl.yaw;
+}
+
+/** Stood at the hatch, ready to leave. */
+function atSecretExit() {
+  if (!inSecretRoom()) return false;
+  return Math.hypot(ctrl.position.x - secretRoom.exit.x,
+                    ctrl.position.z - secretRoom.exit.z) < 1.6;
+}
 
 // Outpost 4 — crates smashed open, their contents across the floor, and the
 // plate a Brute shed in the fight. Its crates block you like the Hangar's do.
@@ -827,6 +923,8 @@ const escapeAgainBtn = document.getElementById('escape-again');
 const escapeQuitBtn = document.getElementById('escape-quit');
 const usePromptEl = document.getElementById('use-prompt');
 const objectiveEl = document.getElementById('objective');
+const soldierHudEl = document.getElementById('soldier-hud');
+const soldierBarEl = document.getElementById('soldier-bar');
 const bossBannerTitleEl = document.getElementById('boss-banner-title');
 let deathCause = null;
 const startOverlay = document.getElementById('start-overlay');
@@ -942,6 +1040,14 @@ function resetRun() {
     if (bossHudEl) bossHudEl.style.display = 'none';
     if (bossBannerEl) bossBannerEl.style.display = 'none';
   }
+
+  // He is tied up again, back in the room, and you have to find him afresh.
+  initSoldier(soldier, SOLDIER_SPOT);
+  soldier.rotation.x = 0;
+  soldierFreedAnnounced = false;
+  if (soldierHudEl) soldierHudEl.style.display = 'none';
+  // And you are never left standing in the hidden room at the start of a run.
+  cameFrom = null;
 
   // The door is shut and bolted again, and its wall goes back into the level.
   outpostsClear = 0;
@@ -1083,6 +1189,94 @@ function checkOutposts() {
   }
 }
 
+/**
+ * The soldier, once a frame.
+ *
+ * Freeing him is a proximity check rather than a key: you walked into a
+ * hidden room and found a man tied to the floor, and stopping to press a
+ * button at him would be the wrong beat entirely.
+ *
+ * Everything he is allowed to know about the world is assembled here and
+ * handed over — which aliens are worth shooting, and whether he can see
+ * them. He reports a shot; the damage and the tracer are done out here,
+ * because that is where the aliens and the bullets live.
+ */
+function stepSoldier(dt, dtFrames) {
+  if (soldierIsDown(soldier)) { updateSoldier(soldier, null, dtFrames); return; }
+
+  if (!soldierIsFree(soldier)) {
+    const near = Math.hypot(ctrl.position.x - soldier.position.x,
+                            ctrl.position.z - soldier.position.z);
+    if (near < SOLDIER_FX.freeRange && releaseSoldier(soldier)) {
+      announce('CUT HIM LOOSE', 'He picks up his rifle and falls in behind you.');
+      soldierFreedAnnounced = true;
+    }
+    updateSoldier(soldier, { playerPos: ctrl.position, aliens: [] }, dtFrames);
+    updateSoldierHud();
+    return;
+  }
+
+  // Only what he could plausibly shoot: alive, not cleared away, and drawn.
+  const shootable = [];
+  for (const a of aliens) {
+    if (!a.alive || a.gone || !a.model.visible) continue;
+    shootable.push(a);
+  }
+
+  const event = updateSoldier(soldier, {
+    playerPos: ctrl.position,
+    aliens: shootable,
+    canSee: (from, to) => clearShot(
+      new THREE.Vector3(from.x, from.y + 1.3, from.z),
+      new THREE.Vector3(to.x, to.y + 0.4, to.z)),
+    blocked: (x, z) => hitsWall(x, z, 0.4),
+  }, dtFrames);
+
+  if (event && event.type === 'shot') {
+    bullets.push(createBullet(scene, event.from, event.to));
+    flashes.push(createFlash(scene, event.from));
+    const a = event.target;
+    if (a.alive && !a.gone) {
+      a.hp -= event.damage;
+      a.flashTimer = 0.1;
+      a.reg.hit(a.ai);
+      if (a.hp <= 0) {
+        a.alive = false;
+        a.deathTimer = 0;
+        a.reg.kill(a.ai);
+        killCount++;
+        updateHUD();
+      }
+    }
+  }
+
+  // Anything stood on him takes a bite out of him. This is the only way he
+  // dies, and he has to be able to — a companion that cannot be lost is
+  // scenery that happens to shoot.
+  for (const a of shootable) {
+    const d = Math.hypot(a.model.position.x - soldier.position.x,
+                         a.model.position.z - soldier.position.z);
+    if (d < a.reg.attackRange && soldierCanBeBitten(soldier)) {
+      if (hurtSoldier(soldier, a.reg.attackDmg) === 'down') {
+        announce('HE IS DOWN', 'You are on your own again.');
+      }
+      break;
+    }
+  }
+  updateSoldierHud();
+}
+
+function updateSoldierHud() {
+  if (!soldierHudEl) return;
+  if (!soldierIsFree(soldier) || soldierIsDown(soldier)) {
+    if (soldierHudEl.style.display !== 'none') soldierHudEl.style.display = 'none';
+    return;
+  }
+  const h = soldierHealth(soldier);
+  soldierHudEl.style.display = 'block';
+  soldierBarEl.style.width = Math.max(0, (h.hp / h.max) * 100) + '%';
+}
+
 /** Are you stood at the pod's hatch with it open? */
 function atOpenPod() {
   if (!escapePod.group.userData.unlocked) return false;
@@ -1091,7 +1285,9 @@ function atOpenPod() {
 }
 
 function tryUsePod() {
-  if (worldIsLive() && atOpenPod()) escapeStation();
+  if (!worldIsLive()) return;
+  if (atSecretExit()) { leaveSecretRoom(); return; }
+  if (atOpenPod()) escapeStation();
 }
 
 // ─── ALIEN ACTIVATION ────────────────────────────────────────
@@ -1292,6 +1488,8 @@ function gameLoop(now) {
   const time = now / 1000;
 
   const live = worldIsLive();
+  // He thinks in frames like the bosses do, not seconds like the aliens.
+  const dtFrames = Math.min(dt * 60, 3);
 
   // --- Player ---
   if (live) {
@@ -1387,6 +1585,15 @@ function gameLoop(now) {
     if (bossBannerTimer <= 0 && bossBannerEl) bossBannerEl.style.display = 'none';
   }
 
+  // --- The soldier ---
+  if (live) stepSoldier(dt, dtFrames);
+
+  // --- Through the board ---
+  // Checked here rather than on the jump keypress: you go through when your
+  // HEAD is in the right patch of air, not when you press the key, so a jump
+  // from further back that carries you into it still counts.
+  if (live && !inSecretRoom() && atBoardJump()) enterSecretRoom();
+
   // --- The locked door ---
   // The check is cheap — twenty-two aliens — and doing it here rather than
   // at each kill means it cannot be missed by a death that happens down some
@@ -1400,10 +1607,17 @@ function gameLoop(now) {
   // PROMPT is not scenery though — it only belongs on screen while you are
   // actually stood there able to press the key.
   updateEscapePod(escapePod, dt, time);
-  const canLaunch = live && atOpenPod();
-  const promptWanted = canLaunch ? 'block' : 'none';
+
+  // One prompt, whichever thing you are stood at.
+  let promptText = null;
+  if (live && atSecretExit()) promptText = 'E — LEAVE';
+  else if (live && atOpenPod()) promptText = 'E — LAUNCH';
+  const promptWanted = promptText ? 'block' : 'none';
   if (usePromptEl.style.display !== promptWanted) {
     usePromptEl.style.display = promptWanted;
+  }
+  if (promptText && usePromptEl.textContent !== promptText) {
+    usePromptEl.textContent = promptText;
   }
 
   // --- Damage flash decay ---
@@ -1668,8 +1882,15 @@ function gameLoop(now) {
   roomCheckTimer += dt;
   if (roomCheckTimer > 0.2) {
     roomCheckTimer = 0;
-    const rm = placeNameAt(ctrl.position.x, ctrl.position.z);
-    if (rm) roomLabelEl.textContent = rm;
+    // The hidden room has no painted floor, so the station does not know a
+    // name for it — left to itself the HUD would keep showing ARMORY, the
+    // last real room you were in, while you stood somewhere else entirely.
+    if (inSecretRoom()) {
+      roomLabelEl.textContent = 'BEHIND THE BOARD';
+    } else {
+      const rm = placeNameAt(ctrl.position.x, ctrl.position.z);
+      if (rm) roomLabelEl.textContent = rm;
+    }
   }
 
   // --- Render ---
