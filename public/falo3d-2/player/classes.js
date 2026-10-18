@@ -142,30 +142,36 @@ export function classById(id) {
 }
 
 // ─── HOW HARD ───────────────────────────────────────────────
-// Three knobs, because three is enough to change how a fight goes and few
-// enough that you can predict what picking one will do:
+// Five knobs, few enough that you can predict what picking one will do:
 //
 //   incoming  what everything hits YOU for
 //   health    your class's health, scaled
 //   enemyHp   what everything else is made of
+//   speed     how fast they close the distance
+//   swarm     how many of them an outpost holds
 //
 // Nothing here touches how the aliens think. A harder game is one where the
 // same creature behaving the same way is more dangerous — not one where it
 // suddenly gets cleverer, which would make the difficulty a different game
-// rather than the same game turned up.
+// rather than the same game turned up. `speed` scales the clock the AI is
+// driven on rather than any one creature's pace, so a Crawler still scurries
+// like a Crawler; it just eats the gap between you faster. The Watcher is the
+// one that reads oddly at a glance: it cannot move, so a faster clock comes
+// out as a shorter wait between beams, which is the same thing — the turret
+// getting at you quicker.
 export const DIFFICULTIES = [
   { id: 'easy', name: 'EASY',
     note: 'They hit softer and die quicker. You have more to give.',
-    incoming: 0.5, health: 1.3, enemyHp: 0.75 },
+    incoming: 0.5, health: 1.3, enemyHp: 0.75, speed: 1, swarm: 1 },
   { id: 'normal', name: 'NORMAL',
     note: 'The game as it is meant to be played.',
-    incoming: 1, health: 1, enemyHp: 1 },
+    incoming: 1, health: 1, enemyHp: 1, speed: 1, swarm: 1 },
   { id: 'hard', name: 'HARD',
     note: 'Everything hits most of twice as hard and takes more killing.',
-    incoming: 1.7, health: 0.85, enemyHp: 1.3 },
+    incoming: 1.7, health: 0.85, enemyHp: 1.3, speed: 1.15, swarm: 1 },
   { id: 'impossible', name: 'IMPOSSIBLE',
-    note: 'Three times the damage coming in, and you are made of paper.',
-    incoming: 3, health: 0.7, enemyHp: 1.8 },
+    note: 'Twice as many, faster, and nearly everything kills you in two.',
+    incoming: 3.5, health: 0.55, enemyHp: 2.5, speed: 1.6, swarm: 2 },
 ];
 
 export function difficultyById(id) {

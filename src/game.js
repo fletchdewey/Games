@@ -355,7 +355,16 @@ function spawnAliens(scene) {
     const reg = ALIEN_TYPES[plan.type];
     if (!reg) return;
 
-    for (let i = 0; i < plan.count; i++) {
+    // The outposts, and only the outposts, get more bodies on the hardest
+    // setting. The pair in the torn-open prison cell, the Brute in the armory
+    // and the two in the pods are each placed because of what happened in
+    // that room; doubling them would turn a scene into a crowd and cost the
+    // room the thing it was saying.
+    const count = OUTPOSTS.includes(plan.room)
+      ? Math.round(plan.count * difficulty.swarm)
+      : plan.count;
+
+    for (let i = 0; i < count; i++) {
       // An exact spot, when the plan names one — see brokenCellSpots().
       // Everything below is the scatter, which is wrong for a placement that
       // only means anything in one particular corner of a room.
@@ -970,6 +979,10 @@ let gun = createGun(camera, 'assault');
 let difficulty = savedDifficulty();
 
 const aliens = spawnAliens(scene);
+
+// What the bodies standing in the outposts were counted out for. resetRun
+// compares this against the difficulty in force and rebuilds if they parted.
+let rosterSwarm = difficulty.swarm;
 const boss = BOSS_ENABLED ? spawnBoss(scene) : null;
 const raycaster = new THREE.Raycaster();
 const screenCenter = new THREE.Vector2(0, 0);
@@ -1141,6 +1154,22 @@ function resetRun() {
   // parts about, so reusing the body gives you a half-rendered alien. A body
   // that has already been taken out of the scene is simply replaced the same
   // way as any other.
+  //
+  // Changing the difficulty can change how MANY there are, though, and this
+  // loop only ever rebuilds the bodies it already has. When the swarm size
+  // has moved, the whole roster goes and the spawn plan runs again from
+  // scratch — otherwise picking IMPOSSIBLE from the home screen would hand
+  // you its damage and its health on normal's four-to-an-outpost.
+  if (rosterSwarm !== difficulty.swarm) {
+    for (const a of aliens) {
+      scene.remove(a.model);
+      if (!a.gone) disposeModel(a.model);
+    }
+    aliens.length = 0;
+    aliens.push(...spawnAliens(scene));
+    rosterSwarm = difficulty.swarm;
+  }
+
   for (const a of aliens) {
     scene.remove(a.model);
     if (!a.gone) disposeModel(a.model);   // already freed when it went
@@ -2052,7 +2081,14 @@ function gameLoop(now) {
     }
 
     // Run AI. Some aliens report an attack landing as a returned event.
-    const aiEvent = a.reg.updateAI(a.model, a.ai, ctrl.position, dt);
+    //
+    // The clock it runs on is scaled by the difficulty. Every module moves by
+    // `something * dt * 60`, so a longer frame is a longer stride — but the
+    // Crawler, Floater and Brute count their state timers in frames, not
+    // seconds, so their wind-ups, pounce arcs and recoveries keep their real
+    // length. They close on you faster without their tells getting shorter,
+    // which is the version of "faster" you can still read and play against.
+    const aiEvent = a.reg.updateAI(a.model, a.ai, ctrl.position, dt * difficulty.speed);
 
     // ...and then take back any of that movement that went through a wall.
     // Dead ones are left alone — their collapse is an animation, and a body
