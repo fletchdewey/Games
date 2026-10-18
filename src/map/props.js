@@ -48,6 +48,9 @@ const M = {
   tank:       () => new THREE.MeshLambertMaterial({ color: 0x8a9099 }),
   hazard:     () => new THREE.MeshLambertMaterial({ color: 0xb4761c }),
   pilot:   () => new THREE.MeshLambertMaterial({ color: 0x2a2f3a }),   // flight suit
+  labCoat: () => new THREE.MeshLambertMaterial({ color: 0xcfcfc4 }),   // the people who studied them
+  labTrim: () => new THREE.MeshLambertMaterial({ color: 0x8e9298 }),
+  hair:    () => new THREE.MeshLambertMaterial({ color: 0x3a2e24 }),
   // Watcher parts — same colours the workshop model uses, so a leg on the
   // floor reads as having come off one of them.
   legSkin:  () => new THREE.MeshLambertMaterial({ color: 0x4a5058 }),
@@ -108,7 +111,11 @@ function bloodPool(r, seed) {
 function deadBody(kind, seed) {
   const g = new THREE.Group();
   const rand = rng(seed);
-  const cloth = kind === 'pilot' ? M.pilot() : M.fatigue();
+  const sci = kind === 'scientist';
+  // A scientist is the same body in a lab coat with no helmet on it. They
+  // were not dressed for any of this, which is the point of putting them in
+  // the room full of the things that were being studied.
+  const cloth = sci ? M.labCoat() : kind === 'pilot' ? M.pilot() : M.fatigue();
   const skin = M.flesh();
 
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.26, 0.95), cloth);
@@ -123,13 +130,26 @@ function deadBody(kind, seed) {
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 7, 6), skin);
   head.position.set((rand() - 0.5) * 0.3, 0.15, 0.68);
   g.add(head);
+  // Headgear — or hair, on the one who never expected to need any.
   const hat = new THREE.Mesh(
-    new THREE.SphereGeometry(0.18, 8, 5, 0, Math.PI * 2, 0, Math.PI * 0.55),
-    kind === 'pilot' ? M.metal() : M.helmet());
+    new THREE.SphereGeometry(sci ? 0.165 : 0.18, 8, 5, 0, Math.PI * 2, 0,
+                             sci ? Math.PI * 0.42 : Math.PI * 0.55),
+    sci ? M.hair() : kind === 'pilot' ? M.metal() : M.helmet());
   hat.position.copy(head.position);
-  hat.position.y += 0.04;
-  hat.rotation.z = (rand() - 0.5) * 1.2;
+  hat.position.y += sci ? 0.05 : 0.04;
+  hat.rotation.z = (rand() - 0.5) * (sci ? 0.5 : 1.2);
   g.add(hat);
+
+  if (sci) {
+    // The coat is open over something darker, and there is a badge on it.
+    const under = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 0.6), M.labTrim());
+    under.position.set(0, 0.2, 0.08);
+    g.add(under);
+    const badge = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 0.12),
+      new THREE.MeshBasicMaterial({ color: 0x6effa8 }));
+    badge.position.set(0.17, 0.25, 0.3);
+    g.add(badge);
+  }
 
   // Arms and legs, flung at their own angles.
   const limb = (len, r0, r1) =>
@@ -147,7 +167,9 @@ function deadBody(kind, seed) {
     leg.rotation.z = side * (0.12 + rand() * 0.45);
     g.add(leg);
 
-    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.13, 0.26), M.hullDk());
+    const boot = new THREE.Mesh(
+      new THREE.BoxGeometry(sci ? 0.13 : 0.16, sci ? 0.1 : 0.13, sci ? 0.21 : 0.26),
+      M.hullDk());
     boot.position.set(side * (0.16 + rand() * 0.2), 0.07, -1.35);
     g.add(boot);
   }
@@ -2750,6 +2772,24 @@ export function buildAlienPods(scene, room, seed = 8808) {
     // It gets its own collider ring — one circle round a pod this wide would
     // wall off most of the room.
     colliders.push({ x: BX, z: BZ, r: BR + 0.35 });
+  }
+
+  // ── The two who were studying them ────────────────────────
+  // One by the broken pod, one back at the row of tanks. They are in lab
+  // coats rather than armour: nobody in this room was dressed for what
+  // happened in it, and the specimen cards on the wall are in their
+  // handwriting.
+  for (const [bx, bz, rot, kind, pool] of [
+    [room.x0 + 5.4, room.z0 + 5.3, 2.4, 'scientist', 1.0],
+    [room.x0 + 2.2, room.z0 + 3.2, -0.9, 'scientist', 0.85],
+  ]) {
+    const blood = bloodPool(pool, seed + Math.round(bx * 13));
+    blood.position.set(bx - Math.sin(rot) * 0.5, 0, bz - Math.cos(rot) * 0.5);
+    group.add(blood);
+    const body = deadBody(kind, seed + Math.round(bz * 7));
+    body.position.set(bx, 0, bz);
+    body.rotation.y = rot;
+    group.add(body);
   }
 
   // One light for the row. The grid lamps are on a 10-cell lattice and this
