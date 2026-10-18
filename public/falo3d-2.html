@@ -167,6 +167,16 @@
   }
   #start-overlay .controls { font-size: 11px; color: #556; margin-top: 16px; line-height: 1.8; }
 
+  #objective {
+    position: fixed; top: 40px; right: 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px; letter-spacing: 1px; color: #c8b88a;
+    background: rgba(0,0,0,0.4);
+    padding: 4px 10px; border-radius: 4px;
+    pointer-events: none; z-index: 10;
+  }
+  #objective.done { color: #44ff88; }
+
   #controls-hint {
     position: fixed; bottom: 8px; left: 50%;
     transform: translateX(-50%);
@@ -243,7 +253,7 @@
   </div>
 
   <div id="boss-banner">
-    <div class="inner"><h1>BOSS DEFEATED</h1><p id="boss-banner-line">It falls.</p></div>
+    <div class="inner"><h1 id="boss-banner-title">BOSS DEFEATED</h1><p id="boss-banner-line">It falls.</p></div>
   </div>
 
   <div id="death-screen">
@@ -285,8 +295,10 @@
     </div>
   </div>
 
+  <div id="objective">OUTPOSTS CLEARED 0/4</div>
+
   <div id="controls-hint">WASD move · mouse look · click shoot · space jump · E use · esc pause</div>
 
-  <script type="module" src="falo3d-2/game.js?v=0b04e48cd1"></script>
+  <script type="module" src="falo3d-2/game.js?v=3716dcd7e3"></script>
 </body>
 </html>

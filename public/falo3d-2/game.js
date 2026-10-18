@@ -18,43 +18,44 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=0b04e48cd1';
+import { PALETTE, getMaterial } from './shared/materials.js?v=3716dcd7e3';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=0b04e48cd1';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=0b04e48cd1';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=3716dcd7e3';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=3716dcd7e3';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=0b04e48cd1';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=0b04e48cd1';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=3716dcd7e3';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=3716dcd7e3';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=0b04e48cd1';
+import { createController, updateController } from './player/controller.js?v=3716dcd7e3';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=0b04e48cd1';
-import { createSwarm } from './bosses/swarm.js?v=0b04e48cd1';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=0b04e48cd1';
-import { createTwins } from './bosses/twins.js?v=0b04e48cd1';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=0b04e48cd1';
-import { createBurrower } from './bosses/burrower.js?v=0b04e48cd1';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=3716dcd7e3';
+import { createSwarm } from './bosses/swarm.js?v=3716dcd7e3';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=3716dcd7e3';
+import { createTwins } from './bosses/twins.js?v=3716dcd7e3';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=3716dcd7e3';
+import { createBurrower } from './bosses/burrower.js?v=3716dcd7e3';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=0b04e48cd1';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=3716dcd7e3';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=0b04e48cd1';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=3716dcd7e3';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=0b04e48cd1';
+  from './map/grid_map.js?v=3716dcd7e3';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
          buildAlienBoard, buildAlienPods, prisonBrokenCell,
-         buildEscapePod, setEscapePodUnlocked, updateEscapePod, buildLockedDoor,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=0b04e48cd1';
+         buildEscapePod, setEscapePodUnlocked, updateEscapePod,
+         buildLockedDoor, setLockedDoorOpen, updateLockedDoor,
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=3716dcd7e3';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -624,6 +625,15 @@ const lockedDoor = buildLockedDoor(scene, ROOMS.find((r) => r.id === 'room10'));
 walls.push(lockedDoor.wall);
 wallMeshes.push(...lockedDoor.meshes);
 
+// ─── WHAT OPENS IT ──────────────────────────────────────────
+// Clear every outpost. Not every alien in the station — the pair in the
+// prison, the Brute in the armory, the Floaters in the pod room and the
+// Watcher in the Hangar are all somebody else's problem. These four rooms
+// are the job.
+const OUTPOSTS = ['room4', 'room3', 'room2', 'room7'];   // outposts 1 to 4
+let outpostsClear = 0;
+let doorOpened = false;
+
 const armory = buildArmory(scene, ROOMS.find((r) => r.id === 'room5'));
 propColliders.push(...armory.colliders);
 
@@ -816,6 +826,8 @@ const escapeTallyEl = document.getElementById('escape-tally');
 const escapeAgainBtn = document.getElementById('escape-again');
 const escapeQuitBtn = document.getElementById('escape-quit');
 const usePromptEl = document.getElementById('use-prompt');
+const objectiveEl = document.getElementById('objective');
+const bossBannerTitleEl = document.getElementById('boss-banner-title');
 let deathCause = null;
 const startOverlay = document.getElementById('start-overlay');
 
@@ -931,6 +943,14 @@ function resetRun() {
     if (bossBannerEl) bossBannerEl.style.display = 'none';
   }
 
+  // The door is shut and bolted again, and its wall goes back into the level.
+  outpostsClear = 0;
+  doorOpened = false;
+  setLockedDoorOpen(lockedDoor, false);
+  if (!walls.includes(lockedDoor.wall)) walls.push(lockedDoor.wall);
+  objectiveEl.classList.remove('done');
+  objectiveEl.textContent = 'OUTPOSTS CLEARED 0/' + OUTPOSTS.length;
+
   // The way out is sealed again, and the run is no longer over.
   escaped = false;
   bossBannerTimer = 0;
@@ -1019,6 +1039,49 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') playAgain();
   else if (e.code === 'KeyQ') quitToTitle();
 });
+
+/** Put something across the middle of the screen for a few seconds. */
+function announce(title, line) {
+  if (bossBannerTitleEl) bossBannerTitleEl.textContent = title;
+  if (bossBannerLineEl) bossBannerLineEl.textContent = line;
+  if (bossBannerEl) bossBannerEl.style.display = 'flex';
+  bossBannerTimer = 4.5;
+}
+
+/**
+ * How many outposts are empty, and open the door when that reaches four.
+ *
+ * Counted from `alive` rather than from the kill count, so it is a statement
+ * about the rooms rather than a tally that could drift: an outpost is clear
+ * when nothing in it is still standing, and it cannot un-clear itself,
+ * because the dead do not come back within a run.
+ */
+function checkOutposts() {
+  let clear = 0;
+  for (const id of OUTPOSTS) {
+    if (!aliens.some((a) => a.room === id && a.alive)) clear++;
+  }
+  if (clear === outpostsClear) return;
+
+  outpostsClear = clear;
+  objectiveEl.textContent = 'OUTPOSTS CLEARED ' + clear + '/' + OUTPOSTS.length;
+
+  if (clear < OUTPOSTS.length) {
+    announce('OUTPOST CLEAR', (OUTPOSTS.length - clear) + ' still holding.');
+    return;
+  }
+  // All four. The bolts draw back and the door opens — and the way through
+  // only exists once its wall segment is out of the level's list.
+  objectiveEl.classList.add('done');
+  objectiveEl.textContent = 'ALL OUTPOSTS CLEAR';
+  if (!doorOpened) {
+    doorOpened = true;
+    setLockedDoorOpen(lockedDoor, true);
+    const i = walls.indexOf(lockedDoor.wall);
+    if (i >= 0) walls.splice(i, 1);
+    announce('THE DOOR IS OPEN', 'Every outpost is clear. The Control Room is unsealed.');
+  }
+}
 
 /** Are you stood at the pod's hatch with it open? */
 function atOpenPod() {
@@ -1163,9 +1226,7 @@ function updateBoss(dt) {
       updateHUD();
       // Whichever one it was says so — the banner used to claim the Puppet
       // Master had fallen whatever you had actually just killed.
-      if (bossBannerLineEl) bossBannerLineEl.textContent = kind.fell;
-      if (bossBannerEl) bossBannerEl.style.display = 'flex';
-      bossBannerTimer = 4.5;
+      announce('BOSS DEFEATED', kind.fell);
       // And the way out comes alive. The bolts blow somewhere across the
       // station and the lamp on the pod turns green.
       setEscapePodUnlocked(escapePod, true);
@@ -1325,6 +1386,13 @@ function gameLoop(now) {
     bossBannerTimer -= dt;
     if (bossBannerTimer <= 0 && bossBannerEl) bossBannerEl.style.display = 'none';
   }
+
+  // --- The locked door ---
+  // The check is cheap — twenty-two aliens — and doing it here rather than
+  // at each kill means it cannot be missed by a death that happens down some
+  // path that forgot to call it.
+  if (live) checkOutposts();
+  updateLockedDoor(lockedDoor, dt);
 
   // --- The escape pod ---
   // Its hatch and lamp animate even on the menus: the lamp is scenery, and a

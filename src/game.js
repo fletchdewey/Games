@@ -53,7 +53,8 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
          buildAlienBoard, buildAlienPods, prisonBrokenCell,
-         buildEscapePod, setEscapePodUnlocked, updateEscapePod, buildLockedDoor,
+         buildEscapePod, setEscapePodUnlocked, updateEscapePod,
+         buildLockedDoor, setLockedDoorOpen, updateLockedDoor,
          buildStudyScreen, buildControlRoom } from './map/props.js';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
@@ -624,6 +625,15 @@ const lockedDoor = buildLockedDoor(scene, ROOMS.find((r) => r.id === 'room10'));
 walls.push(lockedDoor.wall);
 wallMeshes.push(...lockedDoor.meshes);
 
+// ─── WHAT OPENS IT ──────────────────────────────────────────
+// Clear every outpost. Not every alien in the station — the pair in the
+// prison, the Brute in the armory, the Floaters in the pod room and the
+// Watcher in the Hangar are all somebody else's problem. These four rooms
+// are the job.
+const OUTPOSTS = ['room4', 'room3', 'room2', 'room7'];   // outposts 1 to 4
+let outpostsClear = 0;
+let doorOpened = false;
+
 const armory = buildArmory(scene, ROOMS.find((r) => r.id === 'room5'));
 propColliders.push(...armory.colliders);
 
@@ -816,6 +826,8 @@ const escapeTallyEl = document.getElementById('escape-tally');
 const escapeAgainBtn = document.getElementById('escape-again');
 const escapeQuitBtn = document.getElementById('escape-quit');
 const usePromptEl = document.getElementById('use-prompt');
+const objectiveEl = document.getElementById('objective');
+const bossBannerTitleEl = document.getElementById('boss-banner-title');
 let deathCause = null;
 const startOverlay = document.getElementById('start-overlay');
 
@@ -931,6 +943,14 @@ function resetRun() {
     if (bossBannerEl) bossBannerEl.style.display = 'none';
   }
 
+  // The door is shut and bolted again, and its wall goes back into the level.
+  outpostsClear = 0;
+  doorOpened = false;
+  setLockedDoorOpen(lockedDoor, false);
+  if (!walls.includes(lockedDoor.wall)) walls.push(lockedDoor.wall);
+  objectiveEl.classList.remove('done');
+  objectiveEl.textContent = 'OUTPOSTS CLEARED 0/' + OUTPOSTS.length;
+
   // The way out is sealed again, and the run is no longer over.
   escaped = false;
   bossBannerTimer = 0;
@@ -1019,6 +1039,49 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') playAgain();
   else if (e.code === 'KeyQ') quitToTitle();
 });
+
+/** Put something across the middle of the screen for a few seconds. */
+function announce(title, line) {
+  if (bossBannerTitleEl) bossBannerTitleEl.textContent = title;
+  if (bossBannerLineEl) bossBannerLineEl.textContent = line;
+  if (bossBannerEl) bossBannerEl.style.display = 'flex';
+  bossBannerTimer = 4.5;
+}
+
+/**
+ * How many outposts are empty, and open the door when that reaches four.
+ *
+ * Counted from `alive` rather than from the kill count, so it is a statement
+ * about the rooms rather than a tally that could drift: an outpost is clear
+ * when nothing in it is still standing, and it cannot un-clear itself,
+ * because the dead do not come back within a run.
+ */
+function checkOutposts() {
+  let clear = 0;
+  for (const id of OUTPOSTS) {
+    if (!aliens.some((a) => a.room === id && a.alive)) clear++;
+  }
+  if (clear === outpostsClear) return;
+
+  outpostsClear = clear;
+  objectiveEl.textContent = 'OUTPOSTS CLEARED ' + clear + '/' + OUTPOSTS.length;
+
+  if (clear < OUTPOSTS.length) {
+    announce('OUTPOST CLEAR', (OUTPOSTS.length - clear) + ' still holding.');
+    return;
+  }
+  // All four. The bolts draw back and the door opens — and the way through
+  // only exists once its wall segment is out of the level's list.
+  objectiveEl.classList.add('done');
+  objectiveEl.textContent = 'ALL OUTPOSTS CLEAR';
+  if (!doorOpened) {
+    doorOpened = true;
+    setLockedDoorOpen(lockedDoor, true);
+    const i = walls.indexOf(lockedDoor.wall);
+    if (i >= 0) walls.splice(i, 1);
+    announce('THE DOOR IS OPEN', 'Every outpost is clear. The Control Room is unsealed.');
+  }
+}
 
 /** Are you stood at the pod's hatch with it open? */
 function atOpenPod() {
@@ -1163,9 +1226,7 @@ function updateBoss(dt) {
       updateHUD();
       // Whichever one it was says so — the banner used to claim the Puppet
       // Master had fallen whatever you had actually just killed.
-      if (bossBannerLineEl) bossBannerLineEl.textContent = kind.fell;
-      if (bossBannerEl) bossBannerEl.style.display = 'flex';
-      bossBannerTimer = 4.5;
+      announce('BOSS DEFEATED', kind.fell);
       // And the way out comes alive. The bolts blow somewhere across the
       // station and the lamp on the pod turns green.
       setEscapePodUnlocked(escapePod, true);
@@ -1325,6 +1386,13 @@ function gameLoop(now) {
     bossBannerTimer -= dt;
     if (bossBannerTimer <= 0 && bossBannerEl) bossBannerEl.style.display = 'none';
   }
+
+  // --- The locked door ---
+  // The check is cheap — twenty-two aliens — and doing it here rather than
+  // at each kill means it cannot be missed by a death that happens down some
+  // path that forgot to call it.
+  if (live) checkOutposts();
+  updateLockedDoor(lockedDoor, dt);
 
   // --- The escape pod ---
   // Its hatch and lamp animate even on the menus: the lamp is scenery, and a

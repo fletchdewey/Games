@@ -3753,8 +3753,17 @@ export function buildLockedDoor(scene, room) {
   // nothing — it should read as a seam, not a crack you could see through.
   const leafW = span / 2 - DOOR.jamb - 0.02;
   const leafH = H - DOOR.lintelH;
+  // Each leaf gets its own group so opening the door is two numbers rather
+  // than moving twenty meshes. They start at the origin, so everything inside
+  // keeps the same coordinates it had when this was one solid slab.
+  const leaves = [];
   for (const side of [-1, 1]) {
     const cz = mid + side * (leafW / 2 + 0.02);
+    const leafG = new THREE.Group();
+    g.add(leafG);
+    leaves.push({ group: leafG, side });
+    const add = (m) => { leafG.add(m); meshes.push(m); return m; };
+
     const leaf = add(new THREE.Mesh(
       new THREE.BoxGeometry(DOOR.thick, leafH, leafW), steel));
     leaf.position.set(DX, leafH / 2, cz);
@@ -3784,36 +3793,41 @@ export function buildLockedDoor(scene, room) {
       new THREE.BoxGeometry(0.14, 0.14, leafW * 0.3), bolt));
     handle.position.set(DX - DOOR.thick / 2 - 0.12, leafH * 0.52,
                         cz - side * leafW * 0.26);
+
+    // Markings go ON the leaf, not on the room. Painted into the main group
+    // instead, they stayed hanging in mid-air across the opening once the
+    // door slid back — stripes floating where the door used to be.
+    for (let sz = cz - leafW / 2 + 0.45; sz < cz + leafW / 2 - 0.2; sz += 0.9) {
+      const st = add(new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.5, 0.42), stripe));
+      st.position.set(DX - DOOR.thick / 2 - 0.04, 0.42, sz);
+      st.rotation.x = 0.55;
+    }
+    // A stencilled number, on one leaf only — both would read as a pattern.
+    if (side < 0) {
+      for (const [mz, mw] of [[-0.95, 0.3], [-0.5, 0.18], [-0.1, 0.3]]) {
+        const m = add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.4, mw), mark));
+        m.position.set(DX - DOOR.thick / 2 - 0.04, leafH * 0.82, cz + mz);
+      }
+    }
   }
 
   // ── The seam ──────────────────────────────────────────────
   // A raised strip down the join with locking bolts driven across it, so the
   // door reads as SEALED rather than merely shut.
-  const seam = add(new THREE.Mesh(
+  // Its own group: when the door opens the bolts draw back out of sight
+  // rather than hanging in the gap the leaves just left.
+  const sealG = new THREE.Group();
+  g.add(sealG);
+  const addSeal = (m) => { sealG.add(m); meshes.push(m); return m; };
+  const seam = addSeal(new THREE.Mesh(
     new THREE.BoxGeometry(DOOR.thick + 0.14, leafH, 0.2), dark));
   seam.position.set(DX, leafH / 2, mid);
   for (let i = 0; i < 4; i++) {
     const y = leafH * (0.18 + i * 0.22);
-    const lug = add(new THREE.Mesh(
+    const lug = addSeal(new THREE.Mesh(
       new THREE.BoxGeometry(DOOR.thick + 0.3, 0.3, 0.9), bolt));
     lug.position.set(DX, y, mid);
-  }
-
-  // ── Markings ──────────────────────────────────────────────
-  // Hazard stripes along the bottom of both leaves, and a stencil block
-  // where a door number would be.
-  const stripeCount = Math.floor(span / 0.9);
-  for (let i = 0; i < stripeCount; i++) {
-    const sz = z0 + DOOR.jamb + 0.3 + i * 0.9;
-    if (sz > z1 - DOOR.jamb - 0.3) break;
-    const s = add(new THREE.Mesh(
-      new THREE.BoxGeometry(0.08, 0.5, 0.42), stripe));
-    s.position.set(DX - DOOR.thick / 2 - 0.04, 0.42, sz);
-    s.rotation.x = 0.55;
-  }
-  for (const [mz, mw] of [[-1.5, 0.3], [-1.0, 0.18], [-0.6, 0.3]]) {
-    const m = add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.4, mw), mark));
-    m.position.set(DX - DOOR.thick / 2 - 0.04, leafH * 0.82, mid + mz);
   }
 
   // ── The panel that will one day open it ───────────────────
@@ -3836,11 +3850,16 @@ export function buildLockedDoor(scene, room) {
   for (const m of meshes) m.userData.isWall = true;
 
   scene.add(g);
-  g.userData = { readerMat, open: false };
+  // `openAmount` is 0 shut, 1 fully apart. `travel` is how far each leaf has
+  // to slide to clear the opening — its own width, so the way through is as
+  // wide as the door was.
+  g.userData = { readerMat, leaves, sealG, open: false, openAmount: 0,
+                 travel: leafW };
 
   return {
     group: g,
     // Push this into the level's wall list and you cannot walk through it.
+    // Take it back OUT and the way is clear — which is what opening does.
     // One exact segment rather than a row of circles: it is a flat slab, and
     // this is how every other wall in the station is done.
     wall: { axis: 'x', pos: DX, min: z0, max: z1 },
@@ -3849,4 +3868,42 @@ export function buildLockedDoor(scene, room) {
     meshes,
     at: { x: DX, z: mid },
   };
+}
+
+/** Tell the door to open or shut. The movement itself is in updateLockedDoor. */
+export function setLockedDoorOpen(door, open) {
+  const d = door.group.userData;
+  d.open = open;
+  d.readerMat.color.setHex(open ? 0x125a2a : 0x5a1016);
+  if (!open) {
+    // Shut instantly on a reset — nobody is watching a new run begin.
+    d.openAmount = 0;
+    for (const l of d.leaves) l.group.position.z = 0;
+    d.sealG.visible = true;
+  }
+}
+
+/**
+ * Slides the leaves. `dt` in seconds.
+ *
+ * Slow on purpose — four seconds end to end. This door is the reward for
+ * clearing every outpost in the station, and something that heavy should
+ * take its time. The bolts go first, then it starts to move.
+ */
+export function updateLockedDoor(door, dt) {
+  const d = door.group.userData;
+  const want = d.open ? 1 : 0;
+  if (d.openAmount === want) return;
+
+  d.openAmount = Math.min(1, d.openAmount + dt * 0.25);
+  // Nothing moves for the first fifth: that is the bolts withdrawing.
+  const slide = Math.max(0, (d.openAmount - 0.2) / 0.8);
+  const eased = slide * slide * (3 - 2 * slide);
+  for (const l of d.leaves) l.group.position.z = l.side * eased * d.travel;
+  d.sealG.visible = d.openAmount < 0.2;
+}
+
+/** Fully apart, so the caller knows when the way is actually clear. */
+export function lockedDoorIsOpen(door) {
+  return door.group.userData.openAmount >= 1;
 }
