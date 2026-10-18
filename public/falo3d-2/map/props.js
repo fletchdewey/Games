@@ -12,15 +12,15 @@
 
 import * as THREE from 'three';
 import { roomIdAt, worldToCell, WALL_HEIGHT as WALL_H,
-         SURFACE_WHITE } from './grid_map.js?v=057d6b6469';
+         SURFACE_WHITE } from './grid_map.js?v=1bad2bc9b1';
 // Specimens for the pods room. These come from workshop_models.js — the
 // current models, straight out of the Alien Workshop — not from the older
 // crawler/floater/brute modules the fightable aliens are still built from.
 import { buildCrawler, buildFloater, buildBrute, buildWatcher }
-  from '../aliens/workshop_models.js?v=057d6b6469';
+  from '../aliens/workshop_models.js?v=1bad2bc9b1';
 // The control room's map screen is drawn from the same painted cells the
 // level itself is built from.
-import { GRID } from './grid_data.js?v=057d6b6469';
+import { GRID } from './grid_data.js?v=1bad2bc9b1';
 
 // Deterministic jitter, so the wreck looks scattered but lands in the same
 // place every run. Math.random() here would move the bodies on every reload.
@@ -3461,4 +3461,240 @@ export function buildHangarProps(scene, room, walls = []) {
   }));
 
   return { group, meshes, colliders, placedStacks, skipped, hazards };
+}
+
+// ─── MILITARY ESCAPE POD ────────────────────────────────────
+//
+// FLETCHER'S GUIDE:
+// The way off the station. It sits in the Hangar from the moment you start,
+// sealed, with a red lamp on it — so you walk past the exit at the beginning
+// and know where you have to get back to. Kill the boss and the lamp goes
+// green, the bolts blow and the hatch swings open.
+//
+// It is built lying along X with its NOSE at +x, because it is parked against
+// the Hangar's east wall and that is the way it leaves: nose first, straight
+// through the hull. The engine is therefore at -x and the hatch is on the
+// SIDE facing -z, which is the side you walk up to it from.
+//
+// Everything that changes is stashed on userData so setEscapePodUnlocked can
+// find it without the caller knowing how the thing is put together.
+const POD_SHELL = {
+  len: 3.6,          // nose to engine
+  r: 1.05,           // hull radius
+  liftY: 1.15,       // height of the hull's centre line off the floor
+  hatchW: 1.25,
+  hatchH: 1.75,
+};
+
+export function buildEscapePod(scene, at = { x: 0, z: 0, rot: 0 }) {
+  const S = POD_SHELL;
+  const g = new THREE.Group();
+  g.position.set(at.x, 0, at.z);
+  // Turned so the nose points wherever it is meant to leave through. Built
+  // along X, so everything below is in the pod's own frame and the rotation
+  // is applied once, here — including to the collider ring and the spot you
+  // stand on, which are worked out in world space at the end.
+  const rot = at.rot || 0;
+  g.rotation.y = rot;
+
+  const hull = M.hull(), dark = M.hullDk(), steel = M.metal();
+  const stripe = M.hazard(), mark = M.stencil(), glass = M.glass();
+
+  // ── Cradle ────────────────────────────────────────────────
+  // Two rails and a pair of clamps. The pod is HELD, not parked — it should
+  // look like something that leaves in a hurry rather than something stored.
+  for (const sz of [-1, 1]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(S.len + 1.4, 0.22, 0.34), steel);
+    rail.position.set(0, 0.11, sz * 0.95);
+    g.add(rail);
+    for (const lx of [-1.2, 0.4]) {
+      const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.95, 0.26), dark);
+      clamp.position.set(lx, 0.55, sz * 0.95);
+      g.add(clamp);
+    }
+  }
+
+  // ── Hull ──────────────────────────────────────────────────
+  // Eight-sided rather than round: it reads as plated armour at a distance,
+  // and it matches the faceted look of everything else in the station.
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(S.r, S.r, S.len, 8), hull);
+  body.rotation.z = Math.PI / 2;
+  body.position.y = S.liftY;
+  g.add(body);
+
+  // Armour bands, and a heat shield collar where the nose meets the body.
+  for (const [lx, rr, w] of [[-1.35, S.r * 1.04, 0.3], [0.1, S.r * 1.04, 0.26],
+                             [1.5, S.r * 1.02, 0.22]]) {
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, w, 8), dark);
+    band.rotation.z = Math.PI / 2;
+    band.position.set(lx, S.liftY, 0);
+    g.add(band);
+  }
+
+  // Nose — blunt, armoured, pointed at the wall it goes through.
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(S.r, 1.3, 8), dark);
+  nose.rotation.z = -Math.PI / 2;
+  nose.position.set(S.len / 2 + 0.65, S.liftY, 0);
+  g.add(nose);
+
+  // ── Engine ────────────────────────────────────────────────
+  const bell = new THREE.Mesh(
+    new THREE.CylinderGeometry(S.r * 0.52, S.r * 0.86, 0.95, 8, 1, true), steel);
+  bell.rotation.z = Math.PI / 2;
+  bell.position.set(-S.len / 2 - 0.45, S.liftY, 0);
+  bell.material.side = THREE.DoubleSide;
+  g.add(bell);
+  // Down inside it, so the engine isn't a hole when you look in.
+  const throat = new THREE.Mesh(new THREE.CircleGeometry(S.r * 0.5, 8),
+    new THREE.MeshBasicMaterial({ color: 0x120e0c }));
+  throat.rotation.y = -Math.PI / 2;
+  throat.position.set(-S.len / 2 - 0.02, S.liftY, 0);
+  g.add(throat);
+  // Steering thrusters round the tail.
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + (i / 4) * Math.PI * 2;
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.17, 0.3, 6), dark);
+    t.rotation.z = Math.PI / 2;
+    t.position.set(-S.len / 2 + 0.1, S.liftY + Math.sin(a) * S.r * 0.72,
+                   Math.cos(a) * S.r * 0.72);
+    g.add(t);
+  }
+
+  // ── Hatch ─────────────────────────────────────────────────
+  // On a hinge group at its leading edge, so opening it is one rotation and
+  // the door swings out into the walkway like a real blast door.
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(S.hatchW + 0.28, S.hatchH + 0.26, 0.12), dark);
+  frame.position.set(0, S.liftY - 0.05, -S.r - 0.02);
+  g.add(frame);
+
+  // The lit inside, revealed when the door swings clear.
+  const cabin = new THREE.Mesh(
+    new THREE.PlaneGeometry(S.hatchW, S.hatchH),
+    new THREE.MeshBasicMaterial({ color: 0x14301f }));
+  cabin.position.set(0, S.liftY - 0.05, -S.r + 0.04);
+  g.add(cabin);
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.16, 0.5), M.fatigue());
+  seat.position.set(0, S.liftY - 0.55, -S.r + 0.3);
+  g.add(seat);
+
+  const hinge = new THREE.Group();
+  hinge.position.set(S.hatchW / 2, S.liftY - 0.05, -S.r - 0.08);
+  g.add(hinge);
+  const door = new THREE.Mesh(
+    new THREE.BoxGeometry(S.hatchW, S.hatchH, 0.16), hull);
+  door.position.set(-S.hatchW / 2, 0, 0);
+  hinge.add(door);
+  // A wheel and two dogs, so it reads as something sealed rather than shut.
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.055, 5, 10), steel);
+  wheel.position.set(-S.hatchW / 2, 0, -0.14);
+  hinge.add(wheel);
+  for (const dy of [-0.6, 0.6]) {
+    const dog = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.1), steel);
+    dog.position.set(-S.hatchW / 2, dy, -0.12);
+    hinge.add(dog);
+  }
+
+  // ── Markings ──────────────────────────────────────────────
+  // Hazard chevrons above the hatch, and blocks that read as a stencilled
+  // unit number from across the Hangar without being actual letters.
+  for (let i = 0; i < 5; i++) {
+    const ch = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.06), stripe);
+    ch.position.set(-0.56 + i * 0.28, S.liftY + S.hatchH / 2 + 0.2, -S.r - 0.06);
+    ch.rotation.z = 0.5;
+    g.add(ch);
+  }
+  for (const [mx, mw] of [[-0.95, 0.16], [-0.7, 0.1], [-0.5, 0.16], [-0.2, 0.1]]) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(mw, 0.24, 0.05), mark);
+    m.position.set(mx, S.liftY + 0.72, -S.r - 0.05);
+    g.add(m);
+  }
+
+  // ── The lamp ──────────────────────────────────────────────
+  // The whole point of the thing, from the player's side: red until the boss
+  // is dead, then green. Its own material, because it gets recoloured.
+  const lampMat = new THREE.MeshBasicMaterial({ color: 0xff2233 });
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), lampMat);
+  lamp.position.set(0, S.liftY + S.hatchH / 2 + 0.52, -S.r - 0.04);
+  g.add(lamp);
+  const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.1, 8), dark);
+  hood.position.set(0, S.liftY + S.hatchH / 2 + 0.72, -S.r - 0.04);
+  g.add(hood);
+  const glow = new THREE.PointLight(0xff2233, 1.1, 7);
+  glow.position.copy(lamp.position);
+  g.add(glow);
+
+  // ── Console ───────────────────────────────────────────────
+  // Beside the hatch, so there is somewhere for the lock to live.
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.25, 0.22), steel);
+  post.position.set(-1.85, 0.62, -S.r - 0.5);
+  g.add(post);
+  const screenMat = new THREE.MeshBasicMaterial({ color: 0x5a1016 });
+  const screen = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.44, 0.1), screenMat);
+  screen.position.set(-1.85, 1.38, -S.r - 0.5);
+  screen.rotation.x = -0.25;
+  g.add(screen);
+  const bezel = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.56, 0.08), dark);
+  bezel.position.set(-1.85, 1.38, -S.r - 0.56);
+  bezel.rotation.x = -0.25;
+  g.add(bezel);
+
+  scene.add(g);
+  g.userData = {
+    lamp, lampMat, glow, hinge, screenMat, cabin, unlocked: false, open: 0,
+  };
+
+  // Circles down the hull, the way the helicopter is done — a box round a
+  // 5-unit pod would wall off a chunk of floor you should be able to walk on.
+  // Turned into world space by hand: the colliders and the boarding point
+  // live outside the scene graph, so the group's rotation does not reach them.
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  const toWorld = (lx, lz) => ({
+    x: at.x + lx * cos + lz * sin,
+    z: at.z - lx * sin + lz * cos,
+  });
+  const colliders = [];
+  for (let lx = -2.1; lx <= 2.1; lx += 0.7) {
+    colliders.push({ ...toWorld(lx, 0), r: 1.0 });
+  }
+  colliders.push({ ...toWorld(-1.85, -S.r - 0.5), r: 0.3 });   // the console
+
+  return { group: g, colliders,
+           // Where you stand to get in — off the hatch, which faces -z in the
+           // pod's own frame.
+           board: toWorld(0, -S.r - 1.5) };
+}
+
+/** Red and sealed, or green and open. */
+export function setEscapePodUnlocked(pod, unlocked) {
+  const d = pod.group.userData;
+  d.unlocked = unlocked;
+  d.lampMat.color.setHex(unlocked ? 0x44ff88 : 0xff2233);
+  d.glow.color.setHex(unlocked ? 0x44ff88 : 0xff2233);
+  d.screenMat.color.setHex(unlocked ? 0x125a2a : 0x5a1016);
+  if (!unlocked) { d.open = 0; d.hinge.rotation.y = 0; }
+}
+
+/**
+ * Swings the hatch and breathes on the lamp. `dt` in seconds.
+ *
+ * The door eases rather than snapping: the moment it opens is the reward for
+ * the whole fight, and a door that is simply in a different place the next
+ * frame doesn't read as anything happening at all.
+ */
+export function updateEscapePod(pod, dt, time) {
+  const d = pod.group.userData;
+  const want = d.unlocked ? 1 : 0;
+  if (d.open !== want) {
+    d.open += Math.sign(want - d.open) * dt * 0.8;
+    d.open = Math.max(0, Math.min(1, d.open));
+    // Eased, and swung well clear so the lit cabin is actually visible.
+    const e = d.open * d.open * (3 - 2 * d.open);
+    d.hinge.rotation.y = -e * 2.1;
+  }
+  // Locked: a slow warning pulse. Unlocked: a steadier, brighter beacon.
+  const p = d.unlocked ? 1.5 + Math.sin(time * 5) * 0.5
+                       : 0.7 + Math.sin(time * 2) * 0.35;
+  d.glow.intensity = p;
 }

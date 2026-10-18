@@ -53,6 +53,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
          buildAlienBoard, buildAlienPods, prisonBrokenCell,
+         buildEscapePod, setEscapePodUnlocked, updateEscapePod,
          buildStudyScreen, buildControlRoom } from './map/props.js';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
@@ -560,6 +561,28 @@ const { bounds, walls, wallMeshes, ceilingY } = buildGridMap(scene);
 const hangarProps = buildHangarProps(scene, ROOMS.find((r) => r.id === 'room1'), walls);
 wallMeshes.push(...hangarProps.meshes);
 const propColliders = hangarProps.colliders;
+
+// ─── THE WAY OUT ────────────────────────────────────────────
+// In the open at the south end of the Hangar, nose pointed at the hull
+// breach — which is where it goes, and why it is parked facing a hole rather
+// than a wall. Far enough back from the lip that you never have to walk into
+// the vacuum's pull to reach it.
+//
+// In plain sight from where you start, and sealed, with a red lamp on it. The
+// exit is something you walk past at the beginning and have to come back to.
+// Measured, not guessed: the floor in this bay runs z 48 to 57, and the pod
+// is about 5.2 long nose to engine bell. Centred at 51 it sits tail 48.4 to
+// nose 53.6, clear of the floor edge behind it, and the spot you board from
+// is 7 units back from the breach — outside the 6 where the vacuum starts
+// pulling, so getting in is never a fight with the hull.
+const escapePod = buildEscapePod(scene, { x: 28, z: 51, rot: -Math.PI / 2 });
+propColliders.push(...escapePod.colliders);
+let escaped = false;
+// How long the BOSS DEFEATED banner stays up. It used to sit there for the
+// rest of the run, which was fine when killing the boss was effectively the
+// end — now there is a walk back to the pod, and a banner across the middle
+// of the screen the whole way is just in the way.
+let bossBannerTimer = 0;
 const hazards = hangarProps.hazards;
 
 // Outpost 1 — cobwebbed ceiling, and webbing matted across the floor that
@@ -777,6 +800,11 @@ const deathScreen = document.getElementById('death-screen');
 const deathMsgEl = document.getElementById('death-msg');
 const playAgainBtn = document.getElementById('play-again');
 const quitBtn = document.getElementById('quit-game');
+const escapeScreen = document.getElementById('escape-screen');
+const escapeTallyEl = document.getElementById('escape-tally');
+const escapeAgainBtn = document.getElementById('escape-again');
+const escapeQuitBtn = document.getElementById('escape-quit');
+const usePromptEl = document.getElementById('use-prompt');
 let deathCause = null;
 const startOverlay = document.getElementById('start-overlay');
 
@@ -798,7 +826,7 @@ const bossBannerLineEl = document.getElementById('boss-banner-line');
  * than a black rectangle.
  */
 function worldIsLive() {
-  return started && !isDead;
+  return started && !isDead && !escaped;
 }
 
 function updateHUD() {
@@ -892,6 +920,13 @@ function resetRun() {
     if (bossBannerEl) bossBannerEl.style.display = 'none';
   }
 
+  // The way out is sealed again, and the run is no longer over.
+  escaped = false;
+  bossBannerTimer = 0;
+  escapeScreen.style.display = 'none';
+  usePromptEl.style.display = 'none';
+  setEscapePodUnlocked(escapePod, false);
+
   // The player.
   killCount = 0;
   playerHp = 100;
@@ -938,15 +973,52 @@ function quitToTitle() {
   startOverlay.style.display = 'flex';
 }
 
+/**
+ * Out. Called when you press E stood at the open hatch.
+ *
+ * The run ends the same shape as dying does — the world stops, the mouse
+ * comes back, and you get the same two choices — because it is the same
+ * thing from the game's point of view: this run is over, pick another.
+ */
+function escapeStation() {
+  if (escaped || !worldIsLive()) return;
+  escaped = true;
+  usePromptEl.style.display = 'none';
+  // In case you got here inside the banner's few seconds — it sits above
+  // every other screen, so left up it would be printed across this one.
+  bossBannerTimer = 0;
+  if (bossBannerEl) bossBannerEl.style.display = 'none';
+  escapeTallyEl.textContent =
+    killCount === 1 ? '1 of them did not make it off with you.'
+                    : killCount + ' of them did not make it off with you.';
+  escapeScreen.style.display = 'flex';
+  if (document.pointerLockElement) document.exitPointerLock();
+}
+
 playAgainBtn.addEventListener('click', playAgain);
 quitBtn.addEventListener('click', quitToTitle);
+escapeAgainBtn.addEventListener('click', playAgain);
+escapeQuitBtn.addEventListener('click', quitToTitle);
 
 // Your hand is on the keyboard already, so take it from there too.
 document.addEventListener('keydown', (e) => {
-  if (!isDead) return;
+  // E is the only key that does anything while you are actually playing.
+  if (e.code === 'KeyE') { tryUsePod(); return; }
+  if (!isDead && !escaped) return;
   if (e.code === 'KeyR') playAgain();
   else if (e.code === 'KeyQ') quitToTitle();
 });
+
+/** Are you stood at the pod's hatch with it open? */
+function atOpenPod() {
+  if (!escapePod.group.userData.unlocked) return false;
+  const b = escapePod.board;
+  return Math.hypot(ctrl.position.x - b.x, ctrl.position.z - b.z) < 2.2;
+}
+
+function tryUsePod() {
+  if (worldIsLive() && atOpenPod()) escapeStation();
+}
 
 // ─── ALIEN ACTIVATION ────────────────────────────────────────
 //
@@ -1082,6 +1154,10 @@ function updateBoss(dt) {
       // Master had fallen whatever you had actually just killed.
       if (bossBannerLineEl) bossBannerLineEl.textContent = kind.fell;
       if (bossBannerEl) bossBannerEl.style.display = 'flex';
+      bossBannerTimer = 4.5;
+      // And the way out comes alive. The bolts blow somewhere across the
+      // station and the lamp on the pod turns green.
+      setEscapePodUnlocked(escapePod, true);
     }
   } else if (d.attacks) {
     // Nothing a dying boss queues should still land on the player.
@@ -1232,6 +1308,24 @@ function gameLoop(now) {
     camera.position.copy(pos);
   }
   updateGun(gun, dt);
+
+  // Let the banner have its moment and then get out of the way.
+  if (bossBannerTimer > 0) {
+    bossBannerTimer -= dt;
+    if (bossBannerTimer <= 0 && bossBannerEl) bossBannerEl.style.display = 'none';
+  }
+
+  // --- The escape pod ---
+  // Its hatch and lamp animate even on the menus: the lamp is scenery, and a
+  // door caught halfway open behind the death screen would look broken. The
+  // PROMPT is not scenery though — it only belongs on screen while you are
+  // actually stood there able to press the key.
+  updateEscapePod(escapePod, dt, time);
+  const canLaunch = live && atOpenPod();
+  const promptWanted = canLaunch ? 'block' : 'none';
+  if (usePromptEl.style.display !== promptWanted) {
+    usePromptEl.style.display = promptWanted;
+  }
 
   // --- Damage flash decay ---
   if (dmgFlashTimer > 0) {

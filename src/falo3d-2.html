@@ -99,6 +99,52 @@
   #death-screen button.quit:hover { background: rgba(153,153,170,0.18); }
   #death-screen .keyhint { font-size: 10px; color: #8a7a72; margin-top: 16px; }
 
+  /* Escaped. Same furniture as the death screen so the two read as a pair,
+     in the colour the pod's lamp turns when it unlocks. */
+  #escape-screen {
+    position: fixed; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(2,26,14,0.84);
+    z-index: 21;
+    font-family: 'Courier New', monospace;
+  }
+  #escape-screen .inner { text-align: center; }
+  #escape-screen h1 { font-size: 32px; color: #44ff88; letter-spacing: 6px; }
+  #escape-screen p { font-size: 12px; color: #86c8a2; margin-top: 8px; }
+  #escape-screen .tally { font-size: 12px; color: #cfe8d8; margin-top: 14px; }
+  #escape-screen .choices {
+    display: flex; gap: 14px; justify-content: center; margin-top: 24px;
+  }
+  #escape-screen button {
+    font-family: inherit; font-size: 14px; letter-spacing: 2px;
+    text-transform: uppercase; cursor: pointer;
+    padding: 11px 22px; border-radius: 8px;
+    color: #44ff88;
+    background: rgba(68,255,136,0.06);
+    border: 1px solid rgba(68,255,136,0.3);
+  }
+  #escape-screen button:hover { background: rgba(68,255,136,0.18); }
+  #escape-screen button.quit {
+    color: #9aa;
+    background: rgba(153,170,160,0.06);
+    border-color: rgba(153,170,160,0.3);
+  }
+  #escape-screen button.quit:hover { background: rgba(153,170,160,0.18); }
+  #escape-screen .keyhint { font-size: 10px; color: #6f8a7a; margin-top: 16px; }
+
+  /* The line that appears when you are stood at the open hatch. */
+  #use-prompt {
+    position: fixed; bottom: 86px; left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    font-family: 'Courier New', monospace;
+    font-size: 13px; letter-spacing: 2px; color: #44ff88;
+    background: rgba(0,0,0,0.55);
+    border: 1px solid rgba(68,255,136,0.35);
+    padding: 7px 16px; border-radius: 6px;
+    pointer-events: none; z-index: 12;
+  }
+
   /* Click-to-play overlay */
   #start-overlay {
     position: fixed; inset: 0;
@@ -212,19 +258,34 @@
     </div>
   </div>
 
+  <div id="escape-screen">
+    <div class="inner">
+      <h1>ESCAPED</h1>
+      <p>The pod clears the hull. The station falls away behind you.</p>
+      <div class="tally" id="escape-tally"></div>
+      <div class="choices">
+        <button id="escape-again" type="button">Play Again</button>
+        <button id="escape-quit" class="quit" type="button">Quit</button>
+      </div>
+      <div class="keyhint">R &mdash; play again &middot; Q &mdash; quit to title</div>
+    </div>
+  </div>
+
+  <div id="use-prompt">E &mdash; LAUNCH</div>
+
   <div id="start-overlay">
     <div style="text-align:center">
       <div class="title">Falo 3D-2</div>
       <div class="sub">Space Station Crawler</div>
       <div class="play">Click to Play</div>
       <div class="controls">
-        WASD — move · Mouse — look · Left click — shoot · Space — jump · Esc — pause<br>
+        WASD — move · Mouse — look · Left click — shoot · Space — jump · E — use · Esc — pause<br>
         🎮 Xbox controller: left stick move · right stick look · A jump · RT shoot
       </div>
     </div>
   </div>
 
-  <div id="controls-hint">WASD move · mouse look · click shoot · space jump · esc pause</div>
+  <div id="controls-hint">WASD move · mouse look · click shoot · space jump · E use · esc pause</div>
 
   <script type="module" src="falo3d-2/game.js"></script>
 </body>
