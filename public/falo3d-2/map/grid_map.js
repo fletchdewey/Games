@@ -18,7 +18,7 @@
 //   wallMeshes meshes tagged isWall             so shots stop at walls
 
 import * as THREE from 'three';
-import { GRID } from './grid_data.js?v=26e22e1db9';
+import { GRID } from './grid_data.js?v=c849ddd5cb';
 
 // Must match the Map Editor's grid origin or everything lands offset.
 export const GX0 = -48, GZ0 = -96;

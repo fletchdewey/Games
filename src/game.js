@@ -29,6 +29,8 @@ import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killB
 
 // === Player ===
 import { createController, updateController } from './player/controller.js';
+import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
+         commanderUnlocked, stillNeeded } from './player/classes.js';
 
 // === The one on your side ===
 import { buildSoldier } from './npc/soldier.js';
@@ -180,20 +182,27 @@ function brokenCellSpots() {
 }
 
 // ─── GUN ────────────────────────────────────────────────────
-function createGun(camera) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshLambertMaterial({ color: 0x333340 });
-  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.3), mat));
-  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.06), mat);
-  grip.position.set(0, -0.08, 0.08); grip.rotation.x = 0.2; g.add(grip);
-  const mz = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.015, 0.015, 0.06, 6),
-    new THREE.MeshLambertMaterial({ color: 0x222230 })
-  );
-  mz.rotation.x = Math.PI / 2; mz.position.set(0, 0.01, -0.18); g.add(mz);
+/**
+ * The thing in your hands, built from whichever weapon your class carries.
+ *
+ * It can be swapped while the title screen is up — picking a class rebuilds
+ * it — so the old one has to come off the camera and give its geometry back
+ * rather than being left parented and invisible.
+ */
+function createGun(camera, weaponId) {
+  const w = WEAPONS[weaponId] || WEAPONS.assault;
+  const g = w.build();
   g.position.set(0.25, -0.2, -0.4);
   camera.add(g);
-  return { group: g, recoilTime: 0 };
+  return { group: g, recoilTime: 0, weapon: w };
+}
+
+function swapGun(weaponId) {
+  if (gun && gun.group) {
+    camera.remove(gun.group);
+    gun.group.traverse((o) => { if (o.isMesh && o.geometry) o.geometry.dispose(); });
+  }
+  gun = createGun(camera, weaponId);
 }
 
 function updateGun(gun, dt) {
@@ -950,18 +959,30 @@ function clearShot(from, to) {
   return sightRay.intersectObjects(wallMeshes).length === 0;
 }
 
-const gun = createGun(camera);
+let gun = createGun(camera, 'assault');
 const aliens = spawnAliens(scene);
 const boss = BOSS_ENABLED ? spawnBoss(scene) : null;
 const raycaster = new THREE.Raycaster();
 const screenCenter = new THREE.Vector2(0, 0);
+// Where this particular shot is actually aimed — the centre of the screen
+// plus whatever spread the weapon has.
+const aimPoint = new THREE.Vector2(0, 0);
 
 let bullets = [];
 let flashes = [];
 let projectiles = [];
 let killCount = 0;
 let playerHp = 100;
+let playerHpMax = 100;
 let isDead = false;
+
+// ─── YOUR CLASS ─────────────────────────────────────────────
+// Chosen on the title screen and applied when the run starts. It decides the
+// gun in your hands, how hard it hits, how fast it fires, how straight it
+// shoots, how much health you have and how quickly you move.
+let playerClass = classById('assault');
+let commanderWeapon = 'assault';     // only the Commander gets a say
+let shotCooldown = 0;
 
 // Has the player actually started playing?
 //
@@ -1025,11 +1046,29 @@ function worldIsLive() {
 }
 
 function updateHUD() {
-  healthBar.style.width = playerHp + '%';
-  healthBar.style.background = playerHp > 60 ? '#44ff88' : playerHp > 30 ? '#ffaa22' : '#ff2244';
+  // As a fraction of this class's maximum: a Sniper on 70 is at full health,
+  // not at seventy per cent of a bar that stops at a hundred.
+  const pct = playerHpMax > 0 ? (playerHp / playerHpMax) * 100 : 0;
+  healthBar.style.width = pct + '%';
+  healthBar.style.background = pct > 60 ? '#44ff88' : pct > 30 ? '#ffaa22' : '#ff2244';
   healthText.textContent = 'HP ' + playerHp;
   healthText.style.color = healthBar.style.background;
   killsEl.textContent = 'KILLS: ' + killCount;
+}
+
+/** Put the chosen class into effect. Called when a run begins. */
+/** What one round takes off, weapon and class together. */
+function shotDamage() {
+  return (gun.weapon.damage || 1) * (playerClass.damageMul || 1);
+}
+
+function applyClass() {
+  const w = playerClass.id === 'commander' ? commanderWeapon : playerClass.weapon;
+  swapGun(w);
+  playerHpMax = playerClass.hp;
+  playerHp = playerHpMax;
+  shotCooldown = 0;
+  updateHUD();
 }
 
 function damagePlayer(amount) {
@@ -1141,9 +1180,9 @@ function resetRun() {
   setSpaceDoorOpen(spaceDoor, false);
   if (!walls.includes(spaceDoor.wall)) walls.push(spaceDoor.wall);
 
-  // The player.
+  // The player, and whichever class they picked.
   killCount = 0;
-  playerHp = 100;
+  applyClass();
   isDead = false;
   deathCause = null;
   dmgFlashTimer = 0;
@@ -1183,6 +1222,7 @@ function playAgain() {
 function quitToTitle() {
   resetRun();
   started = false;         // back to a station that is standing still
+  drawClassPicker();       // in case this run unlocked something
   deathScreen.style.display = 'none';
   startOverlay.style.display = 'flex';
 }
@@ -1197,6 +1237,9 @@ function quitToTitle() {
 function escapeStation() {
   if (escaped || !worldIsLive()) return;
   escaped = true;
+  // This is the only place a win is recorded, and it is what eventually
+  // unlocks the Commander.
+  recordWin(playerClass.id);
   usePromptEl.style.display = 'none';
   // In case you got here inside the banner's few seconds — it sits above
   // every other screen, so left up it would be printed across this one.
@@ -1557,10 +1600,72 @@ function updateBoss(dt) {
   }
 }
 
+// ─── PICKING A CLASS ────────────────────────────────────────
+// Drawn fresh each time the title screen comes up, because what is unlocked
+// can change between runs — finish as the last of the three and the
+// Commander is waiting the moment you come back to this screen.
+const classPickerEl = document.getElementById('class-picker');
+const weaponPickEl = document.getElementById('weapon-pick');
+
+function drawClassPicker() {
+  const wins = winsSoFar();
+  const unlocked = commanderUnlocked(wins);
+  classPickerEl.innerHTML = '';
+  for (const c of CLASSES) {
+    const locked = c.locked && !unlocked;
+    const card = document.createElement('div');
+    card.className = 'class-card'
+      + (locked ? ' locked' : '')
+      + (playerClass.id === c.id ? ' picked' : '');
+    const need = stillNeeded(wins)
+      .map((id) => classById(id).name).join(', ');
+    card.innerHTML =
+      '<div class="cname">' + c.name + '</div>' +
+      '<div class="cblurb">' + (locked
+        ? 'Locked. Finish the game as ' + need + '.'
+        : c.blurb) + '</div>' +
+      '<div class="cstats">' + c.stats + '</div>' +
+      (wins.includes(c.id) ? '<div class="cwon">ESCAPED</div>' : '');
+    if (!locked) {
+      card.addEventListener('click', (e) => {
+        e.stopPropagation();        // the overlay itself starts the game
+        playerClass = c;
+        applyClass();
+        drawClassPicker();
+      });
+    } else {
+      card.addEventListener('click', (e) => e.stopPropagation());
+    }
+    classPickerEl.appendChild(card);
+  }
+
+  // The Commander's choice of weapon, and only the Commander's.
+  const showWeapons = playerClass.id === 'commander' && unlocked;
+  weaponPickEl.style.display = showWeapons ? 'block' : 'none';
+  if (showWeapons) {
+    weaponPickEl.innerHTML = 'Weapon: ';
+    for (const id of Object.keys(WEAPONS)) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = WEAPONS[id].label;
+      if (commanderWeapon === id) b.className = 'picked';
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        commanderWeapon = id;
+        applyClass();
+        drawClassPicker();
+      });
+      weaponPickEl.appendChild(b);
+    }
+  }
+}
+drawClassPicker();
+
 // ─── START ──────────────────────────────────────────────────
 startOverlay.addEventListener('click', () => {
   startOverlay.style.display = 'none';
   started = true;          // the station comes alive here, and not before
+  applyClass();
   canvas.requestPointerLock();
 });
 
@@ -1614,7 +1719,7 @@ function gameLoop(now) {
         break;
       }
     }
-    ctrl.speed = bogged ? WEB_SPEED : WALK_SPEED;
+    ctrl.speed = bogged ? WEB_SPEED : (playerClass.speed || WALK_SPEED);
 
     // Tentacles. The first step onto one shocks you immediately and standing
     // there keeps shocking you; the cooldown resets the moment you're clear,
@@ -1737,11 +1842,26 @@ function gameLoop(now) {
   }
 
   // --- Shooting ---
-  if (ctrl.shootRequested) {
-    ctrl.shootRequested = false;
+  // Rate of fire belongs to the weapon now. A click asks to shoot; whether
+  // it actually does depends on whether the thing in your hands is ready.
+  // An automatic weapon keeps asking for as long as the trigger is held.
+  if (shotCooldown > 0) shotCooldown -= dt;
+  const w = gun.weapon;
+  const wantsToFire = ctrl.shootRequested || (w.auto && ctrl.shootHeld);
+  ctrl.shootRequested = false;
+  if (wantsToFire && shotCooldown <= 0) {
+    shotCooldown = w.fireEvery;
     if (live) {
-      gun.recoilTime = 0.08;
-      raycaster.setFromCamera(screenCenter, camera);
+      gun.recoilTime = w.fireEvery > 0.5 ? 0.2 : 0.08;
+      // Spread: nudge the aim point off centre. The sniper's is zero, which
+      // is most of what you are paying for.
+      if (w.spread > 0) {
+        aimPoint.set((Math.random() - 0.5) * w.spread * 2,
+                     (Math.random() - 0.5) * w.spread * 2);
+      } else {
+        aimPoint.set(0, 0);
+      }
+      raycaster.setFromCamera(aimPoint, camera);
 
       // Parked aliens are hidden, and r128's raycaster does NOT skip invisible
       // meshes — without the visible check they'd still soak bullets from
@@ -1783,13 +1903,13 @@ function gameLoop(now) {
           // was shot. hits[0].point is the exact impact, so blood comes out
           // of the hole rather than the middle of whatever was hit.
           boss.kind.hit(boss.model, hitObj.userData.hitPart, hits[0].point,
-                        boss.kind.bullet);
+                        boss.kind.bullet * shotDamage());
         } else {
           for (const alien of aliens) {
             let found = false;
             alien.model.traverse((c) => { if (c === hitObj) found = true; });
             if (found && alien.alive) {
-              alien.hp--;
+              alien.hp -= shotDamage();
               alien.flashTimer = 0.12;
               alien.reg.hit(alien.ai);
               if (alien.hp <= 0) {

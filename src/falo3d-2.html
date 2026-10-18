@@ -196,6 +196,34 @@
   }
   #objective.done { color: #44ff88; }
 
+  /* Class picker, on the title screen above Click to Play. */
+  #class-picker { display: flex; gap: 10px; justify-content: center; margin: 18px 0 6px; }
+  .class-card {
+    width: 150px; padding: 10px 9px; border-radius: 8px; cursor: pointer;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.14);
+    text-align: left; font-family: 'Courier New', monospace;
+  }
+  .class-card:hover { background: rgba(255,170,34,0.1); }
+  .class-card.picked { border-color: #ffaa22; background: rgba(255,170,34,0.14); }
+  .class-card .cname { font-size: 13px; letter-spacing: 2px; color: #e8e8f0; }
+  .class-card .cblurb { font-size: 10px; color: #99a; margin-top: 5px; line-height: 1.45; }
+  .class-card .cstats { font-size: 9px; color: #ffaa22; margin-top: 6px; }
+  .class-card.locked { cursor: not-allowed; opacity: 0.55; }
+  .class-card.locked .cname { color: #889; }
+  .class-card.locked .cstats { color: #7a7a86; }
+  .class-card .cwon { font-size: 9px; color: #44ff88; margin-top: 4px; }
+
+  /* The Commander's weapon choice, shown only once it is unlocked. */
+  #weapon-pick { display: none; margin-top: 4px; font-size: 10px; color: #99a; }
+  #weapon-pick button {
+    font-family: inherit; font-size: 10px; letter-spacing: 1px;
+    margin: 0 3px; padding: 4px 9px; border-radius: 5px; cursor: pointer;
+    color: #c8c8d8; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.16);
+  }
+  #weapon-pick button.picked { border-color: #ffaa22; color: #ffaa22; }
+
   #controls-hint {
     position: fixed; bottom: 8px; left: 50%;
     transform: translateX(-50%);
@@ -307,6 +335,8 @@
     <div style="text-align:center">
       <div class="title">Falo 3D-2</div>
       <div class="sub">Space Station Crawler</div>
+      <div id="class-picker"></div>
+      <div id="weapon-pick"></div>
       <div class="play">Click to Play</div>
       <div class="controls">
         WASD — move · Mouse — look · Left click — shoot · Space — jump · E — use · Esc — pause<br>

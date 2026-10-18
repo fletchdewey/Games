@@ -78,6 +78,9 @@ export function createController(camera, domElement) {
 
     // Shooting
     shootRequested: false,
+    // Held down, for weapons that keep firing. shootRequested is the single
+    // click; this is the trigger still being pulled.
+    shootHeld: false,
 
     // Cleanup function (call when done)
     dispose: null,
@@ -126,7 +129,12 @@ export function createController(camera, domElement) {
       domElement.requestPointerLock();
     } else {
       ctrl.shootRequested = true;
+      ctrl.shootHeld = true;
     }
+  }
+
+  function onMouseUp(e) {
+    if (e.button === 0) ctrl.shootHeld = false;
   }
 
   function onLockChange() {
@@ -138,6 +146,7 @@ export function createController(camera, domElement) {
   document.addEventListener('keyup', onKeyUp);
   document.addEventListener('mousemove', onMouseMove);
   domElement.addEventListener('mousedown', onMouseDown);
+  document.addEventListener('mouseup', onMouseUp);
   document.addEventListener('pointerlockchange', onLockChange);
 
   // Cleanup function — call this when the game shuts down
@@ -221,6 +230,7 @@ export function updateController(ctrl, dt) {
     const trigger = (gp.buttons[7] && gp.buttons[7].pressed) ||
                     (gp.buttons[5] && gp.buttons[5].pressed);
     if (trigger && !ctrl.padShootPrev) ctrl.shootRequested = true;
+    ctrl.shootHeld = ctrl.shootHeld || trigger;
     ctrl.padShootPrev = trigger;
   }
 
