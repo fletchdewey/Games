@@ -35,8 +35,8 @@
 // that it would shoot you through the floor plan from the next room.
 
 import * as THREE from 'three';
-import { buildWatcher as buildWatcherModel, W } from './workshop_models.js?v=b88ad87179';
-import { rememberColor } from './model_colors.js?v=b88ad87179';
+import { buildWatcher as buildWatcherModel, W } from './workshop_models.js?v=246bc55f11';
+import { rememberColor } from './model_colors.js?v=246bc55f11';
 
 // Everything above is in SECONDS, not frames, because that is the unit the
 // workshop's own numbers are written in and converting them twice is how the

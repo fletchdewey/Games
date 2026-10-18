@@ -12,15 +12,15 @@
 
 import * as THREE from 'three';
 import { roomIdAt, worldToCell, WALL_HEIGHT as WALL_H,
-         SURFACE_WHITE } from './grid_map.js?v=b88ad87179';
+         SURFACE_WHITE } from './grid_map.js?v=246bc55f11';
 // Specimens for the pods room. These come from workshop_models.js — the
 // current models, straight out of the Alien Workshop — not from the older
 // crawler/floater/brute modules the fightable aliens are still built from.
 import { buildCrawler, buildFloater, buildBrute, buildWatcher }
-  from '../aliens/workshop_models.js?v=b88ad87179';
+  from '../aliens/workshop_models.js?v=246bc55f11';
 // The control room's map screen is drawn from the same painted cells the
 // level itself is built from.
-import { GRID } from './grid_data.js?v=b88ad87179';
+import { GRID } from './grid_data.js?v=246bc55f11';
 
 // Deterministic jitter, so the wreck looks scattered but lands in the same
 // place every run. Math.random() here would move the bodies on every reload.
@@ -2598,6 +2598,159 @@ export function buildAlienPods(scene, room, seed = 8808) {
 
     colliders.push({ x: px, z: pz, r: 0.85 });
   });
+
+  // ── THE ONE THAT DIDN'T HOLD ───────────────────────────────
+  //
+  // FLETCHER'S GUIDE:
+  // A containment pod three times the size of the specimen tanks, stood
+  // opposite the door so it is the thing you walk in on. They tried to keep
+  // the boss in it. The glass is gone — not cracked, GONE, blown outward
+  // with the shards lying in a fan pointing away from it, which is the whole
+  // story told in one detail: whatever did that was on the inside.
+  //
+  // Everything else follows from that. The cap is wrenched up off its seat,
+  // two of the struts are bent outward, the restraint rings that were meant
+  // to hold something down are snapped open, and the fluid it was kept in is
+  // across the floor.
+  {
+    const BX = room.x0 + 7.5, BZ = room.z0 + 4.5;   // measured against the map
+    const BR = 1.7, BASE = 0.55, GLASS = 3.0, CAP = 0.45;
+    const big = new THREE.Group();
+    big.position.set(BX, 0, BZ);
+    group.add(big);
+
+    // Plinth: armoured, not the thin steel ring the specimen tanks stand on.
+    const plinth = new THREE.Mesh(
+      new THREE.CylinderGeometry(BR + 0.3, BR + 0.45, BASE, 14), shell);
+    plinth.position.y = BASE / 2;
+    big.add(plinth);
+    const rim = new THREE.Mesh(
+      new THREE.CylinderGeometry(BR + 0.12, BR + 0.12, 0.16, 14), dark);
+    rim.position.y = BASE + 0.05;
+    big.add(rim);
+
+    // Struts. Two of them bowed outward where it came through.
+    const BENT = [1, 4];
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2 + 0.3;
+      const bent = BENT.includes(k);
+      const strut = new THREE.Mesh(
+        new THREE.BoxGeometry(0.16, GLASS * (bent ? 0.82 : 1), 0.16), dark);
+      const lean = bent ? 0.38 : 0;
+      strut.position.set(Math.cos(a) * (BR + 0.1) * (1 + lean * 0.5),
+                         BASE + GLASS / 2 * (bent ? 0.82 : 1),
+                         Math.sin(a) * (BR + 0.1) * (1 + lean * 0.5));
+      strut.rotation.z = -Math.cos(a) * lean;
+      strut.rotation.x = Math.sin(a) * lean;
+      big.add(strut);
+    }
+
+    // What is left of the glass: stumps standing in the frame, no cylinder.
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      if (rand() < 0.45) continue;                 // most of it is on the floor
+      const h = 0.25 + rand() * 0.8;
+      const shard = new THREE.Mesh(
+        new THREE.ConeGeometry(0.12 + rand() * 0.1, h, 3), glassMat);
+      shard.position.set(Math.cos(a) * BR, BASE + 0.1 + h / 2, Math.sin(a) * BR);
+      shard.rotation.y = a;
+      shard.rotation.z = (rand() - 0.5) * 0.3;
+      shard.renderOrder = 3;
+      big.add(shard);
+    }
+
+    // The cap, lifted off its seat and dropped back crooked.
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(BR + 0.2, BR + 0.05, CAP, 14), shell);
+    cap.position.set(0.35, BASE + GLASS + CAP / 2 - 0.1, 0.2);
+    cap.rotation.z = 0.19;
+    cap.rotation.x = -0.1;
+    big.add(cap);
+
+    // Torn feed lines, hanging rather than running to the ceiling.
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + 0.7;
+      const len = 0.5 + rand() * 1.1;
+      const pipe = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.07, 0.07, len, 6), dark);
+      pipe.position.set(Math.cos(a) * 0.7, WALL_H - len / 2, Math.sin(a) * 0.7);
+      pipe.rotation.z = (rand() - 0.5) * 0.5;
+      big.add(pipe);
+    }
+
+    // The restraints. Snapped open, which is the detail that says this held
+    // something rather than displayed it. One material for all four, not one
+    // each.
+    //
+    // On a column, because hanging in mid-air they read as a symbol rather
+    // than as hardware — cuffs are bolted to something, and the something is
+    // what you were meant to be chained to.
+    const cuffMat = new THREE.MeshLambertMaterial({ color: 0x3c4249 });
+    const spine = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.17, 0.2, GLASS * 0.86, 8), cuffMat);
+    spine.position.y = BASE + GLASS * 0.43;
+    big.add(spine);
+    // Sheared off at the top, where whatever was in here took it with them.
+    const shear = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.17, 0.5, 8), cuffMat);
+    shear.position.set(0.1, BASE + GLASS * 0.86 + 0.2, 0.06);
+    shear.rotation.z = 0.35;
+    big.add(shear);
+    for (const ry of [BASE + 0.6, BASE + 1.7]) {
+      for (const half of [-1, 1]) {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(0.5, 0.09, 5, 8, Math.PI * 0.8), cuffMat);
+        ring.position.set(half * 0.55, ry, 0);
+        ring.rotation.y = Math.PI / 2;
+        ring.rotation.z = half > 0 ? 0.5 : Math.PI - 0.5;
+        big.add(ring);
+      }
+    }
+
+    // Shards and spilled fluid, thrown clear on the side the door is on.
+    for (let k = 0; k < 22; k++) {
+      const a = rand() * Math.PI * 2;
+      const dd = BR + 0.4 + rand() * 2.6;
+      const piece = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1 + rand() * 0.22, 0.03, 0.08 + rand() * 0.16),
+        glassMat);
+      piece.position.set(Math.cos(a) * dd, 0.02, Math.sin(a) * dd);
+      piece.rotation.y = rand() * Math.PI;
+      piece.rotation.x = (rand() - 0.5) * 0.25;
+      piece.renderOrder = 3;
+      big.add(piece);
+    }
+    // Clear of the plinth, which is over two units across — the first
+    // version put every puddle underneath it, where none of them could be
+    // seen at all.
+    for (let k = 0; k < 4; k++) {
+      const a = rand() * Math.PI * 2, dd = BR + 0.7 + rand() * 1.8;
+      const spill = new THREE.Mesh(
+        new THREE.CircleGeometry(0.8 + rand() * 0.7, 12),
+        new THREE.MeshBasicMaterial({ color: 0x2f7d4a, transparent: true,
+                                      opacity: 0.5 }));
+      spill.rotation.x = -Math.PI / 2;
+      spill.position.set(Math.cos(a) * dd, 0.012 + k * 0.002, Math.sin(a) * dd);
+      big.add(spill);
+    }
+
+    // A toppled control stand, shoved aside and lying on the floor rather
+    // than standing between the door and the pod — which is where the first
+    // version put it, blocking the one view of this that matters.
+    const stand = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.55), shell);
+    stand.position.set(-0.3, 0.14, BR + 1.3);
+    stand.rotation.z = 0.5;
+    stand.rotation.y = 0.7;
+    big.add(stand);
+    const standLeg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.9, 0.16), dark);
+    standLeg.position.set(0.15, 0.3, BR + 1.55);
+    standLeg.rotation.z = 1.2;
+    big.add(standLeg);
+
+    // It gets its own collider ring — one circle round a pod this wide would
+    // wall off most of the room.
+    colliders.push({ x: BX, z: BZ, r: BR + 0.35 });
+  }
 
   // One light for the row. The grid lamps are on a 10-cell lattice and this
   // room falls between them, same as the armory did — and the tanks are the
