@@ -930,6 +930,7 @@ const usePromptEl = document.getElementById('use-prompt');
 const objectiveEl = document.getElementById('objective');
 const soldierHudEl = document.getElementById('soldier-hud');
 const soldierBarEl = document.getElementById('soldier-bar');
+const escapeCrewEl = document.getElementById('escape-crew');
 const bossBannerTitleEl = document.getElementById('boss-banner-title');
 let deathCause = null;
 const startOverlay = document.getElementById('start-overlay');
@@ -1049,6 +1050,7 @@ function resetRun() {
   // He is tied up again, back in the room, and you have to find him afresh.
   initSoldier(soldier, SOLDIER_SPOT);
   soldier.rotation.x = 0;
+  soldier.visible = true;        // he climbs back out for the next run
   soldierFreedAnnounced = false;
   if (soldierHudEl) soldierHudEl.style.display = 'none';
   // And you are never left standing in the hidden room at the start of a run.
@@ -1135,6 +1137,31 @@ function escapeStation() {
   escapeTallyEl.textContent =
     killCount === 1 ? '1 of them did not make it off with you.'
                     : killCount + ' of them did not make it off with you.';
+
+  // Does the soldier get off with you?
+  //
+  // He has to actually BE there — he follows at about three units, so if you
+  // walked to the pod he is at your shoulder, but if he is lying dead in an
+  // outpost or still tied up behind the board he is not coming. Three
+  // outcomes, and the one where you never found him says nothing at all,
+  // because as far as that run is concerned he does not exist.
+  escapeCrewEl.classList.remove('lost');
+  if (!soldierIsFree(soldier)) {
+    escapeCrewEl.textContent = '';
+  } else if (soldierIsDown(soldier)) {
+    escapeCrewEl.textContent = 'You left the soldier on the station.';
+    escapeCrewEl.classList.add('lost');
+  } else if (Math.hypot(soldier.position.x - escapePod.board.x,
+                        soldier.position.z - escapePod.board.z) < 9) {
+    escapeCrewEl.textContent = 'The soldier made it into the seat behind you.';
+    // He is inside now. Left standing on the pad he would be visible through
+    // the hatch on the very screen saying he came with you.
+    soldier.visible = false;
+  } else {
+    escapeCrewEl.textContent = 'The soldier was too far behind. The door shut without him.';
+    escapeCrewEl.classList.add('lost');
+  }
+
   escapeScreen.style.display = 'flex';
   if (document.pointerLockElement) document.exitPointerLock();
 }
@@ -1232,6 +1259,7 @@ function stepSoldier(dt, dtFrames) {
 
   const event = updateSoldier(soldier, {
     playerPos: ctrl.position,
+    playerYaw: ctrl.yaw,
     aliens: shootable,
     canSee: (from, to) => clearShot(
       new THREE.Vector3(from.x, from.y + 1.3, from.z),

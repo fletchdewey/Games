@@ -18,42 +18,42 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=42bd2ee3b7';
+import { PALETTE, getMaterial } from './shared/materials.js?v=857f4c18ef';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=42bd2ee3b7';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=42bd2ee3b7';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=857f4c18ef';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=857f4c18ef';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=42bd2ee3b7';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=42bd2ee3b7';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=857f4c18ef';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=857f4c18ef';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=42bd2ee3b7';
+import { createController, updateController } from './player/controller.js?v=857f4c18ef';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=42bd2ee3b7';
+import { buildSoldier } from './npc/soldier.js?v=857f4c18ef';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=42bd2ee3b7';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=857f4c18ef';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=42bd2ee3b7';
-import { createSwarm } from './bosses/swarm.js?v=42bd2ee3b7';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=42bd2ee3b7';
-import { createTwins } from './bosses/twins.js?v=42bd2ee3b7';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=42bd2ee3b7';
-import { createBurrower } from './bosses/burrower.js?v=42bd2ee3b7';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=857f4c18ef';
+import { createSwarm } from './bosses/swarm.js?v=857f4c18ef';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=857f4c18ef';
+import { createTwins } from './bosses/twins.js?v=857f4c18ef';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=857f4c18ef';
+import { createBurrower } from './bosses/burrower.js?v=857f4c18ef';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=42bd2ee3b7';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=857f4c18ef';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=42bd2ee3b7';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=857f4c18ef';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=42bd2ee3b7';
+  from './map/grid_map.js?v=857f4c18ef';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -62,7 +62,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildEscapePod, setEscapePodUnlocked, updateEscapePod,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=42bd2ee3b7';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=857f4c18ef';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -930,6 +930,7 @@ const usePromptEl = document.getElementById('use-prompt');
 const objectiveEl = document.getElementById('objective');
 const soldierHudEl = document.getElementById('soldier-hud');
 const soldierBarEl = document.getElementById('soldier-bar');
+const escapeCrewEl = document.getElementById('escape-crew');
 const bossBannerTitleEl = document.getElementById('boss-banner-title');
 let deathCause = null;
 const startOverlay = document.getElementById('start-overlay');
@@ -1049,6 +1050,7 @@ function resetRun() {
   // He is tied up again, back in the room, and you have to find him afresh.
   initSoldier(soldier, SOLDIER_SPOT);
   soldier.rotation.x = 0;
+  soldier.visible = true;        // he climbs back out for the next run
   soldierFreedAnnounced = false;
   if (soldierHudEl) soldierHudEl.style.display = 'none';
   // And you are never left standing in the hidden room at the start of a run.
@@ -1135,6 +1137,31 @@ function escapeStation() {
   escapeTallyEl.textContent =
     killCount === 1 ? '1 of them did not make it off with you.'
                     : killCount + ' of them did not make it off with you.';
+
+  // Does the soldier get off with you?
+  //
+  // He has to actually BE there — he follows at about three units, so if you
+  // walked to the pod he is at your shoulder, but if he is lying dead in an
+  // outpost or still tied up behind the board he is not coming. Three
+  // outcomes, and the one where you never found him says nothing at all,
+  // because as far as that run is concerned he does not exist.
+  escapeCrewEl.classList.remove('lost');
+  if (!soldierIsFree(soldier)) {
+    escapeCrewEl.textContent = '';
+  } else if (soldierIsDown(soldier)) {
+    escapeCrewEl.textContent = 'You left the soldier on the station.';
+    escapeCrewEl.classList.add('lost');
+  } else if (Math.hypot(soldier.position.x - escapePod.board.x,
+                        soldier.position.z - escapePod.board.z) < 9) {
+    escapeCrewEl.textContent = 'The soldier made it into the seat behind you.';
+    // He is inside now. Left standing on the pad he would be visible through
+    // the hatch on the very screen saying he came with you.
+    soldier.visible = false;
+  } else {
+    escapeCrewEl.textContent = 'The soldier was too far behind. The door shut without him.';
+    escapeCrewEl.classList.add('lost');
+  }
+
   escapeScreen.style.display = 'flex';
   if (document.pointerLockElement) document.exitPointerLock();
 }
@@ -1232,6 +1259,7 @@ function stepSoldier(dt, dtFrames) {
 
   const event = updateSoldier(soldier, {
     playerPos: ctrl.position,
+    playerYaw: ctrl.yaw,
     aliens: shootable,
     canSee: (from, to) => clearShot(
       new THREE.Vector3(from.x, from.y + 1.3, from.z),

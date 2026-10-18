@@ -112,6 +112,9 @@
   #escape-screen h1 { font-size: 32px; color: #44ff88; letter-spacing: 6px; }
   #escape-screen p { font-size: 12px; color: #86c8a2; margin-top: 8px; }
   #escape-screen .tally { font-size: 12px; color: #cfe8d8; margin-top: 14px; }
+  /* Whether the soldier got off with you. Blank if you never found him. */
+  #escape-screen .crew { font-size: 12px; color: #9ad46a; margin-top: 6px; }
+  #escape-screen .crew.lost { color: #c08a7a; }
   #escape-screen .choices {
     display: flex; gap: 14px; justify-content: center; margin-top: 24px;
   }
@@ -289,6 +292,7 @@
       <h1>ESCAPED</h1>
       <p>The pod clears the hull. The station falls away behind you.</p>
       <div class="tally" id="escape-tally"></div>
+      <div class="crew" id="escape-crew"></div>
       <div class="choices">
         <button id="escape-again" type="button">Play Again</button>
         <button id="escape-quit" class="quit" type="button">Quit</button>

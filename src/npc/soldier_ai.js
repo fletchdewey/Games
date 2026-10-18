@@ -26,9 +26,16 @@ export const FX = {
   riseFrames: 34,
 
   followGap: 2.9,          // he stops this far off you
-  followFar: 26,           // further than this and he gives up walking and
-                           // catches up the short way — see the note below
-  speed: 0.082,            // per frame; the player's walk is 0.083
+  // Faster than you, and it has to be. At 0.082 he was a hair SLOWER than
+  // your 0.083 walk, so over a long corridor he fell steadily further behind
+  // and only ever caught up when you stopped. A follower has to be able to
+  // close a gap, not merely hold one.
+  speed: 0.096,
+  // And a limit past which walking is hopeless — through the board without
+  // him, or wedged on something. Rather than lose him for the rest of the
+  // run he simply catches up. It is a long way: far enough that it can never
+  // happen while you can actually see him.
+  lost: 30,
   turn: 0.22,
 
   sight: 15,               // how far he will take a shot
@@ -164,7 +171,16 @@ export function updateSoldier(group, ctx, dtF) {
 
   const me = group.position;
   const toPlayer = _v.set(ctx.playerPos.x - me.x, 0, ctx.playerPos.z - me.z);
-  const playerDist = toPlayer.length();
+  let playerDist = toPlayer.length();
+
+  // Hopelessly far: he was left behind by something walking cannot undo.
+  if (playerDist > FX.lost) {
+    const behind = (ctx.playerYaw || 0) + Math.PI;
+    me.x = ctx.playerPos.x + Math.sin(behind) * 1.6;
+    me.z = ctx.playerPos.z + Math.cos(behind) * 1.6;
+    toPlayer.set(ctx.playerPos.x - me.x, 0, ctx.playerPos.z - me.z);
+    playerDist = toPlayer.length();
+  }
 
   // Pick something to shoot: the nearest he can both reach and see.
   let target = null, best = Infinity;
