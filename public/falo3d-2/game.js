@@ -18,55 +18,56 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=8f6b3dc7e5';
+import { PALETTE, getMaterial } from './shared/materials.js?v=6df9ac649c';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=8f6b3dc7e5';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=8f6b3dc7e5';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=6df9ac649c';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=6df9ac649c';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=8f6b3dc7e5';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=8f6b3dc7e5';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=6df9ac649c';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=6df9ac649c';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=8f6b3dc7e5';
+import { createDescent } from './cutscene/descent.js?v=6df9ac649c';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=8f6b3dc7e5';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=8f6b3dc7e5';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=6df9ac649c';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=6df9ac649c';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=8f6b3dc7e5';
+import { createController, updateController } from './player/controller.js?v=6df9ac649c';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=8f6b3dc7e5';
+  from './player/classes.js?v=6df9ac649c';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=8f6b3dc7e5';
+import { buildSoldier } from './npc/soldier.js?v=6df9ac649c';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=8f6b3dc7e5';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=6df9ac649c';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=8f6b3dc7e5';
-import { createSwarm } from './bosses/swarm.js?v=8f6b3dc7e5';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=8f6b3dc7e5';
-import { createTwins } from './bosses/twins.js?v=8f6b3dc7e5';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=8f6b3dc7e5';
-import { createBurrower } from './bosses/burrower.js?v=8f6b3dc7e5';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=6df9ac649c';
+import { createSwarm } from './bosses/swarm.js?v=6df9ac649c';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=6df9ac649c';
+import { createTwins } from './bosses/twins.js?v=6df9ac649c';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=6df9ac649c';
+import { createBurrower } from './bosses/burrower.js?v=6df9ac649c';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=8f6b3dc7e5';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=6df9ac649c';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=8f6b3dc7e5';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=6df9ac649c';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
+import { cleanName, savedName, saveName } from './player/name.js?v=6df9ac649c';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=8f6b3dc7e5';
+  from './map/grid_map.js?v=6df9ac649c';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -76,7 +77,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=8f6b3dc7e5';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=6df9ac649c';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -1220,6 +1221,51 @@ const escapeCrewEl = document.getElementById('escape-crew');
 const bossBannerTitleEl = document.getElementById('boss-banner-title');
 let deathCause = null;
 const startOverlay = document.getElementById('start-overlay');
+
+// ─── WHO YOU ARE ────────────────────────────────────────────
+// Asked once, the first time this machine ever plays, and then shown in the
+// corner for good. The gate sits over the title screen rather than before
+// it, so the station is already running behind it the way it always was.
+const nameGateEl = document.getElementById('name-gate');
+const nameInputEl = document.getElementById('name-input');
+const nameGoEl = document.getElementById('name-go');
+const nameWhyEl = document.getElementById('name-why');
+const playerNameEl = document.getElementById('player-name');
+let playerName = savedName();
+
+function showPlayerName() {
+  if (!playerNameEl) return;
+  playerNameEl.textContent = playerName || '';
+  playerNameEl.style.display = playerName ? 'block' : 'none';
+}
+
+function submitName() {
+  const r = cleanName(nameInputEl ? nameInputEl.value : '');
+  if (!r.ok) {
+    // Taken away rather than left there to be nudged past the filter.
+    if (nameInputEl) { nameInputEl.value = ''; nameInputEl.focus(); }
+    if (nameWhyEl) nameWhyEl.textContent = r.why;
+    return;
+  }
+  playerName = r.name;
+  saveName(playerName);
+  if (nameWhyEl) nameWhyEl.textContent = '';
+  if (nameGateEl) nameGateEl.style.display = 'none';
+  showPlayerName();
+}
+
+if (nameGoEl) nameGoEl.addEventListener('click', submitName);
+if (nameInputEl) {
+  nameInputEl.addEventListener('keydown', (e) => {
+    e.stopPropagation();            // the game's own keys are not listening here
+    if (e.key === 'Enter') submitName();
+  });
+}
+if (!playerName && nameGateEl) {
+  nameGateEl.style.display = 'flex';
+  if (nameInputEl) setTimeout(() => nameInputEl.focus(), 50);
+}
+showPlayerName();
 
 // Boss HUD (added to the page markup)
 const bossHudEl = document.getElementById('boss-hud');
@@ -2431,6 +2477,8 @@ drawDifficulty();
 
 // ─── START ──────────────────────────────────────────────────
 startOverlay.addEventListener('click', () => {
+  // Nothing starts until there is a name to put in the corner.
+  if (nameGateEl && nameGateEl.style.display === 'flex') return;
   startOverlay.style.display = 'none';
   // A browser refuses to play anything until the person has clicked, so this
   // is the first moment the game is allowed to make a sound at all.

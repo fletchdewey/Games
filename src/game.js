@@ -65,6 +65,7 @@ import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
+import { cleanName, savedName, saveName } from './player/name.js';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
   from './map/grid_map.js';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
@@ -1220,6 +1221,51 @@ const escapeCrewEl = document.getElementById('escape-crew');
 const bossBannerTitleEl = document.getElementById('boss-banner-title');
 let deathCause = null;
 const startOverlay = document.getElementById('start-overlay');
+
+// ─── WHO YOU ARE ────────────────────────────────────────────
+// Asked once, the first time this machine ever plays, and then shown in the
+// corner for good. The gate sits over the title screen rather than before
+// it, so the station is already running behind it the way it always was.
+const nameGateEl = document.getElementById('name-gate');
+const nameInputEl = document.getElementById('name-input');
+const nameGoEl = document.getElementById('name-go');
+const nameWhyEl = document.getElementById('name-why');
+const playerNameEl = document.getElementById('player-name');
+let playerName = savedName();
+
+function showPlayerName() {
+  if (!playerNameEl) return;
+  playerNameEl.textContent = playerName || '';
+  playerNameEl.style.display = playerName ? 'block' : 'none';
+}
+
+function submitName() {
+  const r = cleanName(nameInputEl ? nameInputEl.value : '');
+  if (!r.ok) {
+    // Taken away rather than left there to be nudged past the filter.
+    if (nameInputEl) { nameInputEl.value = ''; nameInputEl.focus(); }
+    if (nameWhyEl) nameWhyEl.textContent = r.why;
+    return;
+  }
+  playerName = r.name;
+  saveName(playerName);
+  if (nameWhyEl) nameWhyEl.textContent = '';
+  if (nameGateEl) nameGateEl.style.display = 'none';
+  showPlayerName();
+}
+
+if (nameGoEl) nameGoEl.addEventListener('click', submitName);
+if (nameInputEl) {
+  nameInputEl.addEventListener('keydown', (e) => {
+    e.stopPropagation();            // the game's own keys are not listening here
+    if (e.key === 'Enter') submitName();
+  });
+}
+if (!playerName && nameGateEl) {
+  nameGateEl.style.display = 'flex';
+  if (nameInputEl) setTimeout(() => nameInputEl.focus(), 50);
+}
+showPlayerName();
 
 // Boss HUD (added to the page markup)
 const bossHudEl = document.getElementById('boss-hud');
@@ -2431,6 +2477,8 @@ drawDifficulty();
 
 // ─── START ──────────────────────────────────────────────────
 startOverlay.addEventListener('click', () => {
+  // Nothing starts until there is a name to put in the corner.
+  if (nameGateEl && nameGateEl.style.display === 'flex') return;
   startOverlay.style.display = 'none';
   // A browser refuses to play anything until the person has clicked, so this
   // is the first moment the game is allowed to make a sound at all.

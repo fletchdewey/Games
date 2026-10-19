@@ -42,6 +42,51 @@
     transform: translateX(-50%);
     font-size: 10px; color: #44ff88;
   }
+  /* Your name, top left, opposite the kill count. */
+  #player-name {
+    display: none;
+    position: fixed; top: 12px; left: 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 14px; color: #8fd8ff; letter-spacing: 2px;
+    background: rgba(0,0,0,0.4);
+    padding: 6px 12px; border-radius: 4px;
+    pointer-events: none; z-index: 10;
+  }
+
+  /* Asked once, the first time this machine ever plays. */
+  #name-gate {
+    display: none;
+    position: fixed; inset: 0; z-index: 60;
+    background: rgba(4,6,10,0.94);
+    align-items: center; justify-content: center;
+    font-family: 'Courier New', monospace; color: #cfe8d8;
+  }
+  #name-gate .box { text-align: center; max-width: 92vw; }
+  #name-gate h2 {
+    font-size: 24px; color: #44ff88; letter-spacing: 6px; margin-bottom: 6px;
+  }
+  #name-gate p { font-size: 12px; color: #86c8a2; margin-bottom: 20px; }
+  #name-gate input {
+    font-family: inherit; font-size: 18px; letter-spacing: 3px;
+    text-align: center; text-transform: none;
+    background: rgba(0,0,0,0.6); color: #cfe8d8;
+    border: 1px solid #2f6b4a; border-radius: 4px;
+    padding: 10px 14px; width: 280px; max-width: 80vw; outline: none;
+  }
+  #name-gate input:focus { border-color: #44ff88; }
+  #name-gate button {
+    display: block; margin: 16px auto 0;
+    font-family: inherit; font-size: 14px; letter-spacing: 2px;
+    background: rgba(68,255,136,0.08); color: #44ff88;
+    border: 1px solid #44ff88; border-radius: 4px;
+    padding: 9px 26px; cursor: pointer;
+  }
+  #name-gate button:hover { background: rgba(68,255,136,0.18); }
+  #name-gate .why {
+    min-height: 16px; margin-top: 14px;
+    font-size: 12px; letter-spacing: 2px; color: #ff8a70;
+  }
+
   #kills {
     position: fixed; top: 12px; right: 12px;
     font-family: 'Courier New', monospace;
@@ -273,6 +318,7 @@
   body.in-descent #controls-hint,
   body.in-descent #soldier-hud,
   body.in-descent #perk-hud,
+  body.in-descent #player-name,
   body.in-descent #use-prompt,
   body.in-descent #boss-hud,
   body.in-descent #boss-banner,
@@ -380,6 +426,7 @@
     <div id="health-bar-wrap"><div id="health-bar"></div></div>
     <div id="health-text">HP 100</div>
   </div>
+  <div id="player-name"></div>
   <div id="kills">KILLS: 0</div>
   <div id="room-label">Loading Bay</div>
   <div id="damage-flash"></div>
@@ -432,6 +479,17 @@
     <div class="prow">
       <span class="pkey">1</span> &mdash; Three grenades<br>
       <span class="pkey">2</span> &mdash; Field kit, heals you slowly
+    </div>
+  </div>
+
+  <div id="name-gate">
+    <div class="box">
+      <h2>WHO ARE YOU?</h2>
+      <p>Pick a name. It stays in the corner while you play.</p>
+      <input id="name-input" maxlength="14" autocomplete="off"
+             spellcheck="false" placeholder="YOUR NAME">
+      <button id="name-go">START</button>
+      <div class="why" id="name-why"></div>
     </div>
   </div>
 
