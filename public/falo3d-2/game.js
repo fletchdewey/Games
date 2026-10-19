@@ -18,55 +18,55 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=b78467d095';
+import { PALETTE, getMaterial } from './shared/materials.js?v=8f6b3dc7e5';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=b78467d095';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=b78467d095';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=8f6b3dc7e5';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=8f6b3dc7e5';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=b78467d095';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=b78467d095';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=8f6b3dc7e5';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=8f6b3dc7e5';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=b78467d095';
+import { createDescent } from './cutscene/descent.js?v=8f6b3dc7e5';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=b78467d095';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=b78467d095';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=8f6b3dc7e5';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=8f6b3dc7e5';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=b78467d095';
+import { createController, updateController } from './player/controller.js?v=8f6b3dc7e5';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=b78467d095';
+  from './player/classes.js?v=8f6b3dc7e5';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=b78467d095';
+import { buildSoldier } from './npc/soldier.js?v=8f6b3dc7e5';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=b78467d095';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=8f6b3dc7e5';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=b78467d095';
-import { createSwarm } from './bosses/swarm.js?v=b78467d095';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=b78467d095';
-import { createTwins } from './bosses/twins.js?v=b78467d095';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=b78467d095';
-import { createBurrower } from './bosses/burrower.js?v=b78467d095';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=8f6b3dc7e5';
+import { createSwarm } from './bosses/swarm.js?v=8f6b3dc7e5';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=8f6b3dc7e5';
+import { createTwins } from './bosses/twins.js?v=8f6b3dc7e5';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=8f6b3dc7e5';
+import { createBurrower } from './bosses/burrower.js?v=8f6b3dc7e5';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=b78467d095';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=8f6b3dc7e5';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=b78467d095';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=8f6b3dc7e5';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=b78467d095';
+  from './map/grid_map.js?v=8f6b3dc7e5';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -76,7 +76,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=b78467d095';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=8f6b3dc7e5';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -1046,11 +1046,12 @@ function keepOutOfWalls(pos, prevX, prevZ, r) {
 }
 // Is there a clear line between these two points, or is there a wall in it?
 //
-// Only the Watcher asks. Everything else that shoots at you lobs a slow,
-// visible projectile that the projectile loop already flies through the world
-// one step at a time. The Watcher's beam arrives the instant it fires and
-// takes 15 off you, so it has to be blocked by geometry or ducking behind a
-// wall would mean nothing.
+// The Watcher's beam arrives the instant it fires and takes 15 off you, so it
+// has to be blocked by geometry or ducking behind a wall would mean nothing.
+// Alien projectiles ask the same question of each step they take: this used
+// to say they didn't need to, which was wrong — the projectile loop tested
+// only the floor and the ceiling, so every Floater blast in the game flew
+// straight through walls.
 const sightRay = new THREE.Raycaster();
 function clearShot(from, to) {
   const dir = new THREE.Vector3().subVectors(to, from);
@@ -1094,6 +1095,9 @@ const aimPoint = new THREE.Vector2(0, 0);
 let bullets = [];
 let flashes = [];
 let projectiles = [];
+// Where a bolt was before this frame moved it, so the step it just took can
+// be tested against the walls rather than only its landing point.
+const projPrev = new THREE.Vector3();
 let killCount = 0;
 let playerHp = 100;
 let playerHpMax = 100;
@@ -2793,6 +2797,7 @@ function gameLoop(now) {
   if (live) projectiles = projectiles.filter((p) => {
     p.life -= dt;
     if (p.life <= 0) { removeProjectile(p); return false; }
+    projPrev.copy(p.mesh.position);
     p.mesh.position.addScaledVector(p.dir, p.speed * dt);
     if (p.spin) {
       p.mesh.rotation.x += p.spin.x * dt;
@@ -2805,9 +2810,12 @@ function gameLoop(now) {
       removeProjectile(p);
       return false;
     }
-    // Hit wall?
+    // Hit wall? The whole step is tested, not just where it ended up — a
+    // bolt moving a quarter of a unit a frame would otherwise step straight
+    // over anything thinner than that.
     const pp = p.mesh.position;
-    if (pp.y < 0 || pp.y > 4) { removeProjectile(p); return false; }
+    if (pp.y < 0 || pp.y > ceilingY) { removeProjectile(p); return false; }
+    if (!clearShot(projPrev, pp)) { removeProjectile(p); return false; }
     return true;
   });
 

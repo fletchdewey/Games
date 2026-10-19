@@ -12,15 +12,15 @@
 
 import * as THREE from 'three';
 import { roomIdAt, worldToCell, isFloorAt, WALL_HEIGHT as WALL_H,
-         SURFACE_WHITE } from './grid_map.js?v=b78467d095';
+         SURFACE_WHITE } from './grid_map.js?v=8f6b3dc7e5';
 // Specimens for the pods room. These come from workshop_models.js — the
 // current models, straight out of the Alien Workshop — not from the older
 // crawler/floater/brute modules the fightable aliens are still built from.
 import { buildCrawler, buildFloater, buildBrute, buildWatcher }
-  from '../aliens/workshop_models.js?v=b78467d095';
+  from '../aliens/workshop_models.js?v=8f6b3dc7e5';
 // The control room's map screen is drawn from the same painted cells the
 // level itself is built from.
-import { GRID } from './grid_data.js?v=b78467d095';
+import { GRID } from './grid_data.js?v=8f6b3dc7e5';
 
 // Deterministic jitter, so the wreck looks scattered but lands in the same
 // place every run. Math.random() here would move the bodies on every reload.

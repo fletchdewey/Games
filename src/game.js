@@ -1046,11 +1046,12 @@ function keepOutOfWalls(pos, prevX, prevZ, r) {
 }
 // Is there a clear line between these two points, or is there a wall in it?
 //
-// Only the Watcher asks. Everything else that shoots at you lobs a slow,
-// visible projectile that the projectile loop already flies through the world
-// one step at a time. The Watcher's beam arrives the instant it fires and
-// takes 15 off you, so it has to be blocked by geometry or ducking behind a
-// wall would mean nothing.
+// The Watcher's beam arrives the instant it fires and takes 15 off you, so it
+// has to be blocked by geometry or ducking behind a wall would mean nothing.
+// Alien projectiles ask the same question of each step they take: this used
+// to say they didn't need to, which was wrong — the projectile loop tested
+// only the floor and the ceiling, so every Floater blast in the game flew
+// straight through walls.
 const sightRay = new THREE.Raycaster();
 function clearShot(from, to) {
   const dir = new THREE.Vector3().subVectors(to, from);
@@ -1094,6 +1095,9 @@ const aimPoint = new THREE.Vector2(0, 0);
 let bullets = [];
 let flashes = [];
 let projectiles = [];
+// Where a bolt was before this frame moved it, so the step it just took can
+// be tested against the walls rather than only its landing point.
+const projPrev = new THREE.Vector3();
 let killCount = 0;
 let playerHp = 100;
 let playerHpMax = 100;
@@ -2793,6 +2797,7 @@ function gameLoop(now) {
   if (live) projectiles = projectiles.filter((p) => {
     p.life -= dt;
     if (p.life <= 0) { removeProjectile(p); return false; }
+    projPrev.copy(p.mesh.position);
     p.mesh.position.addScaledVector(p.dir, p.speed * dt);
     if (p.spin) {
       p.mesh.rotation.x += p.spin.x * dt;
@@ -2805,9 +2810,12 @@ function gameLoop(now) {
       removeProjectile(p);
       return false;
     }
-    // Hit wall?
+    // Hit wall? The whole step is tested, not just where it ended up — a
+    // bolt moving a quarter of a unit a frame would otherwise step straight
+    // over anything thinner than that.
     const pp = p.mesh.position;
-    if (pp.y < 0 || pp.y > 4) { removeProjectile(p); return false; }
+    if (pp.y < 0 || pp.y > ceilingY) { removeProjectile(p); return false; }
+    if (!clearShot(projPrev, pp)) { removeProjectile(p); return false; }
     return true;
   });
 
