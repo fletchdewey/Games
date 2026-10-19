@@ -22,10 +22,11 @@
 // Press any key to skip it.
 
 import * as THREE from 'three';
-import { buildCrawler } from '../aliens/crawler.js?v=c795c8d6b6';
-import { buildBrute } from '../aliens/brute.js?v=c795c8d6b6';
-import { buildWatcher } from '../aliens/watcher.js?v=c795c8d6b6';
-import { buildFloater } from '../aliens/floater.js?v=c795c8d6b6';
+import { buildCrawler } from '../aliens/crawler.js?v=aba919e74a';
+import { buildBrute } from '../aliens/brute.js?v=aba919e74a';
+import { buildWatcher } from '../aliens/watcher.js?v=aba919e74a';
+import { buildFloater } from '../aliens/floater.js?v=aba919e74a';
+import { buildSoldier, poseStand, poseAim, freeSoldier } from '../npc/soldier.js?v=aba919e74a';
 
 // ─── WHERE EVERYTHING IS ────────────────────────────────────
 // The pod comes down the middle of a valley. Their city is ahead and to the
@@ -182,6 +183,21 @@ function cloudTexture() {
     for (let i = 0; i < 26; i++) {
       blob(g, Math.random() * w, Math.random() * h, 14 + Math.random() * 34, 9);
     }
+  });
+}
+
+/** A camp sign: dark letters on a board, painted rather than modelled. */
+function signTexture(lines) {
+  return painted(512, lines.length > 1 ? 256 : 160, (g, w, h) => {
+    g.fillStyle = '#cfc8b6'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#23262c'; g.lineWidth = 12;
+    g.strokeRect(10, 10, w - 20, h - 20);
+    g.fillStyle = '#23262c';
+    g.font = 'bold 78px Menlo, monospace';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    lines.forEach((t, i) => {
+      g.fillText(t, w / 2, h / 2 + (i - (lines.length - 1) / 2) * 88);
+    });
   });
 }
 
@@ -619,54 +635,192 @@ function buildTown() {
 }
 
 /**
- * The outpost, out past the edge of town and burning.
+ * The outpost: ours, burning at one end, and the only place on this planet
+ * that is not crawling.
  *
- * Ours, not theirs — grey prefabs, a landing pad, a comms mast and a wire
- * fence, so that from a long way off it reads as the last human thing on
- * the planet. One block is open to the sky with a fire in it and a column
- * of smoke leaning off in the wind, and that column is the only reason you
- * can pick the place out at this distance.
+ * Big ridge tents rather than huts — a prism with a flat floor and a roof
+ * ridge, which is three lines and reads as canvas from any distance. Each
+ * one is signposted on two posts at its door, the signs being text painted
+ * onto a canvas exactly the way the planet's oceans were.
  *
- * The group carries its own tick(): twelve puffs climbing the column on a
- * loop, flames that never hold still, and a light that flickers with them.
+ * The people are the game's own soldier, posed and left standing: a
+ * commander bent over the planning table in the marked circle with two of
+ * them either side, and eight more spaced round the wire looking out. They
+ * are built at four times the model's size, because this camp is built at
+ * about that much over life size so that it reads from the air.
+ *
+ * The group carries its own tick(): the smoke climbing, the fire moving,
+ * the beacon blinking, and every one of them breathing.
  */
 function buildOutpost() {
   const g = new THREE.Group();
-  const prefab = new THREE.MeshLambertMaterial({ color: 0x8d9299 });
+  const canvasM = new THREE.MeshLambertMaterial({ color: 0x8d8f7e });
+  const canvasB = new THREE.MeshLambertMaterial({ color: 0x6d7360 });
   const olive = new THREE.MeshLambertMaterial({ color: 0x4b5340 });
   const metal = new THREE.MeshLambertMaterial({ color: 0x5a6068 });
   const deck = new THREE.MeshBasicMaterial({ color: 0x1e2228 });
   const paint = new THREE.MeshBasicMaterial({ color: 0xe8c23a });
   const burnt = new THREE.MeshLambertMaterial({ color: 0x2b2a2c });
-
-  // Prefab blocks, long low things with a roof vent each.
-  // A door and a lit strip on the near face of each, because the camera
-  // ends up close enough that a bare box reads as a bare box.
+  const sandbag = new THREE.MeshLambertMaterial({ color: 0x6b6250 });
   const door = new THREE.MeshLambertMaterial({ color: 0x2b2f35 });
   const lit = new THREE.MeshBasicMaterial({ color: 0xffe3a8 });
-  for (const [x, z, w, d, h, mat] of [
-    [-54, -26, 50, 26, 22, prefab],
-    [8, -42, 42, 24, 19, prefab],
-    [46, 30, 32, 20, 17, olive],
-    [-34, 40, 28, 18, 15, olive],
-  ]) {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    b.position.set(x, h / 2, z); g.add(b);
-    const vent = new THREE.Mesh(new THREE.BoxGeometry(w * 0.3, 4, d * 0.4), metal);
-    vent.position.set(x, h + 2, z); g.add(vent);
-    const dr = new THREE.Mesh(new THREE.BoxGeometry(5, h * 0.55, 1), door);
-    dr.position.set(x - w * 0.26, h * 0.275, z + d / 2 + 0.6); g.add(dr);
-    const win = new THREE.Mesh(new THREE.BoxGeometry(w * 0.42, 3.5, 1), lit);
-    win.position.set(x + w * 0.14, h * 0.62, z + d / 2 + 0.6); g.add(win);
+  const red = new THREE.MeshBasicMaterial({ color: 0xc02030 });
+
+  const people = [];
+  const PERSON = 5.2;          // soldier scale inside this group
+
+  /** One of ours, stood where you put him and facing where you say. */
+  function soldier(x, z, face, kind, y = 0) {
+    let m;
+    try { m = buildSoldier(); } catch (e) { return null; }
+    freeSoldier(m);            // he is not anybody's prisoner
+    m.scale.setScalar(PERSON);
+    m.position.set(x, y, z);
+    m.rotation.y = face;
+    g.add(m);
+    people.push({ m, kind, phase: Math.random() * 6 });
+    return m;
   }
 
-  // Landing pad, with the markings that say what it is.
-  const pad = new THREE.Mesh(new THREE.CircleGeometry(34, 26), deck);
-  pad.rotation.x = -Math.PI / 2; pad.position.set(4, 0.6, 24); g.add(pad);
-  const ring = new THREE.Mesh(new THREE.RingGeometry(26, 30, 26), paint);
-  ring.rotation.x = -Math.PI / 2; ring.position.set(4, 0.9, 24); g.add(ring);
+  // ── Tents ──
+  // A three-sided prism lying on its side: flat floor, ridge along the top.
+  const tent = (x, z, len, r, lines) => {
+    const t = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, len, 3, 1), canvasM);
+    t.rotation.x = -Math.PI / 2;        // ridge runs along z
+    t.position.set(x, r * 0.5, z);      // flat face down on the ground
+    g.add(t);
+    // Ridge pole ends and the guy ropes off them.
+    for (const e of [-1, 1]) {
+      const pole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.8, 0.8, r * 1.6, 5), canvasB);
+      pole.position.set(x, r * 0.8, z + e * len / 2);
+      g.add(pole);
+      for (const sx of [-1, 1]) {
+        const rope = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.22, 0.22, r * 1.9, 4), canvasB);
+        rope.position.set(x + sx * r * 0.8, r * 0.62, z + e * (len / 2 + r * 0.5));
+        rope.rotation.z = sx * 0.72;
+        rope.rotation.x = -e * 0.5;
+        g.add(rope);
+      }
+    }
+    // The door, on the end you come at it from.
+    const flap = new THREE.Mesh(new THREE.BoxGeometry(r * 0.7, r * 0.95, 1), door);
+    flap.position.set(x, r * 0.48, z + len / 2 + 0.6);
+    g.add(flap);
+    // And the sign, on two posts in front of it.
+    const sw = r * 1.45, sh = lines.length > 1 ? sw * 0.42 : sw * 0.3;
+    for (const sx of [-1, 1]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(1.1, r * 1.05, 1.1), metal);
+      post.position.set(x + sx * sw * 0.45, r * 0.52, z + len / 2 + 7);
+      g.add(post);
+    }
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh),
+      new THREE.MeshBasicMaterial({ map: signTexture(lines),
+                                    side: THREE.DoubleSide }));
+    board.position.set(x, r * 0.86, z + len / 2 + 7.6);
+    g.add(board);
+    return t;
+  };
 
-  // Comms mast.
+  tent(-66, 8, 48, 18, ['MEDICAL']);
+  tent(-26, -52, 52, 17, ['MESS HALL']);
+  tent(40, -48, 46, 16, ['ARMORY']);
+  tent(74, 6, 44, 17, ["CAPTAIN'S", 'QUARTERS']);
+
+  // A red cross on the medical tent, so it is the right tent even unread.
+  for (const [w, h] of [[22, 7], [7, 22]]) {
+    const bar = new THREE.Mesh(new THREE.PlaneGeometry(w, h), red);
+    bar.position.set(-66, 20, 8 + 48 / 2 + 0.9);
+    g.add(bar);
+  }
+
+  // ── The command circle, and the three of them in it ──
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(20, 28), deck);
+  pad.rotation.x = -Math.PI / 2; pad.position.set(0, 0.5, 26); g.add(pad);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(17, 20, 28), paint);
+  ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.8, 26); g.add(ring);
+
+  // The planning table: a lit map on trestles, with pieces on it.
+  const top = new THREE.Mesh(new THREE.BoxGeometry(13, 0.9, 8), olive);
+  top.position.set(0, 4.2, 26); g.add(top);
+  const map = new THREE.Mesh(new THREE.PlaneGeometry(11.6, 6.8),
+    new THREE.MeshBasicMaterial({ color: 0x6fd8c8 }));
+  map.rotation.x = -Math.PI / 2; map.position.set(0, 4.7, 26); g.add(map);
+  for (const [lx, lz] of [[-5.6, -3.2], [5.6, -3.2], [-5.6, 3.2], [5.6, 3.2]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.8, 4.2, 0.8), metal);
+    leg.position.set(lx, 2.1, 26 + lz); g.add(leg);
+  }
+  for (let i = 0; i < 7; i++) {               // pieces pushed about on it
+    const pc = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.1, 0.9),
+      i % 3 === 0 ? red : deck);
+    pc.position.set(-4.6 + Math.random() * 9.2, 5.3,
+                    23.4 + Math.random() * 5.2);
+    g.add(pc);
+  }
+  const lamp = new THREE.PointLight(0x9fe8ff, 1.6, 90);
+  lamp.position.set(0, 12, 26); g.add(lamp);
+
+  const commander = soldier(0, 19, 0, 'commander');
+  if (commander) {
+    // Older coat, no helmet paint, and no rifle in his hands.
+    commander.userData.fat.color.set(0x3c4433);
+    commander.userData.rifle.visible = false;
+  }
+  soldier(-11, 19.5, 0.12, 'guard');
+  soldier(11, 19.5, -0.12, 'guard');
+
+  // Sandbags round the circle, because a table in the open is just a table.
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    if (Math.abs(a - Math.PI / 2) < 0.5) continue;        // leave a way in
+    const bag = new THREE.Mesh(new THREE.BoxGeometry(5.5, 2.6, 3.4), sandbag);
+    bag.position.set(Math.cos(a) * 23, 1.3, 26 + Math.sin(a) * 23);
+    bag.rotation.y = -a;
+    g.add(bag);
+  }
+
+  // ── Stores: crates, barrels, a water tank, a parked rover ──
+  for (let i = 0; i < 11; i++) {
+    const c = new THREE.Mesh(new THREE.BoxGeometry(7, 6, 7), olive);
+    c.position.set(58 + (i % 4) * 8.4, 3 + Math.floor(i / 4) * 6.2, -18 + (i % 3) * 8);
+    c.rotation.y = Math.random() * 0.3;
+    g.add(c);
+  }
+  for (let i = 0; i < 6; i++) {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 7, 8), metal);
+    b.position.set(-44 + i * 7.4, 3.5, -22); g.add(b);
+  }
+  const tank = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 16, 10), metal);
+  tank.rotation.z = Math.PI / 2; tank.position.set(-78, 18, -34); g.add(tank);
+  for (const lx of [-86, -70]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(2, 20, 2), metal);
+    leg.position.set(lx, 10, -34); g.add(leg);
+  }
+  // The rover.
+  const rover = new THREE.Group();
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(14, 7, 26), olive);
+  hull.position.y = 7; rover.add(hull);
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(12, 6, 10), canvasB);
+  cab.position.set(0, 13, -4); rover.add(cab);
+  for (const wx of [-7.4, 7.4]) for (const wz of [-8, 0, 8]) {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 3, 8), burnt);
+    w.rotation.z = Math.PI / 2; w.position.set(wx, 4, wz); rover.add(w);
+  }
+  rover.position.set(-34, 0, 40); rover.rotation.y = 0.5; g.add(rover);
+
+  // ── Floodlights ──
+  for (const [fx2, fz2] of [[-52, 24], [52, 30]]) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.4, 34, 6), metal);
+    pole.position.set(fx2, 17, fz2); g.add(pole);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(5, 4, 3), lit);
+    head.position.set(fx2, 35, fz2); g.add(head);
+    const pl = new THREE.PointLight(0xfff0d0, 1.1, 110);
+    pl.position.set(fx2, 34, fz2); g.add(pl);
+  }
+
+  // ── Comms mast ──
   const mast = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 2.2, 70, 6), metal);
   mast.position.set(-78, 35, 26); g.add(mast);
   for (const y of [40, 54, 64]) {
@@ -677,38 +831,59 @@ function buildOutpost() {
     new THREE.MeshBasicMaterial({ color: 0xff3020 }));
   beacon.position.set(-78, 72, 26); g.add(beacon);
 
-  // Fence and two watchtowers — the military look is mostly the fence.
-  // Posts on their own read as scattered monoliths from close up; it is the
-  // two rails strung between them that make it a perimeter.
+  // ── The wire, and the men on it ──
+  const GATE = Math.PI / 2;                   // the way in faces the pod
   for (let i = 0; i < 48; i++) {
     const a = (i / 48) * Math.PI * 2;
+    if (Math.abs(a - GATE) < 0.2) continue;
     const post = new THREE.Mesh(new THREE.BoxGeometry(1.6, 9, 1.6), metal);
     post.position.set(Math.cos(a) * 104, 4.5, Math.sin(a) * 104);
     g.add(post);
   }
   for (const y of [4, 7.6]) {
-    const rail = new THREE.Mesh(new THREE.TorusGeometry(104, 0.35, 4, 56), metal);
-    rail.rotation.x = -Math.PI / 2; rail.position.y = y; g.add(rail);
+    const holder = new THREE.Group();
+    holder.rotation.y = -Math.PI / 2;         // puts the gap at the gate
+    const rail = new THREE.Mesh(
+      new THREE.TorusGeometry(104, 0.35, 4, 56, Math.PI * 2 - 0.42), metal);
+    rail.rotation.x = -Math.PI / 2; rail.position.y = y;
+    holder.add(rail); g.add(holder);
   }
+  // Twelve of them stood on the wire, facing out.
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 + 0.3;
+    soldier(Math.cos(a) * 96, Math.sin(a) * 96, Math.atan2(Math.cos(a), Math.sin(a)),
+            'watch');
+  }
+  // And one in each tower.
   for (const [x, z] of [[-96, -74], [96, 74]]) {
     const legs = new THREE.Mesh(new THREE.CylinderGeometry(3, 5, 26, 6), metal);
     legs.position.set(x, 13, z); g.add(legs);
-    const box = new THREE.Mesh(new THREE.BoxGeometry(14, 9, 14), olive);
-    box.position.set(x, 30, z); g.add(box);
+    const deckTop = new THREE.Mesh(new THREE.BoxGeometry(16, 1.5, 16), olive);
+    deckTop.position.set(x, 26, z); g.add(deckTop);
+    for (const [ox, oz] of [[-7.5, 0], [7.5, 0], [0, -7.5], [0, 7.5]]) {
+      const rail = new THREE.Mesh(
+        new THREE.BoxGeometry(ox ? 1.4 : 16, 5, oz ? 1.4 : 16), metal);
+      rail.position.set(x + ox, 29, z + oz); g.add(rail);
+    }
+    soldier(x, z, Math.atan2(x, z), 'watch', 26.8);
   }
 
-  // The block that lost. Walls still standing, roof gone, fire inside.
-  const fx = 58, fz = -34;
-  for (const [dx, dz, w, d] of [[-16, 0, 3, 30], [16, 0, 3, 30], [0, -15, 34, 3]]) {
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 16, d), burnt);
-    wall.position.set(fx + dx, 8, fz + dz); g.add(wall);
+  // ── The tent that lost, and what is still burning in it ──
+  const fx = 12, fz = -82;
+  const ruin = new THREE.Mesh(new THREE.CylinderGeometry(16, 16, 40, 3, 1), burnt);
+  ruin.rotation.x = -Math.PI / 2; ruin.rotation.z = 0.5;
+  ruin.position.set(fx - 4, 5, fz - 6); g.add(ruin);
+  for (const [dx, dz] of [[-15, 10], [16, 6]]) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 26, 5), burnt);
+    pole.position.set(fx + dx, 10, fz + dz);
+    pole.rotation.z = dx * 0.03; g.add(pole);
   }
   const flames = [];
   const fireMat = new THREE.MeshBasicMaterial({ color: 0xffa32a,
                                                 transparent: true, opacity: 0.95 });
-  for (const [dx, dz, s] of [[0, 0, 1.3], [-8, 6, 0.9], [9, -4, 1], [2, 9, 0.8]]) {
-    const f = new THREE.Mesh(new THREE.ConeGeometry(7 * s, 26 * s, 7), fireMat);
-    f.position.set(fx + dx, 11 * s, fz + dz);
+  for (const [dx, dz, sc] of [[0, 0, 1.3], [-8, 6, 0.9], [9, -4, 1], [2, 9, 0.8]]) {
+    const f = new THREE.Mesh(new THREE.ConeGeometry(7 * sc, 26 * sc, 7), fireMat);
+    f.position.set(fx + dx, 11 * sc, fz + dz);
     g.add(f); flames.push(f);
   }
   const fireLight = new THREE.PointLight(0xff7a20, 3, 170);
@@ -743,6 +918,27 @@ function buildOutpost() {
     }
     fireLight.intensity = 2.2 + Math.random() * 1.7;
     beacon.visible = (st % 1.7) < 0.85;     // something still running
+    // Nobody down there is a statue.
+    for (const p of people) {
+      const t2 = st * 0.9 + p.phase;
+      poseStand(p.m, t2, 0);
+      if (p.kind === 'watch') {
+        poseAim(p.m, -0.22 + Math.sin(t2 * 0.5) * 0.05);
+        p.m.rotation.y += Math.sin(t2 * 0.33) * 0.0015;
+      } else if (p.kind === 'guard') {
+        poseAim(p.m, -0.75);                // rifle held across, muzzle down
+      } else {
+        // The commander, leaning on the table and reading it.
+        const d = p.m.userData;
+        d.hips.rotation.x = 0.2;
+        d.headPivot.rotation.x = 0.5 + Math.sin(t2 * 0.7) * 0.06;
+        d.arms.forEach((arm) => {
+          arm.shoulder.rotation.x = -0.62;
+          arm.shoulder.rotation.z = arm.side * 0.3;
+          arm.elbow.rotation.x = -0.5;
+        });
+      }
+    }
   };
   return g;
 }
@@ -909,7 +1105,7 @@ export function createDescent() {
   // ── The landing ──
   // Open ground just outside the wire on the near side, so the pod comes
   // down between you and the outpost rather than in the middle of it.
-  const L = new THREE.Vector3(OUTPOST.x - 20, 0, OUTPOST.z + 210);
+  const L = new THREE.Vector3(OUTPOST.x - 10, 0, OUTPOST.z + 200);
   L.y = heightAt(L.x, L.z) + 3.9;       // far enough up that the fins clear
   let landing = false;
   let landYaw = 0;
@@ -919,9 +1115,9 @@ export function createDescent() {
   const off0 = new THREE.Vector3();     // camera offset from the pod, start
   // Round to the side and low, so the last frame is the pod broadside with
   // its nose toward the outpost, rather than its engine filling the shot.
-  const off1 = new THREE.Vector3(46, 15, 38);                 // and parked
+  const off1 = new THREE.Vector3(52, 20, 46);                 // and parked
   const lookOff0 = new THREE.Vector3();
-  const lookOff1 = new THREE.Vector3(4, 7, -30);
+  const lookOff1 = new THREE.Vector3(4, 9, -70);
   const camOff = new THREE.Vector3();
   const lookOff = new THREE.Vector3();
   const podPos = new THREE.Vector3();
