@@ -19,10 +19,10 @@
 // instead of a staff, and a mind blast instead of a fireball.
 
 import * as THREE from 'three';
-import { buildFloater as buildFloaterModel } from './workshop_models.js?v=7459a41173';
+import { buildFloater as buildFloaterModel } from './workshop_models.js?v=c795c8d6b6';
 import { rememberColor, restoreColor, baseColorRGB, baseOpacity }
-  from './model_colors.js?v=7459a41173';
-import { createBehaviorSpec } from '../shared/behavior.js?v=7459a41173';
+  from './model_colors.js?v=c795c8d6b6';
+import { createBehaviorSpec } from '../shared/behavior.js?v=c795c8d6b6';
 
 
 // ─── 1. GEOMETRY ────────────────────────────────────────────────

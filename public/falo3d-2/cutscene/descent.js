@@ -22,10 +22,10 @@
 // Press any key to skip it.
 
 import * as THREE from 'three';
-import { buildCrawler } from '../aliens/crawler.js?v=7459a41173';
-import { buildBrute } from '../aliens/brute.js?v=7459a41173';
-import { buildWatcher } from '../aliens/watcher.js?v=7459a41173';
-import { buildFloater } from '../aliens/floater.js?v=7459a41173';
+import { buildCrawler } from '../aliens/crawler.js?v=c795c8d6b6';
+import { buildBrute } from '../aliens/brute.js?v=c795c8d6b6';
+import { buildWatcher } from '../aliens/watcher.js?v=c795c8d6b6';
+import { buildFloater } from '../aliens/floater.js?v=c795c8d6b6';
 
 // ─── WHERE EVERYTHING IS ────────────────────────────────────
 // The pod comes down the middle of a valley. Their city is ahead and to the
@@ -38,10 +38,10 @@ import { buildFloater } from '../aliens/floater.js?v=7459a41173';
 const CASTLE  = { x: -950, z: -2000 };
 const OUTPOST = { x:  320, z: -2200 };
 
-// How much bigger the castle is than the thing first built here. Four, and
-// everything else had to move to make room for it: the city ring, the
+// The castle is four times the one first built here — written into
+// buildCastle() at full size rather than scaled up, so its detail is
+// detail. Everything else moved to make room for it: the city ring, the
 // valley that holds the city, and the land that holds the valley.
-const CASTLE_SCALE = 4;
 
 // The valley: flat inside this ellipse, mountains outside it. Flat ground
 // is where the town, the outpost and the pod's path all have to live, and

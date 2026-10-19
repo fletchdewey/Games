@@ -39,7 +39,7 @@
 // Frames, like the other boss files: 60 to the second.
 
 import * as THREE from 'three';
-import { BLOOD_MAX, BLOOD_PARKED, POOL_MAX } from './burrower.js?v=7459a41173';
+import { BLOOD_MAX, BLOOD_PARKED, POOL_MAX } from './burrower.js?v=c795c8d6b6';
 
 export const FX = {
   // ── Getting about ──

@@ -38,10 +38,10 @@ import { buildFloater } from '../aliens/floater.js';
 const CASTLE  = { x: -950, z: -2000 };
 const OUTPOST = { x:  320, z: -2200 };
 
-// How much bigger the castle is than the thing first built here. Four, and
-// everything else had to move to make room for it: the city ring, the
+// The castle is four times the one first built here — written into
+// buildCastle() at full size rather than scaled up, so its detail is
+// detail. Everything else moved to make room for it: the city ring, the
 // valley that holds the city, and the land that holds the valley.
-const CASTLE_SCALE = 4;
 
 // The valley: flat inside this ellipse, mountains outside it. Flat ground
 // is where the town, the outpost and the pod's path all have to live, and
