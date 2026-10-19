@@ -24,7 +24,7 @@
 
 import { SOUNDS, soundValue, setSoundValue, saveSound, resetSound,
          soundJSON, playSound, startLoop, stopLoop, loopRunning,
-         startAudio, loadSavedSound } from './sound.js?v=61a6b83f51';
+         startAudio, loadSavedSound } from './sound.js?v=49146d5a4c';
 
 // ─── LOOK ───────────────────────────────────────────────────
 // Carried here rather than in the game's HTML, so the standalone page and
@@ -48,6 +48,13 @@ const CSS = `
 .sb-hint { font-size: 10px; color: #667; letter-spacing: 2px; }
 .sb-hint a { color: #ffaa22; text-decoration: none; }
 .sb-hint a:hover { text-decoration: underline; }
+.sb-find { font-family: inherit; font-size: 11px; letter-spacing: 1px;
+           padding: 5px 10px; border-radius: 6px; width: 190px;
+           color: #e8e8f0; background: rgba(255,255,255,0.06);
+           border: 1px solid rgba(255,255,255,0.18); }
+.sb-find::placeholder { color: #667; letter-spacing: 1px; }
+.sb-find:focus { outline: none; border-color: #ffaa22; }
+.sb-none { font-size: 11px; color: #778; padding: 14px 2px; }
 .sb-body { display: flex; gap: 12px; overflow: auto; flex: 1; padding: 10px 0;
            align-items: flex-start; flex-wrap: wrap; }
 .sb-col { display: flex; flex-direction: column; gap: 8px;
@@ -165,6 +172,21 @@ function build() {
   head.append(title, hint);
   panel.appendChild(head);
 
+  // With thirty-odd sounds on one board, the one you want is usually below
+  // the fold in whichever column happens to be the tallest. Typing a few
+  // letters is faster than hunting for it.
+  const find = document.createElement('input');
+  find.type = 'search';
+  find.className = 'sb-find';
+  find.placeholder = 'find a sound...';
+  find.addEventListener('click', (e) => e.stopPropagation());
+  find.addEventListener('keydown', (e) => {
+    e.stopPropagation();                 // M in the box is a letter, not a key
+    if (e.key === 'Escape') { find.value = ''; applyFilter(''); }
+  });
+  find.addEventListener('input', () => applyFilter(find.value));
+  head.appendChild(find);
+
   const masterCard = document.createElement('div');
   masterCard.className = 'sb-card sb-master';
   masterCard.innerHTML = '<div class="sb-name">EVERYTHING</div>';
@@ -278,8 +300,40 @@ function build() {
     foot.append(tab);
   }
 
+  const none = document.createElement('div');
+  none.className = 'sb-none';
+  none.textContent = 'Nothing by that name.';
+  none.hidden = true;
+  body.appendChild(none);
+
   panel.append(foot, out);
   return panel;
+}
+
+/**
+ * Show only the sounds whose name matches.
+ *
+ * Matched against the label and the group both, so "boss" finds the three
+ * boss sounds and "dying" finds every death in the game at once — which is
+ * the comparison you actually want to make while tuning them.
+ */
+function applyFilter(text) {
+  if (!panel) return;
+  const q = text.trim().toLowerCase();
+  let shown = 0;
+  for (const col of panel.querySelectorAll('.sb-col')) {
+    const group = col.querySelector('.sb-group').textContent.toLowerCase();
+    let any = false;
+    for (const card of col.querySelectorAll('.sb-card')) {
+      const name = card.querySelector('.sb-name').textContent.toLowerCase();
+      const hit = !q || name.includes(q) || group.includes(q);
+      card.hidden = !hit;
+      if (hit) { any = true; shown++; }
+    }
+    col.hidden = !any;
+  }
+  const none = panel.querySelector('.sb-none');
+  if (none) none.hidden = shown > 0;
 }
 
 // ─── THE TWO WAYS IN ────────────────────────────────────────

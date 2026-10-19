@@ -123,6 +123,27 @@ function thump(out, t, { freq, dur, vol, to = 18 }) {
   o.connect(g); g.connect(out);
 }
 
+/**
+ * A number nudged up or down a little, differently every time.
+ *
+ * Used on the sounds you hear most — a hit is heard on every single round
+ * that connects, and the same recording forty times in ten seconds reads as
+ * a machine rather than a creature. A few per cent is enough.
+ */
+function vary(v, amt) { return v * (1 + (Math.random() * 2 - 1) * amt); }
+
+/** Vibrato: a slow wobble laid over a pitch, which is most of what makes a
+ *  voice sound like a throat instead of an oscillator. */
+function warble(osc, t, dur, rate, depth) {
+  const lfo = ctx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = rate;
+  const g = ctx.createGain();
+  g.gain.value = depth;
+  lfo.connect(g); g.connect(osc.frequency);
+  lfo.start(t); lfo.stop(t + dur + 0.02);
+}
+
 /** A clean pitch, for chimes and alarms rather than impacts. */
 function beep(out, t, { from, to = from, dur, vol, type = 'sine' }) {
   const o = tone(type, from, to, t, dur);
@@ -417,29 +438,66 @@ export const SOUNDS = {
   'alien-hit': {
     label: 'HITTING AN ALIEN', group: 'Aliens',
     params: {
-      vol:  P(0.2, 0, 0.7, 0.01, 'Volume'),
-      freq: P(420, 100, 1500, 10, 'Pitch'),
-      dur:  P(0.09, 0.02, 0.25, 0.005, 'Length'),
+      vol:   P(0.24, 0, 0.7, 0.01, 'Volume'),
+      freq:  P(420, 100, 1500, 10, 'Pitch'),
+      wet:   P(0.5, 0, 1, 0.05, 'Squelch'),
+      yelp:  P(0.3, 0, 1, 0.05, 'Yelp'),
+      spread: P(0.14, 0, 0.5, 0.02, 'Variation'),
+      dur:   P(0.1, 0.02, 0.25, 0.005, 'Length'),
     },
     make(p, t, out) {
-      // Wet rather than metallic: lowpassed noise, no ring to it.
-      hiss(out, t, { dur: p.dur, type: 'lowpass', freq: p.freq * 3,
-                     vol: p.vol, decay: 2 });
-      thump(out, t, { freq: p.freq, dur: p.dur, vol: p.vol * 0.5, to: 60 });
+      // Three layers, because a bullet going into something living is not
+      // one event: the smack, the wet of it, and the thing noticing.
+      const f = vary(p.freq, p.spread);
+      thump(out, t, { freq: f, dur: p.dur, vol: p.vol * 0.55, to: 60 });
+      // The squelch — a band sliding DOWN fast, which is what reads as wet
+      // rather than as a knock on wood.
+      const n = noise(p.dur * 1.3, 1.8);
+      const bp = filter('bandpass', f * 3, 1.6);
+      bp.frequency.setValueAtTime(f * 3.4, t);
+      bp.frequency.exponentialRampToValueAtTime(f * 0.9, t + p.dur * 1.2);
+      const g = env(p.vol * p.wet, t, p.dur * 1.3);
+      n.connect(bp); bp.connect(g); g.connect(out);
+      n.start(t); n.stop(t + p.dur * 1.3 + 0.02);
+      // And the creature's own short complaint on top.
+      if (p.yelp > 0.02) {
+        beep(out, t + 0.012, { from: vary(f * 4.5, p.spread),
+                               to: vary(f * 2.4, p.spread),
+                               dur: p.dur * 0.8, vol: p.vol * p.yelp * 0.7,
+                               type: 'sawtooth' });
+      }
     },
   },
   'alien-death': {
     label: 'ALIEN DYING', group: 'Aliens',
     params: {
-      vol:  P(0.3, 0, 0.9, 0.02, 'Volume'),
-      from: P(520, 100, 1600, 10, 'From'),
-      dur:  P(0.5, 0.1, 1.2, 0.05, 'Length'),
+      vol:    P(0.34, 0, 0.9, 0.02, 'Volume'),
+      from:   P(620, 100, 1600, 10, 'From'),
+      shake:  P(22, 0, 90, 1, 'Warble'),
+      rattle: P(0.45, 0, 1, 0.05, 'Rattle'),
+      spread: P(0.12, 0, 0.5, 0.02, 'Variation'),
+      dur:    P(0.62, 0.1, 1.4, 0.05, 'Length'),
     },
     make(p, t, out) {
-      beep(out, t, { from: p.from, to: p.from * 0.18, dur: p.dur,
-                     vol: p.vol, type: 'sawtooth' });
-      hiss(out, t + p.dur * 0.3, { dur: p.dur * 0.6, type: 'lowpass',
-                                   freq: 800, vol: p.vol * 0.5, decay: 1.5 });
+      // A screech that loses its footing. The warble is the whole trick —
+      // a clean pitch falling is a slide whistle, a wobbling one is a throat.
+      const from = vary(p.from, p.spread);
+      const o = tone('sawtooth', from, from * 0.14, t, p.dur);
+      warble(o, t, p.dur, p.shake * 0.5, from * 0.055);
+      const lp = filter('lowpass', from * 3, 2);
+      lp.frequency.setValueAtTime(from * 3.5, t);
+      lp.frequency.exponentialRampToValueAtTime(from * 0.6, t + p.dur);
+      const g = env(p.vol, t, p.dur, 0.012);
+      o.connect(lp); lp.connect(g); g.connect(out);
+      // A second voice a fifth up, quieter, so it is a creature rather than
+      // a note.
+      const o2 = tone('sawtooth', from * 1.48, from * 0.2, t + 0.02, p.dur * 0.8);
+      warble(o2, t, p.dur * 0.8, p.shake * 0.73, from * 0.04);
+      const g2 = env(p.vol * 0.4, t + 0.02, p.dur * 0.8, 0.012);
+      o2.connect(g2); g2.connect(out);
+      // The last of the air going out of it.
+      hiss(out, t + p.dur * 0.45, { dur: p.dur * 0.6, type: 'lowpass',
+                                    freq: 700, vol: p.vol * p.rattle, decay: 1.3 });
     },
   },
 
@@ -552,35 +610,65 @@ export const SOUNDS = {
   'boss-hit': {
     label: 'HITTING A BOSS', group: 'Bosses',
     params: {
-      vol:  P(0.26, 0, 0.8, 0.02, 'Volume'),
-      freq: P(1300, 300, 4000, 50, 'Ring'),
-      dur:  P(0.16, 0.03, 0.5, 0.01, 'Length'),
+      vol:    P(0.3, 0, 0.8, 0.02, 'Volume'),
+      freq:   P(1300, 300, 4000, 50, 'Ring'),
+      clang:  P(0.45, 0, 1, 0.05, 'Clang'),
+      weight: P(0.4, 0, 1, 0.05, 'Weight'),
+      spread: P(0.1, 0, 0.5, 0.02, 'Variation'),
+      dur:    P(0.22, 0.03, 0.7, 0.01, 'Length'),
     },
     make(p, t, out) {
-      // Armour, so this one DOES ring where an alien hit does not.
-      hiss(out, t, { dur: p.dur, freq: p.freq, q: 6, vol: p.vol, decay: 2 });
-      beep(out, t, { from: p.freq * 0.5, to: p.freq * 0.44, dur: p.dur * 1.4,
-                     vol: p.vol * 0.3, type: 'triangle' });
+      // Armour, so unlike an alien this one RINGS. Two partials that are not
+      // a musical interval apart, which is what makes metal sound like metal
+      // rather than like a bell.
+      const f = vary(p.freq, p.spread);
+      hiss(out, t, { dur: p.dur * 0.5, freq: f, q: 6, vol: p.vol, decay: 2.2 });
+      for (const [mult, lvl] of [[1, 1], [2.76, 0.5], [5.4, 0.22]]) {
+        beep(out, t, { from: f * mult, to: f * mult * 0.985,
+                       dur: p.dur * (mult > 3 ? 0.6 : 1.5),
+                       vol: p.vol * p.clang * lvl * 0.5, type: 'triangle' });
+      }
+      // And the mass behind the plate it just bounced off.
+      thump(out, t, { freq: 90, dur: p.dur, vol: p.vol * p.weight, to: 35 });
     },
   },
   'boss-death': {
     label: 'BOSS DYING', group: 'Bosses',
     params: {
-      vol: P(0.75, 0, 1.3, 0.02, 'Volume'),
-      dur: P(2.6, 0.8, 5, 0.1, 'Length'),
+      vol:    P(0.8, 0, 1.3, 0.02, 'Volume'),
+      from:   P(185, 60, 500, 5, 'Pitch'),
+      shake:  P(14, 0, 60, 1, 'Warble'),
+      sub:    P(0.6, 0, 1.2, 0.05, 'Sub'),
+      collapse: P(0.55, 0, 1, 0.05, 'Collapse'),
+      dur:    P(2.8, 0.8, 5, 0.1, 'Length'),
     },
     make(p, t, out) {
-      for (const d of [1, 0.985, 1.02]) {
-        beep(out, t, { from: 150 * d, to: 26 * d, dur: p.dur,
-                       vol: p.vol * 0.35, type: 'sawtooth' });
+      // The roar, going down a long way and losing its grip on the way.
+      for (const [d, lvl] of [[1, 0.4], [0.985, 0.3], [1.021, 0.3]]) {
+        const o = tone('sawtooth', p.from * d, p.from * d * 0.16, t, p.dur);
+        warble(o, t, p.dur, p.shake * (0.8 + Math.random() * 0.4),
+               p.from * 0.05);
+        const g = env(p.vol * lvl, t, p.dur, 0.04);
+        o.connect(g); g.connect(out);
       }
+      // Everything it was made of, coming apart.
       const n = noise(p.dur, 0.8);
       const f = filter('lowpass', 1800, 0.7);
-      f.frequency.setValueAtTime(1800, t);
-      f.frequency.exponentialRampToValueAtTime(90, t + p.dur);
-      const g = env(p.vol * 0.6, t, p.dur, 0.05);
+      f.frequency.setValueAtTime(2000, t);
+      f.frequency.exponentialRampToValueAtTime(80, t + p.dur);
+      const g = env(p.vol * 0.55, t, p.dur, 0.05);
       n.connect(f); f.connect(g); g.connect(out);
       n.start(t); n.stop(t + p.dur + 0.02);
+      // Pieces of it hitting the deck on the way down.
+      const hits = Math.round(4 + p.collapse * 6);
+      for (let i = 0; i < hits; i++) {
+        const at = t + p.dur * (0.25 + Math.random() * 0.6);
+        thump(out, at, { freq: 60 + Math.random() * 60, dur: 0.22,
+                         vol: p.vol * p.collapse * 0.3, to: 20 });
+      }
+      // And the last of it going over.
+      thump(out, t + p.dur * 0.92, { freq: 46, dur: 0.7,
+                                     vol: p.vol * p.sub, to: 14 });
     },
   },
 
@@ -588,26 +676,72 @@ export const SOUNDS = {
   'player-hurt': {
     label: 'TAKING A HIT', group: 'Moments',
     params: {
-      vol:  P(0.34, 0, 1, 0.02, 'Volume'),
-      freq: P(160, 50, 500, 5, 'Pitch'),
+      vol:    P(0.38, 0, 1, 0.02, 'Volume'),
+      freq:   P(160, 50, 500, 5, 'Pitch'),
+      breath: P(0.45, 0, 1, 0.05, 'Winded'),
+      ring:   P(0.3, 0, 1, 0.05, 'Ears'),
+      spread: P(0.1, 0, 0.4, 0.02, 'Variation'),
     },
     make(p, t, out) {
-      thump(out, t, { freq: p.freq, dur: 0.26, vol: p.vol, to: 40 });
+      const f = vary(p.freq, p.spread);
+      // The hit itself, in your chest rather than out in the room.
+      thump(out, t, { freq: f, dur: 0.28, vol: p.vol, to: 38 });
       hiss(out, t, { dur: 0.1, type: 'lowpass', freq: 500,
-                     vol: p.vol * 0.5, decay: 2 });
+                     vol: p.vol * 0.45, decay: 2 });
+      // The air going out of you. A band around the voice, falling — which
+      // is a grunt without having to record one.
+      if (p.breath > 0.02) {
+        const n = noise(0.26, 1.4);
+        const bp = filter('bandpass', 420, 2.2);
+        bp.frequency.setValueAtTime(vary(480, p.spread), t + 0.02);
+        bp.frequency.exponentialRampToValueAtTime(vary(190, p.spread), t + 0.24);
+        const g = env(p.vol * p.breath * 0.8, t + 0.02, 0.26, 0.02);
+        n.connect(bp); bp.connect(g); g.connect(out);
+        n.start(t + 0.02); n.stop(t + 0.3);
+      }
+      // And the whine in your ears afterwards, which is the bit that tells
+      // you it was YOU that got hit rather than something across the room.
+      if (p.ring > 0.02) {
+        beep(out, t + 0.03, { from: vary(2400, 0.05), to: vary(2100, 0.05),
+                              dur: 0.55, vol: p.vol * p.ring * 0.14,
+                              type: 'sine' });
+      }
     },
   },
   'death': {
     label: 'DYING', group: 'Moments',
     params: {
-      vol: P(0.42, 0, 1, 0.02, 'Volume'),
-      dur: P(1.9, 0.5, 4, 0.1, 'Length'),
+      vol:   P(0.46, 0, 1, 0.02, 'Volume'),
+      from:  P(330, 100, 900, 10, 'Pitch'),
+      beat:  P(0.5, 0, 1, 0.05, 'Heartbeat'),
+      ring:  P(0.4, 0, 1, 0.05, 'Ears'),
+      dur:   P(2.2, 0.5, 4, 0.1, 'Length'),
     },
     make(p, t, out) {
-      // Two notes falling a long way, slowly. Nothing else.
-      beep(out, t, { from: 330, to: 72, dur: p.dur, vol: p.vol, type: 'sine' });
-      beep(out, t + 0.12, { from: 247, to: 54, dur: p.dur,
-                            vol: p.vol * 0.7, type: 'sine' });
+      // Two notes falling a long way, slowly, as before — but now they are
+      // falling over something.
+      beep(out, t, { from: p.from, to: p.from * 0.22, dur: p.dur,
+                     vol: p.vol, type: 'sine' });
+      beep(out, t + 0.12, { from: p.from * 0.75, to: p.from * 0.164,
+                            dur: p.dur, vol: p.vol * 0.7, type: 'sine' });
+      // The last three beats, slowing down and getting further apart. This
+      // is the part that makes it YOUR death rather than a sad chord.
+      if (p.beat > 0.02) {
+        let at = t + 0.05;
+        let gap = 0.42;
+        for (let i = 0; i < 3; i++) {
+          thump(out, at, { freq: 58, dur: 0.17, vol: p.vol * p.beat * 0.9, to: 22 });
+          thump(out, at + 0.16, { freq: 48, dur: 0.2,
+                                  vol: p.vol * p.beat * 0.55, to: 18 });
+          at += gap;
+          gap *= 1.45;                 // each one further away than the last
+        }
+      }
+      // And the ringing, fading out with everything else.
+      if (p.ring > 0.02) {
+        beep(out, t, { from: 2300, to: 1500, dur: p.dur * 0.9,
+                       vol: p.vol * p.ring * 0.1, type: 'sine' });
+      }
     },
   },
   'escape': {
