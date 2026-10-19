@@ -22,24 +22,32 @@
 // Press any key to skip it.
 
 import * as THREE from 'three';
-import { buildCrawler } from '../aliens/crawler.js?v=e654c895e4';
-import { buildBrute } from '../aliens/brute.js?v=e654c895e4';
-import { buildWatcher } from '../aliens/watcher.js?v=e654c895e4';
-import { buildFloater } from '../aliens/floater.js?v=e654c895e4';
+import { buildCrawler } from '../aliens/crawler.js?v=7459a41173';
+import { buildBrute } from '../aliens/brute.js?v=7459a41173';
+import { buildWatcher } from '../aliens/watcher.js?v=7459a41173';
+import { buildFloater } from '../aliens/floater.js?v=7459a41173';
 
 // ─── WHERE EVERYTHING IS ────────────────────────────────────
 // The pod comes down the middle of a valley. Their city is ahead and to the
 // left; the burning outpost is ahead and a long way further out, which is
 // what the pod is aimed at. Both have to stay in frame at once, so these
 // two numbers are the ones that decide the whole shot.
-const CASTLE  = { x: -200, z: -1000 };
+// Further out than the old one stood, and further than feels right on
+// paper: at four times the size it needs fifteen hundred units of air in
+// front of it before you can see its shape instead of its wall.
+const CASTLE  = { x: -950, z: -2000 };
 const OUTPOST = { x:  320, z: -2200 };
+
+// How much bigger the castle is than the thing first built here. Four, and
+// everything else had to move to make room for it: the city ring, the
+// valley that holds the city, and the land that holds the valley.
+const CASTLE_SCALE = 4;
 
 // The valley: flat inside this ellipse, mountains outside it. Flat ground
 // is where the town, the outpost and the pod's path all have to live, and
 // the mountains have to start far enough out that they ring the shot
 // instead of standing in it.
-const BASIN = { x: 60, z: -750, rx: 820, rz: 1150 };
+const BASIN = { x: -500, z: -1300, rx: 1850, rz: 2000 };
 
 // The outpost sits out past the end of the valley, where the land starts
 // climbing again, so whoever built it levelled a site first. Without this
@@ -50,17 +58,35 @@ const SITE = { r: 340, y: 6 };
 // film, but the first cut was nine hundred, and at this altitude you could
 // see the edge of the world behind the castle — which is the whole reason
 // any of this was rebuilt.
-const LAND = { size: 5000, seg: 200, cz: -700 };
+const LAND = { size: 7000, seg: 240, cz: -900 };
+
+// The pod's way in, as a line along the ground: the fly-over, then the run
+// out to the outpost. Nothing gets built within PATH_PAD of it, because a
+// city whose houses are sixty tall will otherwise put one exactly where the
+// pod has to be.
+const PATH = [[0, 650], [55, -250], [300, -1990]];
+const PATH_PAD = 300;
+
+function offPath(x, z, pad) {
+  for (let i = 0; i < PATH.length - 1; i++) {
+    const [ax, az] = PATH[i], [bx, bz] = PATH[i + 1];
+    const dx = bx - ax, dz = bz - az;
+    const t = Math.max(0, Math.min(1,
+      ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+    if (Math.hypot(x - (ax + dx * t), z - (az + dz * t)) < pad) return false;
+  }
+  return true;
+}
 
 // Red water. Holes in the land, dug by heightAt, so the discs sit in real
 // basins rather than floating on a bumpy floor.
 const LAKES = [
-  { x: -480, z:  -620, r: 110 },
-  { x:  180, z:  -300, r:  90 },
-  { x: -120, z: -1380, r: 130 },
-  { x:  430, z:  -980, r:  95 },
-  { x: -620, z: -1180, r:  85 },
-  { x:   60, z:   180, r: 100 },
+  { x: -1700, z: -2250, r: 230 },
+  { x:   640, z:  -520, r: 190 },
+  { x:  -300, z:    80, r: 170 },
+  { x:   980, z: -1500, r: 210 },
+  { x: -1600, z:  -560, r: 190 },
+  { x:  -420, z: -2320, r: 240 },
 ];
 
 const SKY = 0x3d2058;   // sky and haze are the same colour, so there is no
@@ -217,14 +243,17 @@ function buildPod() {
  */
 function heightAt(x, z) {
   const raw =
-      Math.sin(x * 0.0065) * Math.cos(z * 0.0051) * 115   // the ranges
-    + Math.sin(x * 0.019 + 1.7) * Math.cos(z * 0.017) * 42
-    + Math.sin(x * 0.051 + 0.6) * Math.cos(z * 0.047) * 13
-    + Math.sin(x * 0.11) * Math.cos(z * 0.13) * 4;        // scree
+      Math.sin(x * 0.0065) * Math.cos(z * 0.0051) * 218   // the ranges
+    + Math.sin(x * 0.019 + 1.7) * Math.cos(z * 0.017) * 80
+    + Math.sin(x * 0.051 + 0.6) * Math.cos(z * 0.047) * 25
+    + Math.sin(x * 0.11) * Math.cos(z * 0.13) * 8;        // scree
 
-  // 0.1 inside the valley, 1 out where the mountains are.
+  // Nearly nothing inside the valley, full height out where the mountains
+  // are. The ramp ends sooner than it used to, because the valley is now
+  // wide enough that a slow one would push the ranges off the edge of the
+  // world before they ever got to full height.
   const e = Math.hypot((x - BASIN.x) / BASIN.rx, (z - BASIN.z) / BASIN.rz);
-  let y = Math.max(-20, raw) * (0.1 + 0.9 * smoothstep(1.0, 1.9, e));
+  let y = Math.max(-20, raw) * (0.07 + 0.93 * smoothstep(1.0, 1.7, e));
 
   for (const L of LAKES) {
     const d = Math.hypot(x - L.x, z - L.z);
@@ -238,6 +267,8 @@ function heightAt(x, z) {
     const k = smoothstep(SITE.r, SITE.r * 0.55, sd);
     y = y * (1 - k) + SITE.y * k;
   }
+  const cd = Math.hypot(x - CASTLE.x, z - CASTLE.z);
+  if (cd < 820) y += 58 * smoothstep(820, 200, cd);
   return y;
 }
 
@@ -254,7 +285,7 @@ function buildTerrain() {
   for (let i = 0; i < pos.count; i++) {
     const y = heightAt(pos.getX(i), pos.getZ(i) + LAND.cz);
     pos.setY(i, y);
-    const t = Math.min(1, Math.max(0, (y + 26) / 180));
+    const t = Math.min(1, Math.max(0, (y + 26) / 330));
     const c = t < 0.62
       ? low.clone().lerp(mid, t / 0.62)
       : mid.clone().lerp(high, (t - 0.62) / 0.38);
@@ -290,112 +321,298 @@ function buildLakes() {
 }
 
 /**
+ * A horn: a tapering spike that curves as it goes, built as a chain of
+ * cones each hung off the end of the last one and leaned a little further.
+ * Four of them on a roof is the difference between a building and a shell
+ * something grew.
+ */
+function horn(len, r, mat, bend = 0.3, segs = 3) {
+  const root = new THREE.Group();
+  let parent = root;
+  const seg = len / segs;
+  for (let i = 0; i < segs; i++) {
+    const pivot = new THREE.Group();
+    pivot.rotation.x = bend;
+    if (i > 0) pivot.position.y = seg;
+    const rr = r * (1 - i * 0.26);
+    const c = new THREE.Mesh(
+      new THREE.CylinderGeometry(rr * 0.68, rr, seg, 6), mat);
+    c.position.y = seg / 2;
+    pivot.add(c);
+    parent.add(pivot);
+    parent = pivot;
+  }
+  return root;
+}
+
+/**
  * The castle.
  *
- * Deliberately far too big — it is meant to read as "something built this"
- * from an altitude where the mountains are already enormous.
+ * Four times what it was, and built at that size rather than scaled up to
+ * it, so the detail is detail and not four-times-bigger detail: battlements
+ * along every wall, eight towers instead of four, a gatehouse facing the
+ * way you come in, lit windows in rows up the keep, braziers burning along
+ * the parapet, and horns — on the keep, on every tower, over the gate —
+ * because whatever lives here did not quarry this, it grew it.
+ *
+ * Roughly seven hundred and fifty across and six hundred and fifty tall. It
+ * is meant to be the largest thing on the planet that is not a mountain.
  */
 function buildCastle() {
   const g = new THREE.Group();
   const stone = new THREE.MeshLambertMaterial({ color: 0x2a1c3e });
   const dark = new THREE.MeshLambertMaterial({ color: 0x1a1028 });
+  const bone = new THREE.MeshLambertMaterial({ color: 0x4a3a62 });
   const glow = new THREE.MeshBasicMaterial({ color: 0xff2a5a });
+  const lit = new THREE.MeshBasicMaterial({ color: 0xffb03a });
+  const eye = new THREE.MeshBasicMaterial({ color: 0xff6ab0 });
 
-  const keep = new THREE.Mesh(new THREE.BoxGeometry(70, 95, 70), stone);
-  keep.position.y = 47; g.add(keep);
-  const crown = new THREE.Mesh(new THREE.ConeGeometry(58, 60, 6), dark);
-  crown.position.y = 122; crown.rotation.y = Math.PI / 6; g.add(crown);
+  /** Teeth along the top of a wall, which is most of what says "castle". */
+  const battlement = (cx, cy, cz, len, along, step = 34) => {
+    const n = Math.max(2, Math.round(len / step));
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n - 0.5;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(16, 22, 16), stone);
+      m.position.set(cx + (along ? t * len : 0), cy + 11,
+                     cz + (along ? 0 : t * len));
+      g.add(m);
+    }
+  };
 
-  // Four towers, taller than the keep, because nothing here is to scale.
-  for (const [dx, dz] of [[-52, -52], [52, -52], [-52, 52], [52, 52]]) {
-    const t = new THREE.Mesh(new THREE.CylinderGeometry(15, 19, 135, 8), stone);
-    t.position.set(dx, 67, dz); g.add(t);
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(21, 38, 8), dark);
-    cap.position.set(dx, 152, dz); g.add(cap);
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(5, 8, 6), glow);
-    eye.position.set(dx, 128, dz); g.add(eye);
+  // ── The keep ──
+  const keep = new THREE.Mesh(new THREE.BoxGeometry(280, 380, 280), stone);
+  keep.position.y = 190; g.add(keep);
+  // Buttresses, so it is not one smooth slab from any angle.
+  for (const [dx, dz, w, d] of [[-140, 0, 26, 300], [140, 0, 26, 300],
+                                [0, -140, 300, 26], [0, 140, 300, 26]]) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, 330, d), dark);
+    b.position.set(dx, 165, dz); g.add(b);
+  }
+  // Windows: rows of them up two faces, which is what gives it a storey
+  // count and therefore a size.
+  for (let row = 0; row < 7; row++) {
+    for (let col = -2; col <= 2; col++) {
+      const y = 70 + row * 44;
+      const w1 = new THREE.Mesh(new THREE.BoxGeometry(14, 26, 6), lit);
+      w1.position.set(col * 52, y, 142); g.add(w1);
+      const w2 = new THREE.Mesh(new THREE.BoxGeometry(6, 26, 14), lit);
+      w2.position.set(142, y, col * 52); g.add(w2);
+    }
+  }
+  battlement(0, 380, 140, 280, true);
+  battlement(0, 380, -140, 280, true);
+  battlement(-140, 380, 0, 280, false);
+  battlement(140, 380, 0, 280, false);
+
+  // The crown, and the needle through it.
+  const crown = new THREE.Mesh(new THREE.ConeGeometry(232, 240, 6), dark);
+  crown.position.y = 500; crown.rotation.y = Math.PI / 6; g.add(crown);
+  const needle = new THREE.Mesh(new THREE.CylinderGeometry(6, 26, 200, 6), bone);
+  needle.position.y = 620; g.add(needle);
+  const top = new THREE.Mesh(new THREE.SphereGeometry(22, 10, 8), eye);
+  top.position.y = 730; g.add(top);
+  // Horns off the crown.
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.3;
+    const h = horn(190, 17, bone, 0.26);
+    h.position.set(Math.cos(a) * 150, 470, Math.sin(a) * 150);
+    h.rotation.y = -a + Math.PI / 2;
+    h.rotation.z = Math.cos(a) * 0.5;
+    h.rotation.x = Math.sin(a) * 0.5;
+    g.add(h);
   }
 
-  // Curtain wall.
-  for (const [dx, dz, w, d] of [[0, -95, 190, 12], [0, 95, 190, 12],
-                                [-95, 0, 12, 190], [95, 0, 12, 190]]) {
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 40, d), stone);
-    wall.position.set(dx, 20, dz); g.add(wall);
+  // ── Eight towers: four on the corners, four on the walls ──
+  const towers = [[-208, -208, 1], [208, -208, 1], [-208, 208, 1], [208, 208, 1],
+                  [0, -300, 0.78], [0, 300, 0.78], [-300, 0, 0.78], [300, 0, 0.78]];
+  for (const [dx, dz, k] of towers) {
+    const h = 540 * k;
+    const t = new THREE.Mesh(
+      new THREE.CylinderGeometry(60 * k, 76 * k, h, 8), stone);
+    t.position.set(dx, h / 2, dz); g.add(t);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(84 * k, 150 * k, 8), dark);
+    cap.position.set(dx, h + 75 * k, dz); g.add(cap);
+    const e = new THREE.Mesh(new THREE.SphereGeometry(20 * k, 10, 8), glow);
+    e.position.set(dx, h + 10, dz); g.add(e);
+    // A ring of lit slits near the top, and a horn off the cap.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      const w = new THREE.Mesh(new THREE.BoxGeometry(10, 30, 10), lit);
+      w.position.set(dx + Math.cos(a) * 62 * k, h - 110 * k,
+                     dz + Math.sin(a) * 62 * k);
+      g.add(w);
+    }
+    const hr = horn(150 * k, 13 * k, bone, 0.3);
+    hr.position.set(dx, h + 130 * k, dz);
+    hr.rotation.y = dx * 0.01;
+    g.add(hr);
   }
-  // Something burning in the courtyard.
-  const fire = new THREE.PointLight(0xff3a60, 3.5, 320);
-  fire.position.set(0, 60, 0); g.add(fire);
+
+  // ── Curtain wall, with teeth ──
+  for (const [dx, dz, w, d, len, along] of [
+    [0, -380, 760, 48, 760, true], [0, 380, 760, 48, 760, true],
+    [-380, 0, 48, 760, 760, false], [380, 0, 48, 760, 760, false]]) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 160, d), stone);
+    wall.position.set(dx, 80, dz); g.add(wall);
+    battlement(dx, 160, dz, len, along, 54);
+  }
+
+  // ── The gate, on the side you come in from ──
+  for (const dx of [-86, 86]) {
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(46, 56, 300, 8), stone);
+    t.position.set(dx, 150, 380); g.add(t);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(62, 90, 8), dark);
+    cap.position.set(dx, 345, 380); g.add(cap);
+    const h = horn(120, 11, bone, 0.34);
+    h.position.set(dx, 380, 380); g.add(h);
+  }
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(220, 60, 70), dark);
+  lintel.position.set(0, 230, 380); g.add(lintel);
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(104, 150, 72),
+    new THREE.MeshBasicMaterial({ color: 0x8c1030 }));
+  mouth.position.set(0, 75, 380); g.add(mouth);
+  const road = new THREE.Mesh(new THREE.BoxGeometry(150, 4, 420), dark);
+  road.position.set(0, 2, 600); g.add(road);
+
+  // ── Braziers along the parapet, and the fire in the yard ──
+  for (const [bx, bz] of [[-380, -380], [380, -380], [-380, 380], [380, 380],
+                          [0, -380], [0, 380], [-380, 0], [380, 0]]) {
+    const bowl = new THREE.Mesh(new THREE.SphereGeometry(22, 8, 6), lit);
+    bowl.position.set(bx, 190, bz); g.add(bowl);
+  }
+  const fire = new THREE.PointLight(0xff3a60, 4, 1100);
+  fire.position.set(0, 240, 0); g.add(fire);
+  const up = new THREE.PointLight(0xff6ab0, 2.2, 900);
+  up.position.set(0, 760, 0); g.add(up);
   return g;
 }
 
 /**
- * Their town, in rings around the castle, because the castle is what the
- * town is for.
+ * Their town.
  *
- * An alien house here is three shapes: a six-sided shell that is wider at
- * the bottom, a spire far too long for it, and sometimes one lit window.
- * Every one of them leans a little, which is most of what stops a field of
- * cones from looking like a field of cones.
+ * Three kinds of house, none of which has a straight edge anywhere in it:
+ * a pod squatting under a curled spine, a stack of fused bulbs leaning off
+ * true, and a nest held up off the ground on four splayed legs. All of them
+ * lit from inside through a membrane, none of them square to the next one.
+ *
+ * Rings around the castle, pushed out past its wall, and nothing within
+ * three hundred of the line the pod comes down.
  */
 function buildTown() {
   const g = new THREE.Group();
-  const shell = new THREE.MeshLambertMaterial({ color: 0x3a2150 });
-  const roof = new THREE.MeshLambertMaterial({ color: 0x241334 });
-  const hive = new THREE.MeshLambertMaterial({ color: 0x2c1a44 });
+  const chitin = new THREE.MeshLambertMaterial({ color: 0x3a2150 });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x241334 });
+  const shellM = new THREE.MeshLambertMaterial({ color: 0x4e2b70 });
+  const bone = new THREE.MeshLambertMaterial({ color: 0x4a3a62 });
   const lamp = new THREE.MeshBasicMaterial({ color: 0x8cf0b4 });
+  const lampB = new THREE.MeshBasicMaterial({ color: 0xff7ac0 });
 
-  // Nothing inside the walls, and nothing standing in a lake.
   const clear = (x, z) => {
-    if (Math.hypot(x - CASTLE.x, z - CASTLE.z) < 150) return false;
-    for (const L of LAKES) if (Math.hypot(x - L.x, z - L.z) < L.r + 45) return false;
-    return true;
+    if (Math.hypot(x - CASTLE.x, z - CASTLE.z) < 520) return false;  // the wall
+    if (Math.hypot(x - OUTPOST.x, z - OUTPOST.z) < 700) return false;
+    for (const L of LAKES) if (Math.hypot(x - L.x, z - L.z) < L.r + 90) return false;
+    return offPath(x, z, PATH_PAD);
+  };
+
+  // A pod squatting on the ground under a curled spine.
+  const podHut = (b, r) => {
+    const body = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), chitin);
+    body.scale.set(1, 0.82, 1); body.position.y = r * 0.68; b.add(body);
+    const skirt = new THREE.Mesh(
+      new THREE.CylinderGeometry(r * 0.9, r * 1.15, r * 0.5, 7), dark);
+    skirt.position.y = r * 0.25; b.add(skirt);
+    const spine = horn(r * 2.4, r * 0.2, bone, 0.34);
+    spine.position.y = r * 1.3; spine.rotation.y = Math.random() * 3; b.add(spine);
+    const slit = new THREE.Mesh(
+      new THREE.BoxGeometry(r * 0.9, r * 0.26, r * 0.3), lamp);
+    slit.position.set(0, r * 0.75, r * 0.82); b.add(slit);
+  };
+
+  // Fused bulbs, each smaller than the one under it, leaning off true.
+  const hiveStack = (b, r) => {
+    let y = 0, lean = 0;
+    for (let i = 0; i < 3; i++) {
+      const rr = r * (1 - i * 0.2);
+      lean += (Math.random() - 0.5) * r * 0.4;
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(rr, 9, 7), shellM);
+      bulb.scale.set(1, 1.15, 1);
+      bulb.position.set(lean, y + rr, 0);
+      b.add(bulb);
+      y += rr * 1.5;
+    }
+    const spine = horn(r * 2.2, r * 0.17, bone, 0.26);
+    spine.position.set(lean, y, 0); b.add(spine);
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      const e = new THREE.Mesh(new THREE.SphereGeometry(r * 0.13, 6, 5), lampB);
+      e.position.set(lean + Math.cos(a) * r * 0.75, y * 0.55,
+                     Math.sin(a) * r * 0.75);
+      b.add(e);
+    }
+  };
+
+  // A nest held up off the ground, which nothing human would build.
+  const stiltNest = (b, r) => {
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.6;
+      const leg = new THREE.Mesh(
+        new THREE.CylinderGeometry(r * 0.09, r * 0.16, r * 1.5, 5), dark);
+      leg.position.set(Math.cos(a) * r * 0.42, r * 0.72, Math.sin(a) * r * 0.42);
+      leg.rotation.z = -Math.cos(a) * 0.3;
+      leg.rotation.x = Math.sin(a) * 0.3;
+      b.add(leg);
+    }
+    const body = new THREE.Mesh(new THREE.SphereGeometry(r * 0.95, 9, 7), chitin);
+    body.scale.set(1, 1.2, 1); body.position.y = r * 2.1; b.add(body);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(r * 0.8, r * 1.5, 7), dark);
+    cap.position.y = r * 3.2; b.add(cap);
+    const under = new THREE.Mesh(new THREE.SphereGeometry(r * 0.3, 7, 6), lamp);
+    under.position.y = r * 1.35; b.add(under);
   };
 
   const house = (x, z) => {
     const b = new THREE.Group();
-    const h = 13 + Math.random() * 13;
-    const r = 7 + Math.random() * 5;
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.72, r, h, 6), shell);
-    body.position.y = h / 2; b.add(body);
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(r * 0.95, h * 1.5, 6), roof);
-    cap.position.y = h + h * 0.74; b.add(cap);
-    if (Math.random() < 0.55) {
-      const a = Math.random() * Math.PI * 2;
-      const w = new THREE.Mesh(new THREE.SphereGeometry(1.6, 6, 5), lamp);
-      w.position.set(Math.cos(a) * r * 0.85, h * 0.62, Math.sin(a) * r * 0.85);
-      b.add(w);
-    }
-    b.rotation.y = Math.random() * Math.PI;
-    b.rotation.z = (Math.random() - 0.5) * 0.11;
-    b.position.set(x, heightAt(x, z) - 1, z);
+    const roll = Math.random();
+    const r = 22 + Math.random() * 16;
+    if (roll < 0.52) podHut(b, r);
+    else if (roll < 0.76) hiveStack(b, r);
+    else stiltNest(b, r);
+    b.rotation.y = Math.random() * Math.PI * 2;
+    b.rotation.z = (Math.random() - 0.5) * 0.1;
+    b.position.set(x, heightAt(x, z) - 2, z);
     g.add(b);
   };
 
-  for (const [ring, n] of [[175, 11], [250, 16], [330, 22], [415, 19]]) {
+  for (const [ring, n] of [[620, 16], [830, 22], [1040, 26], [1250, 24]]) {
     for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
-      const rr = ring + (Math.random() - 0.5) * 64;
+      const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.34;
+      const rr = ring + (Math.random() - 0.5) * 150;
       const x = CASTLE.x + Math.cos(a) * rr;
       const z = CASTLE.z + Math.sin(a) * rr;
       if (clear(x, z)) house(x, z);
     }
   }
 
-  // A few hive spires, so the skyline is not all one height.
-  for (let i = 0; i < 8; i++) {
+  // Hive towers: far too tall for the houses under them, which is the point.
+  for (let i = 0; i < 9; i++) {
     const a = Math.random() * Math.PI * 2;
-    const rr = 190 + Math.random() * 250;
+    const rr = 620 + Math.random() * 600;
     const x = CASTLE.x + Math.cos(a) * rr;
     const z = CASTLE.z + Math.sin(a) * rr;
     if (!clear(x, z)) continue;
     const base = heightAt(x, z);
-    const h = 46 + Math.random() * 36;
-    const s = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 9, h, 6), hive);
+    const h = 120 + Math.random() * 90;
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(7, 26, h, 7), shellM);
     s.position.set(x, base + h / 2, z);
-    s.rotation.z = (Math.random() - 0.5) * 0.15;
+    s.rotation.z = (Math.random() - 0.5) * 0.16;
     g.add(s);
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(3.4, 8, 6), lamp);
-    tip.position.set(x, base + h + 2, z);
+    for (let j = 0; j < 3; j++) {
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(14 - j * 3, 8, 6), chitin);
+      bulb.position.set(x, base + h * (0.42 + j * 0.2), z);
+      g.add(bulb);
+    }
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(10, 9, 7), lampB);
+    tip.position.set(x, base + h + 6, z);
     g.add(tip);
   }
   return g;
@@ -541,6 +758,7 @@ function buildWelcome() {
   const g = new THREE.Group();
   const kinds = [buildCrawler, buildBrute, buildWatcher, buildFloater];
   const place = (x, z, s) => {
+    if (Math.hypot(x - OUTPOST.x, z - OUTPOST.z) < 700) return;
     const make = kinds[Math.floor(Math.random() * kinds.length)];
     let m;
     try { m = make(); } catch (e) { return; }
@@ -549,16 +767,16 @@ function buildWelcome() {
     m.rotation.y = Math.random() * Math.PI * 2;
     g.add(m);
   };
-  for (let i = 0; i < 42; i++) {                 // in the streets
+  for (let i = 0; i < 46; i++) {                 // in the streets
     const a = Math.random() * Math.PI * 2;
-    const r = 130 + Math.random() * 320;
+    const r = 520 + Math.random() * 850;         // outside the curtain wall
     place(CASTLE.x + Math.cos(a) * r, CASTLE.z + Math.sin(a) * r,
           10 + Math.random() * 9);
   }
   // All the way down the valley, not just the near half — the last two
   // seconds are spent over ground that the first version left empty.
-  for (let i = 0; i < 36; i++) {                 // under the flight path
-    place(-260 + Math.random() * 620, 150 - Math.random() * 1250,
+  for (let i = 0; i < 38; i++) {                 // under the flight path
+    place(-340 + Math.random() * 820, 150 - Math.random() * 1500,
           9 + Math.random() * 10);
   }
   // Nothing of theirs at the outpost. It is ours, and it is the one place
@@ -646,7 +864,7 @@ export function createDescent() {
   ground.add(buildTerrain());
   ground.add(buildLakes());
   const castle = buildCastle();
-  castle.position.set(CASTLE.x, heightAt(CASTLE.x, CASTLE.z) - 6, CASTLE.z);
+  castle.position.set(CASTLE.x, heightAt(CASTLE.x, CASTLE.z) - 10, CASTLE.z);
   ground.add(castle);
   ground.add(buildTown());
   const outpost = buildOutpost();
@@ -669,7 +887,7 @@ export function createDescent() {
   // Thick purple air, so the far mountains sit back rather than cutting out,
   // and the same colour as the sky, so the far edge of the land dissolves
   // instead of ending in a line.
-  const haze = new THREE.FogExp2(SKY, 0.00055);
+  const haze = new THREE.FogExp2(SKY, 0.0003);
 
   // ── The pod ──
   const pod = buildPod();
@@ -843,8 +1061,8 @@ export function createDescent() {
       // the shot has to hold both at once — too much turn and the castle
       // leaves the frame, too little and the pod is not going anywhere in
       // particular.
-      camera.position.set(ease(k) * 55, 360 - ease(k) * 260, 650 - k * 900);
-      camera.rotation.set(-0.46 + ease(k) * 0.20, -ease(k) * 0.09,
+      camera.position.set(ease(k) * 55, 420 - ease(k) * 290, 650 - k * 900);
+      camera.rotation.set(-0.34 + ease(k) * 0.14, -ease(k) * 0.04,
                           Math.sin(t * 0.6) * 0.04);
       pod.position.set(-3.6, -2.0 - k * 0.5, -10.4 + k * 1.4);
       // Back in out of the black the reveal ended on.
