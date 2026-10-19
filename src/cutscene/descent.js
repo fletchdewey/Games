@@ -33,13 +33,18 @@ import { buildFloater } from '../aliens/floater.js';
 // what the pod is aimed at. Both have to stay in frame at once, so these
 // two numbers are the ones that decide the whole shot.
 const CASTLE  = { x: -200, z: -1000 };
-const OUTPOST = { x:  260, z: -1620 };
+const OUTPOST = { x:  320, z: -2200 };
 
 // The valley: flat inside this ellipse, mountains outside it. Flat ground
 // is where the town, the outpost and the pod's path all have to live, and
 // the mountains have to start far enough out that they ring the shot
 // instead of standing in it.
-const BASIN = { x: 60, z: -750, rx: 820, rz: 1000 };
+const BASIN = { x: 60, z: -750, rx: 820, rz: 1150 };
+
+// The outpost sits out past the end of the valley, where the land starts
+// climbing again, so whoever built it levelled a site first. Without this
+// its huts stand on a mountainside and the pod lands on a slope.
+const SITE = { r: 340, y: 6 };
 
 // The ground itself. Five thousand across sounds absurd for six seconds of
 // film, but the first cut was nine hundred, and at this altitude you could
@@ -228,6 +233,11 @@ function heightAt(x, z) {
       y = y * (1 - k) + (-26) * k;
     }
   }
+  const sd = Math.hypot(x - OUTPOST.x, z - OUTPOST.z);
+  if (sd < SITE.r) {
+    const k = smoothstep(SITE.r, SITE.r * 0.55, sd);
+    y = y * (1 - k) + SITE.y * k;
+  }
   return y;
 }
 
@@ -413,6 +423,10 @@ function buildOutpost() {
   const burnt = new THREE.MeshLambertMaterial({ color: 0x2b2a2c });
 
   // Prefab blocks, long low things with a roof vent each.
+  // A door and a lit strip on the near face of each, because the camera
+  // ends up close enough that a bare box reads as a bare box.
+  const door = new THREE.MeshLambertMaterial({ color: 0x2b2f35 });
+  const lit = new THREE.MeshBasicMaterial({ color: 0xffe3a8 });
   for (const [x, z, w, d, h, mat] of [
     [-54, -26, 50, 26, 22, prefab],
     [8, -42, 42, 24, 19, prefab],
@@ -423,6 +437,10 @@ function buildOutpost() {
     b.position.set(x, h / 2, z); g.add(b);
     const vent = new THREE.Mesh(new THREE.BoxGeometry(w * 0.3, 4, d * 0.4), metal);
     vent.position.set(x, h + 2, z); g.add(vent);
+    const dr = new THREE.Mesh(new THREE.BoxGeometry(5, h * 0.55, 1), door);
+    dr.position.set(x - w * 0.26, h * 0.275, z + d / 2 + 0.6); g.add(dr);
+    const win = new THREE.Mesh(new THREE.BoxGeometry(w * 0.42, 3.5, 1), lit);
+    win.position.set(x + w * 0.14, h * 0.62, z + d / 2 + 0.6); g.add(win);
   }
 
   // Landing pad, with the markings that say what it is.
@@ -443,11 +461,17 @@ function buildOutpost() {
   beacon.position.set(-78, 72, 26); g.add(beacon);
 
   // Fence and two watchtowers — the military look is mostly the fence.
-  for (let i = 0; i < 40; i++) {
-    const a = (i / 40) * Math.PI * 2;
+  // Posts on their own read as scattered monoliths from close up; it is the
+  // two rails strung between them that make it a perimeter.
+  for (let i = 0; i < 48; i++) {
+    const a = (i / 48) * Math.PI * 2;
     const post = new THREE.Mesh(new THREE.BoxGeometry(1.6, 9, 1.6), metal);
     post.position.set(Math.cos(a) * 104, 4.5, Math.sin(a) * 104);
     g.add(post);
+  }
+  for (const y of [4, 7.6]) {
+    const rail = new THREE.Mesh(new THREE.TorusGeometry(104, 0.35, 4, 56), metal);
+    rail.rotation.x = -Math.PI / 2; rail.position.y = y; g.add(rail);
   }
   for (const [x, z] of [[-96, -74], [96, 74]]) {
     const legs = new THREE.Mesh(new THREE.CylinderGeometry(3, 5, 26, 6), metal);
@@ -470,7 +494,7 @@ function buildOutpost() {
     f.position.set(fx + dx, 11 * s, fz + dz);
     g.add(f); flames.push(f);
   }
-  const fireLight = new THREE.PointLight(0xff7a20, 4, 260);
+  const fireLight = new THREE.PointLight(0xff7a20, 3, 170);
   fireLight.position.set(fx, 20, fz); g.add(fireLight);
 
   // The smoke. Each puff climbs the column, swells, thins out and comes
@@ -500,7 +524,8 @@ function buildOutpost() {
       f.scale.set(0.8 + Math.random() * 0.5, 0.75 + Math.random() * 0.85,
                   0.8 + Math.random() * 0.5);
     }
-    fireLight.intensity = 3 + Math.random() * 2.6;
+    fireLight.intensity = 2.2 + Math.random() * 1.7;
+    beacon.visible = (st % 1.7) < 0.85;     // something still running
   };
   return g;
 }
@@ -536,12 +561,8 @@ function buildWelcome() {
     place(-260 + Math.random() * 620, 150 - Math.random() * 1250,
           9 + Math.random() * 10);
   }
-  for (let i = 0; i < 9; i++) {                  // and already at the outpost
-    const a = Math.random() * Math.PI * 2;
-    const r = 120 + Math.random() * 150;
-    place(OUTPOST.x + Math.cos(a) * r, OUTPOST.z + Math.sin(a) * r,
-          10 + Math.random() * 8);
-  }
+  // Nothing of theirs at the outpost. It is ours, and it is the one place
+  // on this planet that is not crawling.
   return g;
 }
 
@@ -552,9 +573,14 @@ const BEAT = {
   clouds:   5.5,    // into the weather
   reveal:   9.5,    // the cloud opens and it is not home
   surface:  14.5,   // low enough to see what lives here
-  impact:   20.5,   // the ground
-  over:     23.0,
+  land:     20.0,   // the pod leaves you and goes down to the outpost
+  down:     27.0,   // on the deck, engine out
+  over:     29.8,
 };
+
+// How much bigger the pod gets at the moment it stops being the thing you
+// are sitting in and becomes the thing you are watching. See startLanding().
+const SWAP = 6.111;
 
 export function createDescent() {
   const scene = new THREE.Scene();
@@ -634,6 +660,12 @@ export function createDescent() {
   const groundSun = new THREE.DirectionalLight(0xffc0e0, 1.1);
   groundSun.position.set(-0.6, 1, 0.3);
   ground.add(groundSun);
+  // A weak fill from the other side. The camera finishes on the far side of
+  // the pod from the sun, and without this the last shot of the game is a
+  // silhouette of the thing you escaped in.
+  const fill = new THREE.DirectionalLight(0xc9a8ff, 0.55);
+  fill.position.set(0.9, 0.5, 0.6);
+  ground.add(fill);
   // Thick purple air, so the far mountains sit back rather than cutting out,
   // and the same colour as the sky, so the far edge of the land dissolves
   // instead of ending in a line.
@@ -654,6 +686,90 @@ export function createDescent() {
   camera.add(pod);
   scene.add(camera);
   const flame = pod.getObjectByName('flame');
+  let flamePower = 1;
+
+  // ── The landing ──
+  // Open ground just outside the wire on the near side, so the pod comes
+  // down between you and the outpost rather than in the middle of it.
+  const L = new THREE.Vector3(OUTPOST.x - 20, 0, OUTPOST.z + 210);
+  L.y = heightAt(L.x, L.z) + 3.9;       // far enough up that the fins clear
+  let landing = false;
+  let landYaw = 0;
+  const P0 = new THREE.Vector3();       // where the pod is when it is let go
+  const q0 = new THREE.Quaternion();    // and how it was lying at the time
+  const qTarget = new THREE.Quaternion();
+  const off0 = new THREE.Vector3();     // camera offset from the pod, start
+  // Round to the side and low, so the last frame is the pod broadside with
+  // its nose toward the outpost, rather than its engine filling the shot.
+  const off1 = new THREE.Vector3(46, 15, 38);                 // and parked
+  const lookOff0 = new THREE.Vector3();
+  const lookOff1 = new THREE.Vector3(4, 7, -30);
+  const camOff = new THREE.Vector3();
+  const lookOff = new THREE.Vector3();
+  const podPos = new THREE.Vector3();
+
+  // Dust, kicked up in the last fraction of a second and hanging after.
+  const dustPuffs = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0x8a5ec0, transparent: true,
+                                    opacity: 0.5, depthWrite: false }));
+    d.visible = false;
+    ground.add(d); dustPuffs.push(d);
+  }
+
+  /**
+   * Hand the pod over to the world.
+   *
+   * It has spent the whole cutscene parented to the camera at arm's length,
+   * which is the only reason it stays in the corner of the frame. To land
+   * it, it has to be a thing in the scene instead — and it has to become one
+   * without the frame changing. So it is moved six times further away and
+   * made six times bigger along the same line of sight: same pixels, same
+   * shot, and from the next frame on it is somewhere you can fly it to.
+   */
+  function startLanding() {
+    landing = true;
+    const wp = new THREE.Vector3();
+    pod.getWorldPosition(wp);
+    pod.getWorldQuaternion(q0);
+    camera.remove(pod);
+    scene.add(pod);
+    P0.copy(camera.position).add(wp.sub(camera.position).multiplyScalar(SWAP));
+    pod.scale.setScalar(0.72 * SWAP);
+    pod.position.copy(P0);
+    pod.quaternion.copy(q0);
+    off0.subVectors(camera.position, P0);
+    // Where the camera is pointed at this instant, written as an offset from
+    // the pod, so the pan onto it starts from exactly the shot already up.
+    const fwd = new THREE.Vector3();
+    camera.getWorldDirection(fwd);
+    lookOff0.copy(camera.position).add(fwd.multiplyScalar(off0.length())).sub(P0);
+    landYaw = Math.atan2(-(L.x - P0.x), -(L.z - P0.z));
+  }
+
+  function dust() {
+    const d = (t - (BEAT.down - 0.85)) / 2.4;
+    for (let i = 0; i < dustPuffs.length; i++) {
+      const p = dustPuffs[i];
+      p.visible = d > 0;
+      if (!p.visible) continue;
+      const a = (i / dustPuffs.length) * Math.PI * 2 + 0.4;
+      const k = Math.min(1, d);
+      p.position.set(L.x + Math.cos(a) * (4 + k * 19), L.y - 3.6 + k * 2.4,
+                     L.z + Math.sin(a) * (4 + k * 19));
+      p.scale.setScalar(2.5 + k * 6);
+      p.material.opacity = 0.34 * (1 - Math.min(1, d) * 0.85);
+    }
+  }
+
+  function enterGround() {
+    ground.visible = true;
+    planet.visible = false;
+    stars.visible = false;
+    scene.background = new THREE.Color(SKY);        // a bruised sky
+    scene.fog = haze;
+  }
 
   let t = 0;
   let done = false;
@@ -670,12 +786,16 @@ export function createDescent() {
     if (held) dt = 0;       // everything below reads t, so a zero step holds
     t += dt;
 
-    // The pod rides in front of you the whole way, rolling slightly.
-    pod.rotation.z = Math.sin(t * 0.7) * 0.11;
-    pod.rotation.x = -0.06 + Math.sin(t * 0.5) * 0.04;
+    // The pod rides in front of you the whole way, rolling slightly — until
+    // it is let go, after which it is flown rather than carried.
+    if (!landing) {
+      pod.rotation.z = Math.sin(t * 0.7) * 0.11;
+      pod.rotation.x = -0.06 + Math.sin(t * 0.5) * 0.04;
+    }
     if (flame) {
-      const f = 0.8 + Math.random() * 0.5;
-      flame.scale.set(f, 1 + Math.random() * 0.7, f);
+      const f = (0.8 + Math.random() * 0.5) * flamePower;
+      flame.visible = flamePower > 0.03;
+      flame.scale.set(f, (1 + Math.random() * 0.7) * flamePower, f);
     }
     planet.rotation.y += dt * 0.02;
     cloud.rotation.y += dt * 0.035;
@@ -712,16 +832,10 @@ export function createDescent() {
       // The last half-second washes out, and the cut happens inside it.
       fade = k > 0.86 ? (k - 0.86) / 0.14 : 0;
 
-    } else if (t < BEAT.impact) {
+    } else if (t < BEAT.land) {
       // On the deck. Everything above is gone; this is the real ground.
-      if (!ground.visible) {
-        ground.visible = true;
-        planet.visible = false;
-        stars.visible = false;
-        scene.background = new THREE.Color(SKY);        // a bruised sky
-        scene.fog = haze;
-      }
-      const k = at(BEAT.surface, BEAT.impact, t);
+      if (!ground.visible) enterGround();
+      const k = at(BEAT.surface, BEAT.land, t);
       // Down the valley, aimed at the smoke.
       //
       // The drift and the turn are not decoration. Their city sits off to
@@ -736,15 +850,44 @@ export function createDescent() {
       // Back in out of the black the reveal ended on.
       fade = 1 - Math.min(1, (t - BEAT.surface) / 0.7);
 
+    } else if (t < BEAT.down) {
+      // The run in. You stop being inside the pod and start watching it.
+      if (!ground.visible) enterGround();
+      if (!landing) startLanding();
+      const k = at(BEAT.land, BEAT.down, t);
+      const e = ease(k);
+      // Across first, down second: the height lags the distance, so it
+      // arrives over the site before it arrives on it.
+      podPos.lerpVectors(P0, L, e);
+      podPos.y = P0.y + (L.y - P0.y) * Math.pow(e, 1.45);
+      pod.position.copy(podPos);
+      // Swing onto the heading early, then bring the nose up to flare.
+      const flare = k > 0.62
+        ? Math.sin(Math.min(1, (k - 0.62) / 0.38) * Math.PI) * 0.2 : 0;
+      qTarget.setFromEuler(new THREE.Euler(flare, landYaw, 0));
+      pod.quaternion.copy(q0).slerp(qTarget, ease(Math.min(1, k / 0.3)));
+      flamePower = 1 - smoothstep(0.74, 0.99, k);
+      // The camera trails it the whole way down and ends up standing off to
+      // one side of it, with the outpost behind.
+      camOff.lerpVectors(off0, off1, e);
+      camera.position.copy(podPos).add(camOff);
+      lookOff.lerpVectors(lookOff0, lookOff1, ease(Math.min(1, k * 2)));
+      camera.lookAt(podPos.x + lookOff.x, podPos.y + lookOff.y,
+                    podPos.z + lookOff.z);
+      dust();
+      fade = 0;
+
     } else {
-      // The ground. Nothing clever — it simply stops.
-      const k = at(BEAT.impact, BEAT.over, t);
-      camera.position.set(55 + k * 35, 100 - ease(k) * 62, -250 - k * 380);
-      camera.rotation.set(-0.26 - ease(k) * 0.14, -0.09, 0);
-      pod.position.set(-3.6, -2.5, -9.0 + k * 2.4);
-      // Full black a little before the ground actually arrives, so you
-      // never see the camera go through it.
-      fade = ease(Math.min(1, Math.max(0, k - 0.3) * 2.4));
+      // Down. Engine out, dust settling, and then the black.
+      const k = at(BEAT.down, BEAT.over, t);
+      pod.position.copy(L);
+      qTarget.setFromEuler(new THREE.Euler(0, landYaw, 0));
+      pod.quaternion.copy(qTarget);
+      flamePower = 0;
+      camera.position.copy(L).add(off1);
+      camera.lookAt(L.x + lookOff1.x, L.y + lookOff1.y, L.z + lookOff1.z);
+      dust();
+      fade = ease(Math.min(1, Math.max(0, k - 0.35) * 2));
       if (t >= BEAT.over) done = true;
     }
     return done;
