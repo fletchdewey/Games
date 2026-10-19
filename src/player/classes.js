@@ -463,6 +463,31 @@ export function classLocked(c, st = unlockState()) {
   return false;
 }
 
+/**
+ * The guns the Commander is allowed to pick from.
+ *
+ * One per unlocked class, in the order the classes are listed. The Commander
+ * carries anything you have earned the right to carry and nothing you
+ * haven't — otherwise it is a side door onto the RPG and the Minigun that
+ * skips the room and the difficulty they are actually behind.
+ */
+export function unlockedWeapons(st = unlockState()) {
+  const out = [];
+  for (const c of CLASSES) {
+    if (c.id === 'commander') continue;      // this is what we are filling in
+    if (classLocked(c, st)) continue;
+    if (!out.includes(c.weapon)) out.push(c.weapon);
+  }
+  return out;
+}
+
+/** The same list, with a weapon that is no longer allowed pulled back to the
+ *  first one that is. Guards a choice made before a save was cleared. */
+export function allowedCommanderWeapon(want, st = unlockState()) {
+  const ok = unlockedWeapons(st);
+  return ok.includes(want) ? want : ok[0];
+}
+
 /** What the card says instead of its blurb while it is still locked. */
 export function lockReason(c, st = unlockState()) {
   const u = c.unlock || {};

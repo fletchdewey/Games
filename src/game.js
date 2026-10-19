@@ -31,7 +31,7 @@ import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killB
 import { createController, updateController } from './player/controller.js';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
-         recordBeaten, recordSecret,
+         unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
   from './player/classes.js';
 
@@ -159,7 +159,11 @@ const ALIEN_TYPES = {
 // torn-open cell would go back to being scenery.
 const SPAWN_PLAN = [
   { room: 'room7', type: 'brute',   count: 4 },   // outpost 4
-  { room: 'room2', type: 'watcher', count: 4 },   // Outpost 3
+  // Outpost 3. Capped below what the difficulty would otherwise give it:
+  // a Watcher never moves and its beam lands the frame it fires, so there is
+  // no closing the distance on eight of them and nothing to dodge once they
+  // all have you. Six is as many as the room can hold and still be a fight.
+  { room: 'room2', type: 'watcher', count: 4, cap: 6 },
   { room: 'room3', type: 'floater', count: 4 },   // outpost 2
   { room: 'room4', type: 'crawler', count: 4 },   // outpost 1
   { room: 'room6', type: 'crawler', count: 2, spots: brokenCellSpots() },
@@ -374,7 +378,8 @@ function spawnAliens(scene) {
     // that room; doubling them would turn a scene into a crowd and cost the
     // room the thing it was saying.
     const count = OUTPOSTS.includes(plan.room)
-      ? Math.round(plan.count * difficulty.swarm)
+      ? Math.min(Math.round(plan.count * difficulty.swarm),
+                 plan.cap != null ? plan.cap : Infinity)
       : plan.count;
 
     for (let i = 0; i < count; i++) {
@@ -1507,6 +1512,9 @@ function fireRocketShot(w) {
 }
 
 function applyClass() {
+  if (playerClass.id === 'commander') {
+    commanderWeapon = allowedCommanderWeapon(commanderWeapon);
+  }
   const w = playerClass.id === 'commander' ? commanderWeapon : playerClass.weapon;
   swapGun(w);
   playerHpMax = Math.max(1, Math.round(playerClass.hp * difficulty.health));
@@ -2171,7 +2179,8 @@ function drawClassPicker() {
   weaponPickEl.style.display = showWeapons ? 'block' : 'none';
   if (showWeapons) {
     weaponPickEl.innerHTML = 'Weapon: ';
-    for (const id of Object.keys(WEAPONS)) {
+    commanderWeapon = allowedCommanderWeapon(commanderWeapon, st);
+    for (const id of unlockedWeapons(st)) {
       const b = document.createElement('button');
       b.type = 'button';
       b.textContent = WEAPONS[id].label;

@@ -18,47 +18,47 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=0b95f9a4ef';
+import { PALETTE, getMaterial } from './shared/materials.js?v=41b9e6b811';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=0b95f9a4ef';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=0b95f9a4ef';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=41b9e6b811';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=41b9e6b811';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=0b95f9a4ef';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=0b95f9a4ef';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=41b9e6b811';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=41b9e6b811';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=0b95f9a4ef';
+import { createController, updateController } from './player/controller.js?v=41b9e6b811';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
-         recordBeaten, recordSecret,
+         unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=0b95f9a4ef';
+  from './player/classes.js?v=41b9e6b811';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=0b95f9a4ef';
+import { buildSoldier } from './npc/soldier.js?v=41b9e6b811';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=0b95f9a4ef';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=41b9e6b811';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=0b95f9a4ef';
-import { createSwarm } from './bosses/swarm.js?v=0b95f9a4ef';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=0b95f9a4ef';
-import { createTwins } from './bosses/twins.js?v=0b95f9a4ef';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=0b95f9a4ef';
-import { createBurrower } from './bosses/burrower.js?v=0b95f9a4ef';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=41b9e6b811';
+import { createSwarm } from './bosses/swarm.js?v=41b9e6b811';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=41b9e6b811';
+import { createTwins } from './bosses/twins.js?v=41b9e6b811';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=41b9e6b811';
+import { createBurrower } from './bosses/burrower.js?v=41b9e6b811';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=0b95f9a4ef';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=41b9e6b811';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=0b95f9a4ef';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=41b9e6b811';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=0b95f9a4ef';
+  from './map/grid_map.js?v=41b9e6b811';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -68,7 +68,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=0b95f9a4ef';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=41b9e6b811';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -159,7 +159,11 @@ const ALIEN_TYPES = {
 // torn-open cell would go back to being scenery.
 const SPAWN_PLAN = [
   { room: 'room7', type: 'brute',   count: 4 },   // outpost 4
-  { room: 'room2', type: 'watcher', count: 4 },   // Outpost 3
+  // Outpost 3. Capped below what the difficulty would otherwise give it:
+  // a Watcher never moves and its beam lands the frame it fires, so there is
+  // no closing the distance on eight of them and nothing to dodge once they
+  // all have you. Six is as many as the room can hold and still be a fight.
+  { room: 'room2', type: 'watcher', count: 4, cap: 6 },
   { room: 'room3', type: 'floater', count: 4 },   // outpost 2
   { room: 'room4', type: 'crawler', count: 4 },   // outpost 1
   { room: 'room6', type: 'crawler', count: 2, spots: brokenCellSpots() },
@@ -374,7 +378,8 @@ function spawnAliens(scene) {
     // that room; doubling them would turn a scene into a crowd and cost the
     // room the thing it was saying.
     const count = OUTPOSTS.includes(plan.room)
-      ? Math.round(plan.count * difficulty.swarm)
+      ? Math.min(Math.round(plan.count * difficulty.swarm),
+                 plan.cap != null ? plan.cap : Infinity)
       : plan.count;
 
     for (let i = 0; i < count; i++) {
@@ -1507,6 +1512,9 @@ function fireRocketShot(w) {
 }
 
 function applyClass() {
+  if (playerClass.id === 'commander') {
+    commanderWeapon = allowedCommanderWeapon(commanderWeapon);
+  }
   const w = playerClass.id === 'commander' ? commanderWeapon : playerClass.weapon;
   swapGun(w);
   playerHpMax = Math.max(1, Math.round(playerClass.hp * difficulty.health));
@@ -2171,7 +2179,8 @@ function drawClassPicker() {
   weaponPickEl.style.display = showWeapons ? 'block' : 'none';
   if (showWeapons) {
     weaponPickEl.innerHTML = 'Weapon: ';
-    for (const id of Object.keys(WEAPONS)) {
+    commanderWeapon = allowedCommanderWeapon(commanderWeapon, st);
+    for (const id of unlockedWeapons(st)) {
       const b = document.createElement('button');
       b.type = 'button';
       b.textContent = WEAPONS[id].label;
