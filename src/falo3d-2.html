@@ -197,7 +197,8 @@
   #objective.done { color: #44ff88; }
 
   /* Class picker, on the title screen above Click to Play. */
-  #class-picker { display: flex; gap: 10px; justify-content: center; margin: 18px 0 6px; }
+  #class-picker { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+                  margin: 18px auto 6px; max-width: 660px; }
   .class-card {
     width: 150px; padding: 10px 9px; border-radius: 8px; cursor: pointer;
     background: rgba(255,255,255,0.04);
@@ -236,6 +237,31 @@
     border: 1px solid rgba(255,255,255,0.16);
   }
   #weapon-pick button.picked { border-color: #ffaa22; color: #ffaa22; }
+
+  /* The two things on the shelf in the room behind the board. */
+  #perk-prompt {
+    display: none;
+    position: fixed; left: 50%; bottom: 23%;
+    transform: translateX(-50%);
+    font-family: 'Courier New', monospace; text-align: center;
+    background: rgba(0,0,0,0.72); border: 1px solid rgba(255,170,34,0.5);
+    border-radius: 8px; padding: 13px 20px; z-index: 12;
+    pointer-events: none;
+  }
+  #perk-prompt .ptitle { font-size: 12px; letter-spacing: 3px; color: #ffaa22; }
+  #perk-prompt .psub { font-size: 10px; color: #99a; margin-top: 5px; }
+  #perk-prompt .prow { font-size: 11px; color: #e8e8f0; margin-top: 9px; line-height: 1.7; }
+  #perk-prompt .pkey { color: #ffaa22; }
+
+  /* Bottom left, under the health bar: grenades left, or that you are healing. */
+  #perk-hud {
+    display: none;
+    position: fixed; left: 14px; bottom: 56px;
+    font-family: 'Courier New', monospace; font-size: 11px;
+    letter-spacing: 2px; color: #ffaa22;
+    background: rgba(0,0,0,0.4); padding: 3px 9px; border-radius: 4px;
+    pointer-events: none; z-index: 10;
+  }
 
   #controls-hint {
     position: fixed; bottom: 8px; left: 50%;
@@ -343,6 +369,17 @@
   </div>
 
   <div id="use-prompt">E &mdash; LAUNCH</div>
+
+  <div id="perk-hud"></div>
+
+  <div id="perk-prompt">
+    <div class="ptitle">SOMEBODY'S STASH</div>
+    <div class="psub">Two things on the shelf. You can carry one.</div>
+    <div class="prow">
+      <span class="pkey">1</span> &mdash; Three grenades<br>
+      <span class="pkey">2</span> &mdash; Field kit, heals you slowly
+    </div>
+  </div>
 
   <div id="start-overlay">
     <div style="text-align:center">

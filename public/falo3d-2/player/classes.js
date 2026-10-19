@@ -2,8 +2,8 @@
 // WHO YOU ARE WHEN YOU START
 //
 // FLETCHER'S GUIDE:
-// Four of them. Three you can pick from the first time you play, and one you
-// have to earn by finishing the game as each of the other three.
+// Eight of them. Three you can pick the first time you play; the other five
+// are all behind something you have to have done first.
 //
 // The differences are not cosmetic. A class changes what you are holding,
 // how fast it fires, how hard it hits, how straight it shoots, how much
@@ -17,7 +17,19 @@
 //   SMG       holds down the trigger. A third of the damage per round and
 //             it sprays, but it puts out four times as many of them, and
 //             you have the health to stand there doing it.
-//   COMMANDER everything at its best, and you choose the weapon.
+//   COMMANDER everything at its best, and you choose the weapon. Earned by
+//             finishing the game as each of the first three.
+//
+// And the five earned ones:
+//
+//   SCOUT     a pistol, 80 health, and the Commander's legs. Escape on
+//             NORMAL and it is yours.
+//   MEDIC     a plain rifle and two health a second back, for as long as you
+//             are alive to collect it. Escape on HARD.
+//   MINIGUN   the SMG's round at twice the rate — eight times the assault
+//             rifle — and the weight to go with it. Escape on IMPOSSIBLE.
+//   RPG       rockets, and a blast that takes everything standing near what
+//             you hit. Found, not won: it is behind the board in the armory.
 //
 // Damage is in the same units the rest of the game uses: a Crawler has 3, a
 // Brute 6, a Watcher 1. The bosses have their own per-bullet number, which
@@ -101,6 +113,105 @@ function buildSmg() {
   return g;
 }
 
+function buildPistol() {
+  const { g, mat, dark } = gunBase();
+  // Small, and held further forward than the rest because there is no stock.
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.17), mat));
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.11, 0.055), dark);
+  grip.position.set(0, -0.08, 0.04); grip.rotation.x = 0.3; g.add(grip);
+  const slide = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.025, 0.18), dark);
+  slide.position.set(0, 0.045, -0.005); g.add(slide);
+  const mz = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.05, 6), dark);
+  mz.rotation.x = Math.PI / 2; mz.position.set(0, 0, -0.1); g.add(mz);
+  const sight = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.016, 0.02), mat);
+  sight.position.set(0, 0.066, -0.06); g.add(sight);
+  return g;
+}
+
+function buildRifle() {
+  const { g, mat, dark } = gunBase();
+  // The Medic's. Longer in the barrel than the assault and plainer with it —
+  // iron sights, a full stock, nothing bolted on.
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.08, 0.3), mat));
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.095, 0.16),
+    new THREE.MeshLambertMaterial({ color: GUN_WOOD }));
+  stock.position.set(0, -0.02, 0.21); g.add(stock);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.1, 0.055), mat);
+  grip.position.set(0, -0.075, 0.08); grip.rotation.x = 0.22; g.add(grip);
+  const barrel = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.013, 0.013, 0.26, 6), dark);
+  barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0.008, -0.28); g.add(barrel);
+  const mag = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.11, 0.045), dark);
+  mag.position.set(0, -0.08, -0.01); g.add(mag);
+  // A white cross on the receiver, so you can see whose rifle it is.
+  const cross = new THREE.MeshBasicMaterial({ color: 0xdde8ee });
+  const bar1 = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.012, 0.04), cross);
+  bar1.position.set(0, 0.015, 0.06); g.add(bar1);
+  const bar2 = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.04, 0.012), cross);
+  bar2.position.set(0, 0.015, 0.06); g.add(bar2);
+  for (const sz of [-0.12, 0.02]) {
+    const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.026, 0.016), dark);
+    s2.position.set(0, 0.055, sz); g.add(s2);
+  }
+  return g;
+}
+
+function buildMinigun() {
+  const { g, mat, dark } = gunBase();
+  // Six barrels on a drum, a box of ammunition hanging off it, and enough
+  // bulk that it reads as heavy from the one angle you ever see it at.
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.11, 0.22), mat));
+  const drum = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 0.1, 10), dark);
+  drum.rotation.x = Math.PI / 2; drum.position.set(0, 0.005, -0.16); g.add(drum);
+  // The barrels themselves, on a group so the game can spin it while firing.
+  const barrels = new THREE.Group();
+  barrels.position.set(0, 0.005, -0.16);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const b = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.013, 0.013, 0.3, 6), dark);
+    b.rotation.x = Math.PI / 2;
+    b.position.set(Math.cos(a) * 0.032, Math.sin(a) * 0.032, -0.16);
+    barrels.add(b);
+  }
+  barrels.name = 'barrels';
+  g.add(barrels);
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.13, 0.14), dark);
+  box.position.set(0.02, -0.11, 0.08); g.add(box);
+  const feed = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 0.1), mat);
+  feed.position.set(0.02, -0.04, 0.02); g.add(feed);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.11, 0.06), mat);
+  grip.position.set(0, -0.09, 0.09); grip.rotation.x = 0.18; g.add(grip);
+  return g;
+}
+
+function buildRpg() {
+  const { g, mat, dark } = gunBase();
+  // A tube, and a warhead sticking out of the end of it.
+  const tube = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.045, 0.045, 0.62, 10), mat);
+  tube.rotation.x = Math.PI / 2; tube.position.set(0, 0, -0.08); g.add(tube);
+  const flare = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.075, 0.045, 0.12, 10), dark);
+  flare.rotation.x = Math.PI / 2; flare.position.set(0, 0, 0.26); g.add(flare);
+  const head = new THREE.Mesh(
+    new THREE.ConeGeometry(0.055, 0.16, 8),
+    new THREE.MeshLambertMaterial({ color: 0x6a5a3a }));
+  head.rotation.x = -Math.PI / 2; head.position.set(0, 0, -0.46); g.add(head);
+  const collar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 0.08, 8),
+    new THREE.MeshLambertMaterial({ color: 0x6a5a3a }));
+  collar.rotation.x = Math.PI / 2; collar.position.set(0, 0, -0.36); g.add(collar);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.11, 0.055), dark);
+  grip.position.set(0, -0.09, 0.02); grip.rotation.x = 0.2; g.add(grip);
+  const fore = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.05), dark);
+  fore.position.set(0, -0.07, -0.22); g.add(fore);
+  const sight = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.05, 0.016), dark);
+  sight.position.set(0, 0.07, -0.18); g.add(sight);
+  return g;
+}
+
 export const WEAPONS = {
   assault: { label: 'Assault Rifle', build: buildAssault,
              fireEvery: 0.17, damage: 1, spread: 0.006, auto: false },
@@ -108,6 +219,20 @@ export const WEAPONS = {
              fireEvery: 0.95, damage: 3, spread: 0,     auto: false },
   smg:     { label: 'SMG',           build: buildSmg,
              fireEvery: 0.075, damage: 1, spread: 0.032, auto: true },
+  pistol:  { label: 'Pistol',        build: buildPistol,
+             fireEvery: 0.26, damage: 1, spread: 0.009, auto: false },
+  rifle:   { label: 'Rifle',         build: buildRifle,
+             fireEvery: 0.2,  damage: 1, spread: 0.005, auto: false },
+  // Exactly the SMG's round, exactly twice as often.
+  minigun: { label: 'Minigun',       build: buildMinigun,
+             fireEvery: 0.075 / 2, damage: 1, spread: 0.045, auto: true,
+             spins: true },
+  // The only one that doesn't shoot a line. `blast` is what the rocket does
+  // where it lands; `damage` is the hit the thing it actually struck takes
+  // on top of that. See fireRocket() and explode() in game.js.
+  rpg:     { label: 'RPG',           build: buildRpg,
+             fireEvery: 1.4, damage: 4, spread: 0, auto: false,
+             rocket: true, blast: { radius: 4.5, damage: 5 } },
 };
 
 export const CLASSES = [
@@ -129,8 +254,40 @@ export const CLASSES = [
     stats: 'Fires 4x as fast · 130 health · heavier',
     hp: 130, speed: 4.6, damageMul: 1,
   },
+  // ─── EARNED ───────────────────────────────────────────────
+  // Each of these is behind something you have to have done. `unlock` says
+  // what; see classLocked() for how it is read.
   {
-    id: 'commander', name: 'COMMANDER', weapon: 'assault', locked: true,
+    id: 'scout', name: 'SCOUT', weapon: 'pistol',
+    unlock: { difficulty: 'normal' },
+    blurb: 'A pistol and nothing to slow you down. Moves like the Commander.',
+    stats: 'Damage 1 · 80 health · fastest',
+    hp: 80, speed: 6.0, damageMul: 1,
+  },
+  {
+    id: 'medic', name: 'MEDIC', weapon: 'rifle',
+    unlock: { difficulty: 'hard' },
+    blurb: 'A plain rifle, and wounds that close on their own if you live.',
+    stats: 'Damage 1 · 110 health · heals 2/sec',
+    hp: 110, speed: 5.0, damageMul: 1, regen: 2,
+  },
+  {
+    id: 'minigun', name: 'MINIGUN', weapon: 'minigun',
+    unlock: { difficulty: 'impossible' },
+    blurb: 'The SMG round, twice as often. Heavy enough that you feel it.',
+    stats: 'Fires 8x as fast · 140 health · slowest',
+    hp: 140, speed: 4.2, damageMul: 1,
+  },
+  {
+    id: 'rpg', name: 'RPG', weapon: 'rpg',
+    unlock: { secret: true },
+    blurb: 'Rockets. Everything standing near what you hit goes with it.',
+    stats: 'Blast damage · 100 health · normal speed',
+    hp: 100, speed: 4.8, damageMul: 1,
+  },
+  {
+    id: 'commander', name: 'COMMANDER', weapon: 'assault',
+    unlock: { wins: true },
     blurb: 'Everything at its best, and you pick the gun.',
     stats: 'Double damage · 160 health · fastest',
     hp: 160, speed: 6.0, damageMul: 2,
@@ -223,7 +380,7 @@ export function recordWin(id) {
   }
 }
 
-/** The three you must finish to earn the fourth. */
+/** The three you must finish to earn the Commander. */
 export const REQUIRED_FOR_COMMANDER = ['assault', 'sniper', 'smg'];
 
 export function commanderUnlocked(wins = winsSoFar()) {
@@ -233,4 +390,90 @@ export function commanderUnlocked(wins = winsSoFar()) {
 /** For the picker: which of the three are still outstanding. */
 export function stillNeeded(wins = winsSoFar()) {
   return REQUIRED_FOR_COMMANDER.filter((id) => !wins.includes(id));
+}
+
+// ─── WHICH DIFFICULTIES YOU HAVE FINISHED ───────────────────
+// Separate from the class wins, because they answer a different question:
+// the wins ask who you were, this asks what you were up against.
+const BEAT_KEY = 'falo3d2.beaten';
+
+export function beatenSoFar() {
+  try {
+    const raw = localStorage.getItem(BEAT_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function recordBeaten(id) {
+  try {
+    const list = beatenSoFar();
+    if (!list.includes(id)) {
+      list.push(id);
+      localStorage.setItem(BEAT_KEY, JSON.stringify(list));
+    }
+    return list;
+  } catch (e) {
+    return beatenSoFar();
+  }
+}
+
+/**
+ * How far up the four a win counts for.
+ *
+ * Finishing on HARD is finishing on NORMAL and then some, so it unlocks the
+ * Scout as well as the Medic. The alternative — making you go back and grind
+ * out a difficulty you have already proved you are past — is busywork, and
+ * the only thing it would protect is the order the rewards arrive in.
+ */
+const RANK = ['easy', 'normal', 'hard', 'impossible'];
+
+export function beatenToRank(id, beaten = beatenSoFar()) {
+  const want = RANK.indexOf(id);
+  return beaten.some((done) => RANK.indexOf(done) >= want);
+}
+
+// ─── THE ROOM BEHIND THE BOARD ──────────────────────────────
+// One bit, and finding it once is enough — it stays found.
+const SECRET_KEY = 'falo3d2.secret';
+
+export function secretFound() {
+  try { return localStorage.getItem(SECRET_KEY) === '1'; } catch (e) { return false; }
+}
+
+export function recordSecret() {
+  try { localStorage.setItem(SECRET_KEY, '1'); } catch (e) { /* no save, no matter */ }
+}
+
+// ─── IS IT YOURS YET ────────────────────────────────────────
+// Everything the picker needs to know, read once rather than per card —
+// each of these goes to localStorage, and there are eight cards.
+export function unlockState() {
+  return { wins: winsSoFar(), beaten: beatenSoFar(), secret: secretFound() };
+}
+
+export function classLocked(c, st = unlockState()) {
+  const u = c.unlock;
+  if (!u) return false;
+  if (u.wins) return !commanderUnlocked(st.wins);
+  if (u.secret) return !st.secret;
+  if (u.difficulty) return !beatenToRank(u.difficulty, st.beaten);
+  return false;
+}
+
+/** What the card says instead of its blurb while it is still locked. */
+export function lockReason(c, st = unlockState()) {
+  const u = c.unlock || {};
+  if (u.wins) {
+    return 'Locked. Finish the game as '
+      + stillNeeded(st.wins).map((id) => classById(id).name).join(', ') + '.';
+  }
+  if (u.secret) return 'Locked. There is a room on this station you have not found.';
+  if (u.difficulty) {
+    return 'Locked. Escape the station on '
+      + difficultyById(u.difficulty).name + '.';
+  }
+  return 'Locked.';
 }

@@ -30,7 +30,8 @@ import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killB
 // === Player ===
 import { createController, updateController } from './player/controller.js';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
-         commanderUnlocked, stillNeeded,
+         commanderUnlocked, unlockState, classLocked, lockReason,
+         recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
   from './player/classes.js';
 
@@ -196,7 +197,11 @@ function createGun(camera, weaponId) {
   const g = w.build();
   g.position.set(0.25, -0.2, -0.4);
   camera.add(g);
-  return { group: g, recoilTime: 0, weapon: w };
+  // The minigun builds its six barrels on a named group so they can turn.
+  // Nothing else has one, and getObjectByName returns undefined for those.
+  return { group: g, recoilTime: 0, weapon: w,
+           barrels: w.spins ? g.getObjectByName('barrels') : null,
+           spin: 0 };
 }
 
 function swapGun(weaponId) {
@@ -208,6 +213,14 @@ function swapGun(weaponId) {
 }
 
 function updateGun(gun, dt) {
+  // Barrels wind up while you are firing and coast back down when you stop,
+  // rather than snapping between still and spinning. `recoilTime` is already
+  // the "a round just left this thing" signal, so it drives the wind-up too.
+  if (gun.barrels) {
+    const target = gun.recoilTime > 0 ? 26 : 0;
+    gun.spin += (target - gun.spin) * Math.min(1, dt * 6);
+    gun.barrels.rotation.z += gun.spin * dt;
+  }
   if (gun.recoilTime > 0) {
     gun.recoilTime -= dt;
     const k = Math.max(0, gun.recoilTime) * 8;
@@ -797,6 +810,46 @@ function enterSecretRoom() {
   ctrl.yaw = Math.PI / 2;          // facing back down the room
   ctrl.pitch = 0;
   bringSoldier(secretRoom.arrive.x, secretRoom.arrive.z);
+
+  // Finding it once is enough — the RPG is yours from here on, on every
+  // run and every difficulty, whether or not you get off the station this
+  // time. It is the only class you unlock by looking rather than winning.
+  recordSecret();
+  if (!rpgAnnounced) {
+    rpgAnnounced = true;
+    announce('RPG UNLOCKED', 'It will be on the board when you next pick a class.');
+  }
+
+  // And the stash, which is good for this run only. Offered once: come back
+  // in later and the choice you already made still stands.
+  if (!perkOffered) {
+    perkOffered = true;
+    perkPromptEl.style.display = 'block';
+  }
+}
+
+// Shown once per page, not once per run — it is news the first time and
+// clutter every time after.
+let rpgAnnounced = false;
+
+/**
+ * Taking one of the two off the shelf.
+ *
+ * Three grenades, or wounds that close on their own for the rest of the
+ * run. You cannot have both, and you cannot change your mind: the other one
+ * is gone the moment you touch either.
+ */
+function takePerk(which) {
+  if (runPerk) return;
+  runPerk = which;
+  if (which === 'grenade') {
+    grenadesLeft = 3;
+    announce('THREE GRENADES', 'G throws one.');
+  } else {
+    announce('FIELD KIT', 'Two health a second, for as long as you last.');
+  }
+  perkPromptEl.style.display = 'none';
+  updateHUD();
 }
 
 function leaveSecretRoom() {
@@ -1006,6 +1059,25 @@ let playerClass = classById('assault');
 let commanderWeapon = 'assault';     // only the Commander gets a say
 let shotCooldown = 0;
 
+// ─── WHAT THIS RUN GAVE YOU ─────────────────────────────────
+// The room behind the board hands out one of two things, and the choice is
+// good for that run only — walk back in on the next one and you choose
+// again. Everything here is cleared by resetRun().
+let runPerk = null;         // null, 'grenade' or 'kit'
+let perkOffered = false;    // the choice is made once per run, not per visit
+let grenadesLeft = 0;
+
+/**
+ * Health coming back, per second.
+ *
+ * Two sources and they stack, because they were earned separately: the
+ * Medic carries it, and the field kit out of the secret room grants it to
+ * whoever picked that over the grenade.
+ */
+function regenRate() {
+  return (playerClass.regen || 0) + (runPerk === 'kit' ? 2 : 0);
+}
+
 // Has the player actually started playing?
 //
 // The game loop has always run from the moment the page loads, with the
@@ -1038,6 +1110,8 @@ const escapeTallyEl = document.getElementById('escape-tally');
 const escapeAgainBtn = document.getElementById('escape-again');
 const escapeQuitBtn = document.getElementById('escape-quit');
 const usePromptEl = document.getElementById('use-prompt');
+const perkPromptEl = document.getElementById('perk-prompt');
+const perkHudEl = document.getElementById('perk-hud');
 const objectiveEl = document.getElementById('objective');
 const soldierHudEl = document.getElementById('soldier-hud');
 const soldierBarEl = document.getElementById('soldier-bar');
@@ -1076,6 +1150,20 @@ function updateHUD() {
   healthText.textContent = 'HP ' + playerHp;
   healthText.style.color = healthBar.style.background;
   killsEl.textContent = 'KILLS: ' + killCount;
+
+  // What the secret room gave you, if you have been in it. The grenades
+  // count down as you throw them; the kit just says it is working.
+  if (perkHudEl) {
+    if (grenadesLeft > 0) {
+      perkHudEl.textContent = 'GRENADES ' + grenadesLeft + '  ·  G';
+      perkHudEl.style.display = 'block';
+    } else if (regenRate() > 0) {
+      perkHudEl.textContent = 'HEALING';
+      perkHudEl.style.display = 'block';
+    } else {
+      perkHudEl.style.display = 'none';
+    }
+  }
 }
 
 /** Put the chosen class into effect. Called when a run begins. */
@@ -1089,12 +1177,362 @@ function shotDamage() {
   return (gun.weapon.damage || 1) * (playerClass.damageMul || 1);
 }
 
+// ─── THINGS THAT GO OFF ─────────────────────────────────────
+// The RPG's rockets and the secret room's grenades. Both of them end the
+// same way, so the blast is one function and they only differ in how they
+// travel to it.
+let rockets = [];
+let grenades = [];
+let blasts = [];      // the visible ball of fire, purely cosmetic
+
+/**
+ * A blast at `at`, hurting everything within `radius`.
+ *
+ * Falls off with distance rather than being flat, so a rocket into the
+ * middle of a pack kills what it landed on and wounds the rest — which is
+ * the reason to aim it at all, instead of at whichever one is closest.
+ */
+function explode(at, radius, damage) {
+  // The fireball. Short-lived and in front of everything, because it has to
+  // read on one frame in a corridor that is already orange.
+  const ball = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 10, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffaa33, transparent: true, opacity: 0.85 })
+  );
+  ball.position.copy(at);
+  ball.scale.setScalar(0.4);
+  scene.add(ball);
+  blasts.push({ mesh: ball, life: 0.42, max: 0.42, radius });
+  flashes.push(createFlash(scene, at.clone()));
+
+  // Aliens. Distance is measured to the body rather than to a mesh, so a
+  // Brute's outstretched arm does not count as being caught in it.
+  //
+  // And a wall stops it. Without the sight check a rocket fired in one room
+  // kills things standing in the next one, which is both unfair in the hand
+  // and impossible to read — you hear kills you cannot account for. The
+  // Watcher's own line-of-sight test does the work.
+  for (const a of aliens) {
+    if (a.gone || !a.alive) continue;
+    const d = a.model.position.distanceTo(at);
+    if (d > radius) continue;
+    const chest = a.model.position.clone();
+    chest.y += 0.7;
+    if (!clearShot(at, chest)) continue;
+    const share = Math.max(1, Math.round(damage * (1 - d / radius)));
+    a.hp -= share;
+    a.flashTimer = 0.12;
+    a.reg.hit(a.ai);
+    if (a.hp <= 0) {
+      a.alive = false;
+      a.deathTimer = 0;
+      a.reg.kill(a.ai);
+      killCount++;
+    }
+  }
+  updateHUD();
+
+  // The boss, if any of it was standing in it. Its modules want to be told
+  // WHICH part was hit, so the blast finds the nearest piece of it that is
+  // shootable and reports that — the same route a bullet takes.
+  if (boss && boss.active && !boss.defeated) {
+    let part = null, best = radius;
+    boss.model.traverse((o) => {
+      if (!o.isMesh || !o.visible || !o.userData.hitPart) return;
+      const where = o.getWorldPosition(new THREE.Vector3());
+      const d = where.distanceTo(at);
+      if (d < best && clearShot(at, where)) { best = d; part = o; }
+    });
+    if (part) {
+      const share = damage * (1 - best / radius);
+      boss.kind.hit(boss.model, part.userData.hitPart, at.clone(),
+                    boss.kind.bullet * share * (playerClass.damageMul || 1)
+                      / difficulty.enemyHp);
+    }
+  }
+}
+
+/** A rocket, leaving the tube. */
+function fireRocket(from, dir, weapon) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.055, 0.055, 0.26, 8),
+    new THREE.MeshLambertMaterial({ color: 0x6a5a3a }));
+  body.rotation.x = Math.PI / 2;
+  g.add(body);
+  const head = new THREE.Mesh(
+    new THREE.ConeGeometry(0.06, 0.14, 8),
+    new THREE.MeshLambertMaterial({ color: 0x8a3a2a }));
+  head.rotation.x = -Math.PI / 2; head.position.z = -0.19; g.add(head);
+  // The flame behind it, which is most of what you actually see.
+  const flame = new THREE.Mesh(
+    new THREE.SphereGeometry(0.09, 6, 5),
+    new THREE.MeshBasicMaterial({ color: 0xffbb44 }));
+  flame.position.z = 0.2; g.add(flame);
+  g.add(new THREE.PointLight(0xffaa33, 1.4, 6));
+  g.position.copy(from);
+  g.lookAt(from.clone().add(dir));
+  scene.add(g);
+  rockets.push({ mesh: g, dir: dir.clone(), speed: 22, life: 4,
+                 damage: weapon.damage, blast: weapon.blast });
+}
+
+/** One of the three out of the secret room, lobbed underarm. */
+function throwGrenade() {
+  if (grenadesLeft <= 0 || !worldIsLive()) return;
+  grenadesLeft--;
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1, 7, 6),
+    new THREE.MeshLambertMaterial({ color: 0x3a4a32 }));
+  const from = camera.position.clone().add(
+    new THREE.Vector3(0.1, -0.15, -0.4).applyQuaternion(camera.quaternion));
+  mesh.position.copy(from);
+  scene.add(mesh);
+  const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  grenades.push({
+    mesh,
+    // Thrown along your aim with some lift on it, so it lands out in front
+    // rather than at your feet.
+    vel: dir.multiplyScalar(13).add(new THREE.Vector3(0, 3.4, 0)),
+    fuse: 1.6,
+  });
+  updateHUD();
+}
+
+/** Rockets in flight, grenades on their fuse, and fireballs fading out. */
+function updateOrdnance(dt, live) {
+  if (live) {
+    rockets = rockets.filter((r) => {
+      r.life -= dt;
+      const step = r.speed * dt;
+      const p = r.mesh.position;
+      p.addScaledVector(r.dir, step);
+
+      // What it ran into. Anything here ends the same way.
+      let hit = null;
+      if (p.y < 0.1 || p.y > 4.2 || hitsWall(p.x, p.z, 0.25) ||
+          !isFloorAt(p.x, p.z)) {
+        hit = p.clone();
+      }
+      if (!hit) {
+        for (const a of aliens) {
+          if (a.gone || !a.alive || !a.model.visible) continue;
+          // Against the body, not the origin — a model's origin is at its
+          // feet, so measuring in three dimensions let a rocket fly straight
+          // through a Brute's chest and carry on into the far wall.
+          const ap = a.model.position;
+          const flat = Math.hypot(ap.x - p.x, ap.z - p.z);
+          const high = p.y - ap.y;
+          if (flat < 1.0 && high > -0.6 && high < 2.4) { hit = p.clone(); break; }
+        }
+      }
+      if (!hit && boss && boss.active && !boss.defeated &&
+          boss.model.position.distanceTo(p) < 2.2) {
+        hit = p.clone();
+      }
+
+      if (hit) {
+        // The thing it actually struck takes the direct hit as well as its
+        // share of the blast — a rocket in the chest should beat a rocket
+        // at your feet.
+        explode(hit, r.blast.radius,
+                (r.blast.damage + r.damage) * (playerClass.damageMul || 1));
+        removeOrdnance(r.mesh);
+        return false;
+      }
+      if (r.life <= 0) { removeOrdnance(r.mesh); return false; }
+      return true;
+    });
+
+    grenades = grenades.filter((g) => {
+      g.fuse -= dt;
+      const p = g.mesh.position;
+      g.vel.y -= 16 * dt;                     // heavier than real gravity; it lobs
+      const wasX = p.x, wasZ = p.z;
+      p.addScaledVector(g.vel, dt);
+
+      // Off a wall, and off the floor. Neither is a real bounce — the point
+      // of it is that a grenade thrown down a corridor stays in the corridor.
+      if (hitsWall(p.x, p.z, 0.15) || !isFloorAt(p.x, p.z)) {
+        p.x = wasX; p.z = wasZ;
+        g.vel.x *= -0.4; g.vel.z *= -0.4;
+      }
+      if (p.y <= 0.12) {
+        p.y = 0.12;
+        g.vel.y = Math.abs(g.vel.y) > 2 ? -g.vel.y * 0.35 : 0;
+        g.vel.x *= 0.7; g.vel.z *= 0.7;
+      }
+
+      if (g.fuse <= 0) {
+        explode(p.clone(), 5, 7 * (playerClass.damageMul || 1));
+        removeOrdnance(g.mesh);
+        return false;
+      }
+      return true;
+    });
+  }
+
+  // The fireballs fade whether or not the world is live — they are already
+  // over, and freezing one in the air on the death screen looks like a bug.
+  blasts = blasts.filter((b) => {
+    b.life -= dt;
+    if (b.life <= 0) {
+      scene.remove(b.mesh);
+      b.mesh.geometry.dispose();
+      b.mesh.material.dispose();
+      return false;
+    }
+    const t = 1 - b.life / b.max;
+    b.mesh.scale.setScalar(0.4 + t * b.radius * 0.9);
+    b.mesh.material.opacity = 0.85 * (1 - t);
+    return true;
+  });
+}
+
+function removeOrdnance(mesh) {
+  scene.remove(mesh);
+  mesh.traverse((o) => {
+    if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); }
+  });
+}
+
+function clearOrdnance() {
+  for (const r of rockets) removeOrdnance(r.mesh);
+  for (const g of grenades) removeOrdnance(g.mesh);
+  for (const b of blasts) {
+    scene.remove(b.mesh);
+    b.mesh.geometry.dispose();
+    b.mesh.material.dispose();
+  }
+  rockets = []; grenades = []; blasts = [];
+}
+
+/**
+ * One round, resolved the instant it is fired.
+ *
+ * A ray out of the camera, stopped by the first thing it meets — alien,
+ * boss or wall — and a tracer drawn to wherever that was.
+ */
+function fireHitscanShot(w) {
+    // Spread: nudge the aim point off centre. The sniper's is zero, which
+    // is most of what you are paying for.
+    if (w.spread > 0) {
+      aimPoint.set((Math.random() - 0.5) * w.spread * 2,
+                   (Math.random() - 0.5) * w.spread * 2);
+    } else {
+      aimPoint.set(0, 0);
+    }
+    raycaster.setFromCamera(aimPoint, camera);
+
+    // Parked aliens are hidden, and r128's raycaster does NOT skip invisible
+    // meshes — without the visible check they'd still soak bullets from
+    // across the level. (The boss code below already guards this way.)
+    const hitMeshes = [];
+    aliens.forEach((a) => {
+      if (!a.gone && a.alive && a.model.visible) {
+        a.model.traverse((c) => { if (c.isMesh && c.visible) hitMeshes.push(c); });
+      }
+    });
+    // Boss meshes. Some bosses keep part of themselves outside their own
+    // group — the Puppet Master's pilot ejects into the scene — so each
+    // kind names any extra groups that still have to be shootable.
+    if (boss && boss.active && !boss.defeated) {
+      const push = (o) => { if (o.isMesh && o.visible) hitMeshes.push(o); };
+      boss.model.traverse(push);
+      for (const extra of (boss.kind.targets ? boss.kind.targets(boss.model) : [])) {
+        if (extra) extra.traverse(push);
+      }
+    }
+    // Walls too, so a shot stops at the nearest surface — it can't punch
+    // through a wall (which used to hide the tracer) or hit an enemy behind one.
+    for (const wm of wallMeshes) hitMeshes.push(wm);
+
+    const hits = raycaster.intersectObjects(hitMeshes);
+    const from = camera.position.clone().add(
+      new THREE.Vector3(0.15, -0.1, -0.3).applyQuaternion(camera.quaternion)
+    );
+    let to;
+
+    if (hits.length > 0) {
+      to = hits[0].point;
+      const hitObj = hits[0].object;
+
+      if (hitObj.userData.isWall) {
+        // Shot blocked by a wall — no damage, tracer stops here.
+      } else if (boss && boss.active && !boss.defeated && hitObj.userData.hitPart) {
+        // Boss hit — its meshes carry a hitPart tag saying which bit of it
+        // was shot. hits[0].point is the exact impact, so blood comes out
+        // of the hole rather than the middle of whatever was hit.
+        // A boss's health is set inside its own module, so instead of
+        // reaching in to change it, the bullet is worth less. From the
+        // player's side those are the same thing.
+        boss.kind.hit(boss.model, hitObj.userData.hitPart, hits[0].point,
+                      boss.kind.bullet * shotDamage() / difficulty.enemyHp);
+      } else {
+        for (const alien of aliens) {
+          let found = false;
+          alien.model.traverse((c) => { if (c === hitObj) found = true; });
+          if (found && alien.alive) {
+            alien.hp -= shotDamage();
+            alien.flashTimer = 0.12;
+            alien.reg.hit(alien.ai);
+            if (alien.hp <= 0) {
+              alien.alive = false;
+              alien.deathTimer = 0;
+              alien.reg.kill(alien.ai);
+              killCount++;
+              updateHUD();
+            }
+            break;
+          }
+        }
+      }
+    } else {
+      const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+      to = from.clone().add(dir.multiplyScalar(30));
+    }
+
+    // Fire a visible tracer bolt from the muzzle to the impact point.
+    bullets.push(createBullet(scene, from, to));
+    flashes.push(createFlash(scene, from));
+}
+
+/** One rocket, which resolves later and somewhere else. See updateOrdnance. */
+function fireRocketShot(w) {
+  const from = camera.position.clone().add(
+    new THREE.Vector3(0.12, -0.1, -0.5).applyQuaternion(camera.quaternion));
+  const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  fireRocket(from, dir, w);
+  flashes.push(createFlash(scene, from));
+}
+
 function applyClass() {
   const w = playerClass.id === 'commander' ? commanderWeapon : playerClass.weapon;
   swapGun(w);
   playerHpMax = Math.max(1, Math.round(playerClass.hp * difficulty.health));
   playerHp = playerHpMax;
   shotCooldown = 0;
+  healFraction = 0;
+  updateHUD();
+}
+
+// Health is a whole number everywhere it is read — the bar, the kill check,
+// the text. Two a second is less than one a frame, so the part of a point
+// that has not arrived yet waits here rather than being rounded away sixty
+// times a second into nothing.
+let healFraction = 0;
+
+function healOverTime(dt) {
+  const rate = regenRate();
+  if (rate <= 0 || playerHp <= 0 || playerHp >= playerHpMax) {
+    healFraction = 0;
+    return;
+  }
+  healFraction += rate * dt;
+  if (healFraction < 1) return;
+  const whole = Math.floor(healFraction);
+  healFraction -= whole;
+  playerHp = Math.min(playerHpMax, playerHp + whole);
   updateHUD();
 }
 
@@ -1223,6 +1661,14 @@ function resetRun() {
   // The way out is sealed again, and the run is no longer over.
   escaped = false;
   bossBannerTimer = 0;
+
+  // The room's gift is good for one run. So is anything still in the air.
+  runPerk = null;
+  perkOffered = false;
+  grenadesLeft = 0;
+  healFraction = 0;
+  clearOrdnance();
+  if (perkPromptEl) perkPromptEl.style.display = 'none';
   escapeScreen.style.display = 'none';
   usePromptEl.style.display = 'none';
   setEscapePodUnlocked(escapePod, false);
@@ -1287,9 +1733,11 @@ function quitToTitle() {
 function escapeStation() {
   if (escaped || !worldIsLive()) return;
   escaped = true;
-  // This is the only place a win is recorded, and it is what eventually
-  // unlocks the Commander.
+  // This is the only place a win is recorded. Two of them: who you were,
+  // which is what eventually unlocks the Commander, and what you were up
+  // against, which is what unlocks the Scout, the Medic and the Minigun.
   recordWin(playerClass.id);
+  recordBeaten(difficulty.id);
   usePromptEl.style.display = 'none';
   // In case you got here inside the banner's few seconds — it sits above
   // every other screen, so left up it would be printed across this one.
@@ -1334,8 +1782,14 @@ escapeQuitBtn.addEventListener('click', quitToTitle);
 
 // Your hand is on the keyboard already, so take it from there too.
 document.addEventListener('keydown', (e) => {
-  // E is the only key that does anything while you are actually playing.
+  // The two that do anything while you are actually playing.
   if (e.code === 'KeyE') { tryUsePod(); return; }
+  if (e.code === 'KeyG') { throwGrenade(); return; }
+  // Picking what the secret room gives you, while that choice is up.
+  if (perkPromptEl && perkPromptEl.style.display === 'block') {
+    if (e.code === 'Digit1') { takePerk('grenade'); return; }
+    if (e.code === 'Digit2') { takePerk('kit'); return; }
+  }
   if (!isDead && !escaped) return;
   if (e.code === 'KeyR') playAgain();
   else if (e.code === 'KeyQ') quitToTitle();
@@ -1682,22 +2136,21 @@ function drawDifficulty() {
 const weaponPickEl = document.getElementById('weapon-pick');
 
 function drawClassPicker() {
-  const wins = winsSoFar();
+  // Read once. Every one of these goes to localStorage, and there are eight
+  // cards asking the same three questions.
+  const st = unlockState();
+  const wins = st.wins;
   const unlocked = commanderUnlocked(wins);
   classPickerEl.innerHTML = '';
   for (const c of CLASSES) {
-    const locked = c.locked && !unlocked;
+    const locked = classLocked(c, st);
     const card = document.createElement('div');
     card.className = 'class-card'
       + (locked ? ' locked' : '')
       + (playerClass.id === c.id ? ' picked' : '');
-    const need = stillNeeded(wins)
-      .map((id) => classById(id).name).join(', ');
     card.innerHTML =
       '<div class="cname">' + c.name + '</div>' +
-      '<div class="cblurb">' + (locked
-        ? 'Locked. Finish the game as ' + need + '.'
-        : c.blurb) + '</div>' +
+      '<div class="cblurb">' + (locked ? lockReason(c, st) : c.blurb) + '</div>' +
       '<div class="cstats">' + c.stats + '</div>' +
       (wins.includes(c.id) ? '<div class="cwon">ESCAPED</div>' : '');
     if (!locked) {
@@ -1928,87 +2381,11 @@ function gameLoop(now) {
     shotCooldown = w.fireEvery;
     if (live) {
       gun.recoilTime = w.fireEvery > 0.5 ? 0.2 : 0.08;
-      // Spread: nudge the aim point off centre. The sniper's is zero, which
-      // is most of what you are paying for.
-      if (w.spread > 0) {
-        aimPoint.set((Math.random() - 0.5) * w.spread * 2,
-                     (Math.random() - 0.5) * w.spread * 2);
-      } else {
-        aimPoint.set(0, 0);
-      }
-      raycaster.setFromCamera(aimPoint, camera);
-
-      // Parked aliens are hidden, and r128's raycaster does NOT skip invisible
-      // meshes — without the visible check they'd still soak bullets from
-      // across the level. (The boss code below already guards this way.)
-      const hitMeshes = [];
-      aliens.forEach((a) => {
-        if (!a.gone && a.alive && a.model.visible) {
-          a.model.traverse((c) => { if (c.isMesh && c.visible) hitMeshes.push(c); });
-        }
-      });
-      // Boss meshes. Some bosses keep part of themselves outside their own
-      // group — the Puppet Master's pilot ejects into the scene — so each
-      // kind names any extra groups that still have to be shootable.
-      if (boss && boss.active && !boss.defeated) {
-        const push = (o) => { if (o.isMesh && o.visible) hitMeshes.push(o); };
-        boss.model.traverse(push);
-        for (const extra of (boss.kind.targets ? boss.kind.targets(boss.model) : [])) {
-          if (extra) extra.traverse(push);
-        }
-      }
-      // Walls too, so a shot stops at the nearest surface — it can't punch
-      // through a wall (which used to hide the tracer) or hit an enemy behind one.
-      for (const wm of wallMeshes) hitMeshes.push(wm);
-
-      const hits = raycaster.intersectObjects(hitMeshes);
-      const from = camera.position.clone().add(
-        new THREE.Vector3(0.15, -0.1, -0.3).applyQuaternion(camera.quaternion)
-      );
-      let to;
-
-      if (hits.length > 0) {
-        to = hits[0].point;
-        const hitObj = hits[0].object;
-
-        if (hitObj.userData.isWall) {
-          // Shot blocked by a wall — no damage, tracer stops here.
-        } else if (boss && boss.active && !boss.defeated && hitObj.userData.hitPart) {
-          // Boss hit — its meshes carry a hitPart tag saying which bit of it
-          // was shot. hits[0].point is the exact impact, so blood comes out
-          // of the hole rather than the middle of whatever was hit.
-          // A boss's health is set inside its own module, so instead of
-          // reaching in to change it, the bullet is worth less. From the
-          // player's side those are the same thing.
-          boss.kind.hit(boss.model, hitObj.userData.hitPart, hits[0].point,
-                        boss.kind.bullet * shotDamage() / difficulty.enemyHp);
-        } else {
-          for (const alien of aliens) {
-            let found = false;
-            alien.model.traverse((c) => { if (c === hitObj) found = true; });
-            if (found && alien.alive) {
-              alien.hp -= shotDamage();
-              alien.flashTimer = 0.12;
-              alien.reg.hit(alien.ai);
-              if (alien.hp <= 0) {
-                alien.alive = false;
-                alien.deathTimer = 0;
-                alien.reg.kill(alien.ai);
-                killCount++;
-                updateHUD();
-              }
-              break;
-            }
-          }
-        }
-      } else {
-        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-        to = from.clone().add(dir.multiplyScalar(30));
-      }
-
-      // Fire a visible tracer bolt from the muzzle to the impact point.
-      bullets.push(createBullet(scene, from, to));
-      flashes.push(createFlash(scene, from));
+      // What leaves the weapon. Everything but the RPG puts a line
+      // through the air and resolves instantly; the RPG puts an object
+      // in the air and resolves wherever that object stops.
+      if (w.rocket) fireRocketShot(w);
+      else fireHitscanShot(w);
     }
   }
 
@@ -2168,6 +2545,12 @@ function gameLoop(now) {
     if (pp.y < 0 || pp.y > 4) { removeProjectile(p); return false; }
     return true;
   });
+
+  // --- Your rockets, your grenades, and the fire they leave ---
+  updateOrdnance(dt, live);
+
+  // --- Wounds closing ---
+  if (live) healOverTime(dt);
 
   // --- Fly tracer rounds toward their impact point ---
   bullets = bullets.filter((b) => {
