@@ -18,52 +18,55 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=3909278891';
+import { PALETTE, getMaterial } from './shared/materials.js?v=b0980c7470';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=3909278891';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=3909278891';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=b0980c7470';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=b0980c7470';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=3909278891';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=3909278891';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=b0980c7470';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=b0980c7470';
+
+// === The ending ===
+import { createDescent } from './cutscene/descent.js?v=b0980c7470';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=3909278891';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=3909278891';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=b0980c7470';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=b0980c7470';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=3909278891';
+import { createController, updateController } from './player/controller.js?v=b0980c7470';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=3909278891';
+  from './player/classes.js?v=b0980c7470';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=3909278891';
+import { buildSoldier } from './npc/soldier.js?v=b0980c7470';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=3909278891';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=b0980c7470';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=3909278891';
-import { createSwarm } from './bosses/swarm.js?v=3909278891';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=3909278891';
-import { createTwins } from './bosses/twins.js?v=3909278891';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=3909278891';
-import { createBurrower } from './bosses/burrower.js?v=3909278891';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=b0980c7470';
+import { createSwarm } from './bosses/swarm.js?v=b0980c7470';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=b0980c7470';
+import { createTwins } from './bosses/twins.js?v=b0980c7470';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=b0980c7470';
+import { createBurrower } from './bosses/burrower.js?v=b0980c7470';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=3909278891';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=b0980c7470';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=3909278891';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=b0980c7470';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=3909278891';
+  from './map/grid_map.js?v=b0980c7470';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -73,7 +76,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=3909278891';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=b0980c7470';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -1151,6 +1154,38 @@ const deathMsgEl = document.getElementById('death-msg');
 const playAgainBtn = document.getElementById('play-again');
 const quitBtn = document.getElementById('quit-game');
 const escapeScreen = document.getElementById('escape-screen');
+
+// ─── THE RIDE DOWN ──────────────────────────────────────────
+// Built the moment you get clear and thrown away when it is over. While it
+// is running it owns the screen: the station is still there and still
+// frozen behind it, but nothing of it is drawn.
+let descent = null;
+const descentFadeEl = document.getElementById('descent-fade');
+
+function startDescent() {
+  descent = createDescent();
+  document.body.classList.add('in-descent');
+  if (descentFadeEl) {
+    descentFadeEl.style.display = 'block';
+    descentFadeEl.style.opacity = '0';
+  }
+  // Re-entry. The breach's air-roar is the right noise for it and already
+  // tuned on the soundboard, so it is borrowed rather than written twice.
+  startLoop('breach', { gain: 0.5 });
+}
+
+/** The cutscene is over — show what the run came to. */
+function endDescent() {
+  if (!descent) return;
+  stopLoop('breach');
+  descent.dispose();
+  descent = null;
+  document.body.classList.remove('in-descent');
+  if (descentFadeEl) descentFadeEl.style.display = 'none';
+  escapeScreen.style.display = 'flex';
+  playSound('escape', { gain: 0.9 });
+  if (document.pointerLockElement) document.exitPointerLock();
+}
 const escapeTallyEl = document.getElementById('escape-tally');
 const escapeAgainBtn = document.getElementById('escape-again');
 const escapeQuitBtn = document.getElementById('escape-quit');
@@ -1802,6 +1837,15 @@ function resetRun() {
   escaped = false;
   bossBannerTimer = 0;
 
+  // If a run is restarted out from under the ride down, it goes with it.
+  if (descent) {
+    stopLoop('breach');
+    descent.dispose();
+    descent = null;
+    document.body.classList.remove('in-descent');
+    if (descentFadeEl) descentFadeEl.style.display = 'none';
+  }
+
   // The room's gift is good for one run. So is anything still in the air.
   runPerk = null;
   perkOffered = false;
@@ -1875,7 +1919,6 @@ function escapeStation() {
   escaped = true;
   stopAllLoops();
   playSound('pod-launch');
-  playSound('escape', { gain: 0.9 });
   // This is the only place a win is recorded. Two of them: who you were,
   // which is what eventually unlocks the Commander, and what you were up
   // against, which is what unlocks the Scout, the Medic and the Minigun.
@@ -1914,7 +1957,8 @@ function escapeStation() {
     escapeCrewEl.classList.add('lost');
   }
 
-  escapeScreen.style.display = 'flex';
+  // Not the tally yet — first you find out where you are going.
+  startDescent();
   if (document.pointerLockElement) document.exitPointerLock();
 }
 
@@ -1925,6 +1969,10 @@ escapeQuitBtn.addEventListener('click', quitToTitle);
 
 // Your hand is on the keyboard already, so take it from there too.
 document.addEventListener('keydown', (e) => {
+  // Skipping the ride down. Any key at all, because by the third time you
+  // have seen it you want the tally, not the view.
+  if (descent) { descent.skip(); return; }
+
   // The soundboard, which works whether or not you are playing — you need to
   // hear a gun to tune it, and you need to tune it without being eaten.
   if (e.code === 'KeyM') {
@@ -2788,6 +2836,22 @@ function gameLoop(now) {
   }
 
   // --- Render ---
+  // The cutscene draws instead of the station, not as well as it.
+  if (descent) {
+    // It is built once and the window can change size under it, so its
+    // camera is kept in step with the one the game uses.
+    if (descent.camera.aspect !== camera.aspect) {
+      descent.camera.aspect = camera.aspect;
+      descent.camera.updateProjectionMatrix();
+    }
+    // A tab left in the background hands back one enormous frame; without
+    // the clamp the whole ride down happens between two paints.
+    const over = descent.update(Math.min(dt, 0.05));
+    if (descentFadeEl) descentFadeEl.style.opacity = String(descent.blackness());
+    renderer.render(descent.scene, descent.camera);
+    if (over) endDescent();
+    return;
+  }
   renderer.render(scene, camera);
 }
 
@@ -2806,6 +2870,10 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
     kill() { damagePlayer(9999); },
     /** The level's own collision test, for checking placements from here. */
     hitsWall, isFloorAt,
+    /** Win on demand, so the ride down can be watched without earning it. */
+    escape() { escaped = false; escapeStation(); },
+    /** Where the cutscene has got to, in seconds. */
+    get descentAt() { return descent ? descent.at : -1; },
     /** Drop the player into the arena so the fight starts. */
     toBoss() {
       const at = roomSpawn(BOSS_ROOM);

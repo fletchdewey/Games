@@ -263,6 +263,29 @@
     pointer-events: none; z-index: 10;
   }
 
+  /* While the ride down is playing, the station's HUD has no business on
+     screen — it is a cutscene, not a view out of a window. */
+  body.in-descent #crosshair,
+  body.in-descent #hud,
+  body.in-descent #kills,
+  body.in-descent #room-label,
+  body.in-descent #objective,
+  body.in-descent #controls-hint,
+  body.in-descent #soldier-hud,
+  body.in-descent #perk-hud,
+  body.in-descent #use-prompt,
+  body.in-descent #boss-hud,
+  body.in-descent #boss-banner,
+  body.in-descent #damage-flash { display: none !important; }
+
+  /* The last second of the ride down. */
+  #descent-fade {
+    display: none;
+    position: fixed; inset: 0; z-index: 30;
+    background: #000; opacity: 0;
+    pointer-events: none;
+  }
+
   #controls-hint {
     position: fixed; bottom: 8px; left: 50%;
     transform: translateX(-50%);
@@ -369,6 +392,8 @@
   </div>
 
   <div id="use-prompt">E &mdash; LAUNCH</div>
+
+  <div id="descent-fade"></div>
 
   <div id="perk-hud"></div>
 
