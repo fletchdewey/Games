@@ -1164,6 +1164,7 @@ const descentFadeEl = document.getElementById('descent-fade');
 const descentTextEl = document.getElementById('descent-text');
 const descentLine1El = descentTextEl && descentTextEl.querySelector('.one');
 const descentLine2El = descentTextEl && descentTextEl.querySelector('.two');
+let descentTyped = 0;        // characters already given a key click
 
 function startDescent() {
   descent = createDescent();
@@ -1172,12 +1173,18 @@ function startDescent() {
     descentFadeEl.style.display = 'block';
     descentFadeEl.style.opacity = '0';
   }
+  descentTyped = 0;
   if (descentTextEl) {
     descentTextEl.style.display = 'block';
     descentTextEl.style.opacity = '0';
     if (descentLine1El) descentLine1El.textContent = '';
     if (descentLine2El) descentLine2El.textContent = '';
   }
+  // Anything the station was still droning goes now — with the cutscene
+  // owning the loops, a Floater humming next to the pod bay would hum all
+  // the way to the planet.
+  stopLoop('floater-hover');
+  stopLoop('minigun-spin');
   // Re-entry. The breach's air-roar is the right noise for it and already
   // tuned on the soundboard, so it is borrowed rather than written twice.
   startLoop('breach', { gain: 0.5 });
@@ -1500,6 +1507,12 @@ function updateSoundscape(dt, live) {
   // frame, and the three loops are the ones you most need to sit and listen
   // to while you tune them.
   if (soundboardOpen()) return;
+
+  // And while the ride down is playing it owns them too. It starts its own
+  // air-roar for re-entry, and the world is not live once you have escaped,
+  // so the branch below was stopping that loop on the very next frame —
+  // the whole cutscene has been running in silence since it was written.
+  if (descent) return;
 
   if (!live) {
     // Nothing should still be droning behind the death screen.
@@ -2864,6 +2877,12 @@ function gameLoop(now) {
       if (descentLine1El) descentLine1El.textContent = cap.one;
       if (descentLine2El) descentLine2El.textContent = cap.two;
       descentTextEl.style.opacity = String(cap.alpha);
+      // A key under each new character — but only ever one a frame, so a
+      // dropped frame taps once instead of letting off a burst.
+      if (cap.typed > descentTyped) {
+        if (cap.alpha > 0.05) playSound('type-key');
+        descentTyped = cap.typed;
+      }
     }
     renderer.render(descent.scene, descent.camera);
     if (over) endDescent();

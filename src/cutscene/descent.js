@@ -1344,7 +1344,14 @@ export function createDescent() {
     const alpha = t < outAt
       ? Math.min(1, (t - LINES[0].at + 0.2) / 0.45)
       : 1 - (t - outAt) / 0.9;
-    return { one: out[0], two: out[1], alpha: Math.min(1, Math.max(0, alpha)) };
+    // How many characters have landed in all, so whoever is listening can
+    // put a key under each new one without knowing anything about timing.
+    let typed = 0;
+    for (let i = 0; i < 2; i++) {
+      if (shown[i]) typed += Math.min(shown[i].length, LINES[i].text.length);
+    }
+    return { one: out[0], two: out[1], typed,
+             alpha: Math.min(1, Math.max(0, alpha)) };
   }
 
   function skip() { done = true; fade = 1; }

@@ -978,6 +978,23 @@ export const SOUNDS = {
       });
     },
   },
+  // One key per character of the caption on the way down. It fires about
+  // twenty-six times a second, so it has to be quiet and it has to not be
+  // identical every time — the pitch wanders a little, which is the whole
+  // difference between a keyboard and a smoke alarm.
+  'type-key': {
+    label: 'CAPTION TYPING', group: 'Moments',
+    params: {
+      vol: P(0.2, 0, 0.6, 0.01, 'Volume'),
+      tone: P(2300, 700, 5000, 50, 'Click pitch'),
+    },
+    make(p, t, out) {
+      hiss(out, t, { dur: 0.028, freq: vary(p.tone, 0.18), q: 2.4,
+                     vol: p.vol, decay: 3.2 });
+      hiss(out, t + 0.004, { dur: 0.05, type: 'lowpass', freq: vary(430, 0.15),
+                             vol: p.vol * 0.45, decay: 2.6 });
+    },
+  },
   'outpost-clear': {
     label: 'OUTPOST CLEARED', group: 'Moments',
     params: { vol: P(0.3, 0, 1, 0.02, 'Volume') },
