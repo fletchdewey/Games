@@ -84,7 +84,9 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/api/ping' || url.pathname === '/api/counts') {
-      const id = env.COUNTS.idFromName('v1');
+      // The name picks which counter this is. 'v1' holds the rows from
+      // testing the thing; the real one starts here, empty.
+      const id = env.COUNTS.idFromName('live');
       return env.COUNTS.get(id).fetch(request);
     }
     return env.ASSETS.fetch(request);
