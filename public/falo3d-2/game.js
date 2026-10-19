@@ -18,55 +18,55 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=b0980c7470';
+import { PALETTE, getMaterial } from './shared/materials.js?v=cbc9eb3c8b';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=b0980c7470';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=b0980c7470';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=cbc9eb3c8b';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=cbc9eb3c8b';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=b0980c7470';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=b0980c7470';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=cbc9eb3c8b';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=cbc9eb3c8b';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=b0980c7470';
+import { createDescent } from './cutscene/descent.js?v=cbc9eb3c8b';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=b0980c7470';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=b0980c7470';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=cbc9eb3c8b';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=cbc9eb3c8b';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=b0980c7470';
+import { createController, updateController } from './player/controller.js?v=cbc9eb3c8b';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=b0980c7470';
+  from './player/classes.js?v=cbc9eb3c8b';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=b0980c7470';
+import { buildSoldier } from './npc/soldier.js?v=cbc9eb3c8b';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=b0980c7470';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=cbc9eb3c8b';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=b0980c7470';
-import { createSwarm } from './bosses/swarm.js?v=b0980c7470';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=b0980c7470';
-import { createTwins } from './bosses/twins.js?v=b0980c7470';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=b0980c7470';
-import { createBurrower } from './bosses/burrower.js?v=b0980c7470';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=cbc9eb3c8b';
+import { createSwarm } from './bosses/swarm.js?v=cbc9eb3c8b';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=cbc9eb3c8b';
+import { createTwins } from './bosses/twins.js?v=cbc9eb3c8b';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=cbc9eb3c8b';
+import { createBurrower } from './bosses/burrower.js?v=cbc9eb3c8b';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=b0980c7470';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=cbc9eb3c8b';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=b0980c7470';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=cbc9eb3c8b';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=b0980c7470';
+  from './map/grid_map.js?v=cbc9eb3c8b';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -76,7 +76,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=b0980c7470';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=cbc9eb3c8b';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -2874,6 +2874,8 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
     escape() { escaped = false; escapeStation(); },
     /** Where the cutscene has got to, in seconds. */
     get descentAt() { return descent ? descent.at : -1; },
+    /** Hold the cutscene on the frame at a given second, to look at it. */
+    descentSeek(sec) { if (descent) descent.seek(sec); return descent ? descent.at : -1; },
     /** Drop the player into the arena so the fight starts. */
     toBoss() {
       const at = roomSpawn(BOSS_ROOM);

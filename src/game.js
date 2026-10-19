@@ -2874,6 +2874,8 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
     escape() { escaped = false; escapeStation(); },
     /** Where the cutscene has got to, in seconds. */
     get descentAt() { return descent ? descent.at : -1; },
+    /** Hold the cutscene on the frame at a given second, to look at it. */
+    descentSeek(sec) { if (descent) descent.seek(sec); return descent ? descent.at : -1; },
     /** Drop the player into the arena so the fight starts. */
     toBoss() {
       const at = roomSpawn(BOSS_ROOM);

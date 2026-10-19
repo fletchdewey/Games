@@ -14,6 +14,11 @@
 // one on top, the real one underneath. The lie is not clever, it is just
 // the top layer fading out while the clouds are in the way.
 //
+// The last six seconds happen on real ground rather than on the sphere, and
+// everything down there is laid out from one list of places (CASTLE, TOWN,
+// OUTPOST, LAKES) so the camera path, the shape of the land and the
+// buildings cannot disagree about where anything is.
+//
 // Press any key to skip it.
 
 import * as THREE from 'three';
@@ -21,6 +26,45 @@ import { buildCrawler } from '../aliens/crawler.js';
 import { buildBrute } from '../aliens/brute.js';
 import { buildWatcher } from '../aliens/watcher.js';
 import { buildFloater } from '../aliens/floater.js';
+
+// ─── WHERE EVERYTHING IS ────────────────────────────────────
+// The pod comes down the middle of a valley. Their city is ahead and to the
+// left; the burning outpost is ahead and a long way further out, which is
+// what the pod is aimed at. Both have to stay in frame at once, so these
+// two numbers are the ones that decide the whole shot.
+const CASTLE  = { x: -200, z: -1000 };
+const OUTPOST = { x:  260, z: -1620 };
+
+// The valley: flat inside this ellipse, mountains outside it. Flat ground
+// is where the town, the outpost and the pod's path all have to live, and
+// the mountains have to start far enough out that they ring the shot
+// instead of standing in it.
+const BASIN = { x: 60, z: -750, rx: 820, rz: 1000 };
+
+// The ground itself. Five thousand across sounds absurd for six seconds of
+// film, but the first cut was nine hundred, and at this altitude you could
+// see the edge of the world behind the castle — which is the whole reason
+// any of this was rebuilt.
+const LAND = { size: 5000, seg: 200, cz: -700 };
+
+// Red water. Holes in the land, dug by heightAt, so the discs sit in real
+// basins rather than floating on a bumpy floor.
+const LAKES = [
+  { x: -480, z:  -620, r: 110 },
+  { x:  180, z:  -300, r:  90 },
+  { x: -120, z: -1380, r: 130 },
+  { x:  430, z:  -980, r:  95 },
+  { x: -620, z: -1180, r:  85 },
+  { x:   60, z:   180, r: 100 },
+];
+
+const SKY = 0x3d2058;   // sky and haze are the same colour, so there is no
+                        // seam where the land runs out
+
+const smoothstep = (a, b, x) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
 
 // ─── DRAWING A WORLD ────────────────────────────────────────
 
@@ -155,16 +199,41 @@ function buildPod() {
 // never see the join.
 
 /**
- * Mountains, and far too many of them.
+ * How high the land is at any point — the one answer everything else asks.
  *
- * Height comes from sines laid across each other at different sizes — big
- * slow ones for the ranges, small fast ones for the roughness. That is the
- * whole of it, and it is why the peaks are tall enough to look wrong: the
- * biggest wave is simply given a very large number.
+ * Height comes from sines laid across each other at different sizes: big
+ * slow ones for the ranges, small fast ones for the roughness. That is why
+ * the peaks are tall enough to look wrong — the biggest wave is simply
+ * given a very large number.
+ *
+ * Then two things bend it. The valley flattens the middle, so the pod has
+ * somewhere to fly and the town has somewhere to stand. The lakes dig
+ * themselves basins, so red water sits in a hole instead of on a hill.
  */
+function heightAt(x, z) {
+  const raw =
+      Math.sin(x * 0.0065) * Math.cos(z * 0.0051) * 115   // the ranges
+    + Math.sin(x * 0.019 + 1.7) * Math.cos(z * 0.017) * 42
+    + Math.sin(x * 0.051 + 0.6) * Math.cos(z * 0.047) * 13
+    + Math.sin(x * 0.11) * Math.cos(z * 0.13) * 4;        // scree
+
+  // 0.1 inside the valley, 1 out where the mountains are.
+  const e = Math.hypot((x - BASIN.x) / BASIN.rx, (z - BASIN.z) / BASIN.rz);
+  let y = Math.max(-20, raw) * (0.1 + 0.9 * smoothstep(1.0, 1.9, e));
+
+  for (const L of LAKES) {
+    const d = Math.hypot(x - L.x, z - L.z);
+    if (d < L.r * 1.3) {
+      const k = smoothstep(L.r * 1.3, L.r * 0.55, d);
+      y = y * (1 - k) + (-26) * k;
+    }
+  }
+  return y;
+}
+
+/** The land, as far out as the haze can hide. */
 function buildTerrain() {
-  const size = 900, seg = 150;
-  const geo = new THREE.PlaneGeometry(size, size, seg, seg);
+  const geo = new THREE.PlaneGeometry(LAND.size, LAND.size, LAND.seg, LAND.seg);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
   const colors = [];
@@ -172,19 +241,10 @@ function buildTerrain() {
   const mid = new THREE.Color(0x6b2ea8);     // the purple you see from orbit
   const high = new THREE.Color(0xd8c4f0);    // something like snow, but not
 
-  let peak = 0;
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), z = pos.getZ(i);
-    const h =
-        Math.sin(x * 0.0065) * Math.cos(z * 0.0051) * 115   // the ranges
-      + Math.sin(x * 0.019 + 1.7) * Math.cos(z * 0.017) * 42
-      + Math.sin(x * 0.051 + 0.6) * Math.cos(z * 0.047) * 13
-      + Math.sin(x * 0.11) * Math.cos(z * 0.13) * 4;        // scree
-    const y = Math.max(-18, h);
+    const y = heightAt(pos.getX(i), pos.getZ(i) + LAND.cz);
     pos.setY(i, y);
-    if (y > peak) peak = y;
-
-    const t = Math.min(1, Math.max(0, (y + 18) / 170));
+    const t = Math.min(1, Math.max(0, (y + 26) / 180));
     const c = t < 0.62
       ? low.clone().lerp(mid, t / 0.62)
       : mid.clone().lerp(high, (t - 0.62) / 0.38);
@@ -192,29 +252,28 @@ function buildTerrain() {
   }
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.computeVertexNormals();
+  // No flatShading here: r128's Lambert does not have it and warns once per
+  // material, which is six lines of console noise for a setting that was
+  // never applied in the first place.
   const mesh = new THREE.Mesh(geo,
-    new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
-  mesh.userData.peak = peak;
+    new THREE.MeshLambertMaterial({ vertexColors: true }));
+  mesh.position.z = LAND.cz;
   return mesh;
 }
 
-/** Red water, sitting in the low ground. */
+/** Red water, sitting in the holes it dug. */
 function buildLakes() {
   const g = new THREE.Group();
   const mat = new THREE.MeshBasicMaterial({ color: 0xb01424 });
   const rim = new THREE.MeshBasicMaterial({ color: 0xe8304a });
-  const spots = [
-    [-210, 120, 70], [140, -60, 95], [-40, -260, 60],
-    [290, 210, 78], [-320, -110, 52], [60, 300, 66],
-  ];
-  for (const [x, z, r] of spots) {
-    const lake = new THREE.Mesh(new THREE.CircleGeometry(r, 26), mat);
+  for (const L of LAKES) {
+    const lake = new THREE.Mesh(new THREE.CircleGeometry(L.r, 30), mat);
     lake.rotation.x = -Math.PI / 2;
-    lake.position.set(x, -14, z);
+    lake.position.set(L.x, -20, L.z);
     g.add(lake);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(r * 0.96, r * 1.1, 26), rim);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(L.r * 0.96, L.r * 1.12, 30), rim);
     ring.rotation.x = -Math.PI / 2;
-    ring.position.set(x, -13.6, z);
+    ring.position.set(L.x, -19.6, L.z);
     g.add(ring);
   }
   return g;
@@ -260,6 +319,193 @@ function buildCastle() {
 }
 
 /**
+ * Their town, in rings around the castle, because the castle is what the
+ * town is for.
+ *
+ * An alien house here is three shapes: a six-sided shell that is wider at
+ * the bottom, a spire far too long for it, and sometimes one lit window.
+ * Every one of them leans a little, which is most of what stops a field of
+ * cones from looking like a field of cones.
+ */
+function buildTown() {
+  const g = new THREE.Group();
+  const shell = new THREE.MeshLambertMaterial({ color: 0x3a2150 });
+  const roof = new THREE.MeshLambertMaterial({ color: 0x241334 });
+  const hive = new THREE.MeshLambertMaterial({ color: 0x2c1a44 });
+  const lamp = new THREE.MeshBasicMaterial({ color: 0x8cf0b4 });
+
+  // Nothing inside the walls, and nothing standing in a lake.
+  const clear = (x, z) => {
+    if (Math.hypot(x - CASTLE.x, z - CASTLE.z) < 150) return false;
+    for (const L of LAKES) if (Math.hypot(x - L.x, z - L.z) < L.r + 45) return false;
+    return true;
+  };
+
+  const house = (x, z) => {
+    const b = new THREE.Group();
+    const h = 13 + Math.random() * 13;
+    const r = 7 + Math.random() * 5;
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.72, r, h, 6), shell);
+    body.position.y = h / 2; b.add(body);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(r * 0.95, h * 1.5, 6), roof);
+    cap.position.y = h + h * 0.74; b.add(cap);
+    if (Math.random() < 0.55) {
+      const a = Math.random() * Math.PI * 2;
+      const w = new THREE.Mesh(new THREE.SphereGeometry(1.6, 6, 5), lamp);
+      w.position.set(Math.cos(a) * r * 0.85, h * 0.62, Math.sin(a) * r * 0.85);
+      b.add(w);
+    }
+    b.rotation.y = Math.random() * Math.PI;
+    b.rotation.z = (Math.random() - 0.5) * 0.11;
+    b.position.set(x, heightAt(x, z) - 1, z);
+    g.add(b);
+  };
+
+  for (const [ring, n] of [[175, 11], [250, 16], [330, 22], [415, 19]]) {
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+      const rr = ring + (Math.random() - 0.5) * 64;
+      const x = CASTLE.x + Math.cos(a) * rr;
+      const z = CASTLE.z + Math.sin(a) * rr;
+      if (clear(x, z)) house(x, z);
+    }
+  }
+
+  // A few hive spires, so the skyline is not all one height.
+  for (let i = 0; i < 8; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const rr = 190 + Math.random() * 250;
+    const x = CASTLE.x + Math.cos(a) * rr;
+    const z = CASTLE.z + Math.sin(a) * rr;
+    if (!clear(x, z)) continue;
+    const base = heightAt(x, z);
+    const h = 46 + Math.random() * 36;
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 9, h, 6), hive);
+    s.position.set(x, base + h / 2, z);
+    s.rotation.z = (Math.random() - 0.5) * 0.15;
+    g.add(s);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(3.4, 8, 6), lamp);
+    tip.position.set(x, base + h + 2, z);
+    g.add(tip);
+  }
+  return g;
+}
+
+/**
+ * The outpost, out past the edge of town and burning.
+ *
+ * Ours, not theirs — grey prefabs, a landing pad, a comms mast and a wire
+ * fence, so that from a long way off it reads as the last human thing on
+ * the planet. One block is open to the sky with a fire in it and a column
+ * of smoke leaning off in the wind, and that column is the only reason you
+ * can pick the place out at this distance.
+ *
+ * The group carries its own tick(): twelve puffs climbing the column on a
+ * loop, flames that never hold still, and a light that flickers with them.
+ */
+function buildOutpost() {
+  const g = new THREE.Group();
+  const prefab = new THREE.MeshLambertMaterial({ color: 0x8d9299 });
+  const olive = new THREE.MeshLambertMaterial({ color: 0x4b5340 });
+  const metal = new THREE.MeshLambertMaterial({ color: 0x5a6068 });
+  const deck = new THREE.MeshBasicMaterial({ color: 0x1e2228 });
+  const paint = new THREE.MeshBasicMaterial({ color: 0xe8c23a });
+  const burnt = new THREE.MeshLambertMaterial({ color: 0x2b2a2c });
+
+  // Prefab blocks, long low things with a roof vent each.
+  for (const [x, z, w, d, h, mat] of [
+    [-54, -26, 50, 26, 22, prefab],
+    [8, -42, 42, 24, 19, prefab],
+    [46, 30, 32, 20, 17, olive],
+    [-34, 40, 28, 18, 15, olive],
+  ]) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    b.position.set(x, h / 2, z); g.add(b);
+    const vent = new THREE.Mesh(new THREE.BoxGeometry(w * 0.3, 4, d * 0.4), metal);
+    vent.position.set(x, h + 2, z); g.add(vent);
+  }
+
+  // Landing pad, with the markings that say what it is.
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(34, 26), deck);
+  pad.rotation.x = -Math.PI / 2; pad.position.set(4, 0.6, 24); g.add(pad);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(26, 30, 26), paint);
+  ring.rotation.x = -Math.PI / 2; ring.position.set(4, 0.9, 24); g.add(ring);
+
+  // Comms mast.
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 2.2, 70, 6), metal);
+  mast.position.set(-78, 35, 26); g.add(mast);
+  for (const y of [40, 54, 64]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(22, 1.6, 1.6), metal);
+    arm.position.set(-78, y, 26); arm.rotation.y = y * 0.4; g.add(arm);
+  }
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(2.6, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xff3020 }));
+  beacon.position.set(-78, 72, 26); g.add(beacon);
+
+  // Fence and two watchtowers — the military look is mostly the fence.
+  for (let i = 0; i < 40; i++) {
+    const a = (i / 40) * Math.PI * 2;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(1.6, 9, 1.6), metal);
+    post.position.set(Math.cos(a) * 104, 4.5, Math.sin(a) * 104);
+    g.add(post);
+  }
+  for (const [x, z] of [[-96, -74], [96, 74]]) {
+    const legs = new THREE.Mesh(new THREE.CylinderGeometry(3, 5, 26, 6), metal);
+    legs.position.set(x, 13, z); g.add(legs);
+    const box = new THREE.Mesh(new THREE.BoxGeometry(14, 9, 14), olive);
+    box.position.set(x, 30, z); g.add(box);
+  }
+
+  // The block that lost. Walls still standing, roof gone, fire inside.
+  const fx = 58, fz = -34;
+  for (const [dx, dz, w, d] of [[-16, 0, 3, 30], [16, 0, 3, 30], [0, -15, 34, 3]]) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 16, d), burnt);
+    wall.position.set(fx + dx, 8, fz + dz); g.add(wall);
+  }
+  const flames = [];
+  const fireMat = new THREE.MeshBasicMaterial({ color: 0xffa32a,
+                                                transparent: true, opacity: 0.95 });
+  for (const [dx, dz, s] of [[0, 0, 1.3], [-8, 6, 0.9], [9, -4, 1], [2, 9, 0.8]]) {
+    const f = new THREE.Mesh(new THREE.ConeGeometry(7 * s, 26 * s, 7), fireMat);
+    f.position.set(fx + dx, 11 * s, fz + dz);
+    g.add(f); flames.push(f);
+  }
+  const fireLight = new THREE.PointLight(0xff7a20, 4, 260);
+  fireLight.position.set(fx, 20, fz); g.add(fireLight);
+
+  // The smoke. Each puff climbs the column, swells, thins out and comes
+  // back round to the bottom, which is enough to read as rising from a
+  // thousand units away.
+  const puffs = [];
+  for (let i = 0; i < 12; i++) {
+    const p = new THREE.Mesh(new THREE.SphereGeometry(1, 9, 7),
+      new THREE.MeshBasicMaterial({ color: 0x3b3340, transparent: true,
+                                    opacity: 0.6, depthWrite: false }));
+    p.userData.off = i / 12;
+    g.add(p); puffs.push(p);
+  }
+
+  let st = Math.random() * 8;
+  g.userData.tick = (dt) => {
+    st += dt;
+    for (const p of puffs) {
+      const k = (st * 0.17 + p.userData.off) % 1;
+      p.scale.setScalar(10 + k * 36);
+      p.position.set(fx + k * 54 + Math.sin(k * 7 + p.userData.off * 9) * 11,
+                     14 + k * 215,
+                     fz - k * 38);
+      p.material.opacity = 0.72 * (1 - k * 0.92);
+    }
+    for (const f of flames) {
+      f.scale.set(0.8 + Math.random() * 0.5, 0.75 + Math.random() * 0.85,
+                  0.8 + Math.random() * 0.5);
+    }
+    fireLight.intensity = 3 + Math.random() * 2.6;
+  };
+  return g;
+}
+
+/**
  * Them, waiting for you.
  *
  * The same four models the station is full of, scaled up a long way — from
@@ -269,26 +515,32 @@ function buildCastle() {
 function buildWelcome() {
   const g = new THREE.Group();
   const kinds = [buildCrawler, buildBrute, buildWatcher, buildFloater];
-  // Two groups. Most of them are gathered round the castle, because that is
-  // what the castle is for; the rest are spread down the line the pod falls
-  // along, so there is something to see the whole way in.
   const place = (x, z, s) => {
     const make = kinds[Math.floor(Math.random() * kinds.length)];
     let m;
     try { m = make(); } catch (e) { return; }
     m.scale.setScalar(s);
-    m.position.set(x, -12 + s * 0.45, z);
+    m.position.set(x, heightAt(x, z) - 1 + s * 0.45, z);
     m.rotation.y = Math.random() * Math.PI * 2;
     g.add(m);
   };
-  for (let i = 0; i < 40; i++) {                 // round the castle
+  for (let i = 0; i < 42; i++) {                 // in the streets
     const a = Math.random() * Math.PI * 2;
-    const r = 110 + Math.random() * 190;
-    place(-60 + Math.cos(a) * r, -210 + Math.sin(a) * r, 10 + Math.random() * 9);
+    const r = 130 + Math.random() * 320;
+    place(CASTLE.x + Math.cos(a) * r, CASTLE.z + Math.sin(a) * r,
+          10 + Math.random() * 9);
   }
-  for (let i = 0; i < 34; i++) {                 // under the flight path
-    place(-230 + Math.random() * 460, 260 - Math.random() * 520,
+  // All the way down the valley, not just the near half — the last two
+  // seconds are spent over ground that the first version left empty.
+  for (let i = 0; i < 36; i++) {                 // under the flight path
+    place(-260 + Math.random() * 620, 150 - Math.random() * 1250,
           9 + Math.random() * 10);
+  }
+  for (let i = 0; i < 9; i++) {                  // and already at the outpost
+    const a = Math.random() * Math.PI * 2;
+    const r = 120 + Math.random() * 150;
+    place(OUTPOST.x + Math.cos(a) * r, OUTPOST.z + Math.sin(a) * r,
+          10 + Math.random() * 8);
   }
   return g;
 }
@@ -365,26 +617,38 @@ export function createDescent() {
   const ground = new THREE.Group();
   ground.visible = false;
   scene.add(ground);
-  const terrain = buildTerrain();
-  ground.add(terrain);
+  ground.add(buildTerrain());
   ground.add(buildLakes());
   const castle = buildCastle();
-  castle.position.set(-60, -10, -210);
+  castle.position.set(CASTLE.x, heightAt(CASTLE.x, CASTLE.z) - 6, CASTLE.z);
   ground.add(castle);
+  ground.add(buildTown());
+  const outpost = buildOutpost();
+  outpost.position.set(OUTPOST.x, heightAt(OUTPOST.x, OUTPOST.z) - 1, OUTPOST.z);
+  // Built at a sensible size and then made half again as big, because what
+  // matters is that it is readable from eleven hundred units away, not that
+  // its huts are to scale with their houses.
+  outpost.scale.setScalar(1.55);
+  ground.add(outpost);
   ground.add(buildWelcome());
   const groundSun = new THREE.DirectionalLight(0xffc0e0, 1.1);
-  groundSun.position.set(0.4, 1, 0.3);
+  groundSun.position.set(-0.6, 1, 0.3);
   ground.add(groundSun);
-  // Thick purple air, so the far mountains sit back rather than cutting out.
-  const haze = new THREE.FogExp2(0x2a1240, 0.0016);
+  // Thick purple air, so the far mountains sit back rather than cutting out,
+  // and the same colour as the sky, so the far edge of the land dissolves
+  // instead of ending in a line.
+  const haze = new THREE.FogExp2(SKY, 0.00055);
 
   // ── The pod ──
   const pod = buildPod();
   // Down in the corner and a good way out, so it frames the shot rather than
   // blocking it — the planet is what you are meant to be looking at.
-  pod.scale.setScalar(0.8);
-  pod.position.set(-2.7, -1.5, -8.2);
-  pod.rotation.y = 0.26;
+  pod.scale.setScalar(0.72);
+  pod.position.set(-3.6, -2.0, -10.4);
+  // Turned enough that you see its flank and the nose going away from you.
+  // Square on, all you can see is the ring of the skirt with the flame as a
+  // flat orange disc inside it, which reads as a doughnut, not a spacecraft.
+  pod.rotation.y = -0.34;
   // Hung off the camera rather than the scene, so it keeps its place in the
   // frame wherever the shot goes — the same way the gun does in the game.
   camera.add(pod);
@@ -394,6 +658,7 @@ export function createDescent() {
   let t = 0;
   let done = false;
   let fade = 0;             // 0 clear, 1 black
+  let held = false;         // debug: stopped on one frame, see seek()
 
   function at(a, b, time) {           // 0..1 across a beat
     return Math.min(1, Math.max(0, (time - a) / (b - a)));
@@ -402,6 +667,7 @@ export function createDescent() {
 
   function update(dt) {
     if (done) return true;
+    if (held) dt = 0;       // everything below reads t, so a zero step holds
     t += dt;
 
     // The pod rides in front of you the whole way, rolling slightly.
@@ -413,6 +679,7 @@ export function createDescent() {
     }
     planet.rotation.y += dt * 0.02;
     cloud.rotation.y += dt * 0.035;
+    if (ground.visible) outpost.userData.tick(dt);
 
     if (t < BEAT.clouds) {
       // Coming in. The planet grows because we are closing on it.
@@ -451,40 +718,50 @@ export function createDescent() {
         ground.visible = true;
         planet.visible = false;
         stars.visible = false;
-        scene.background = new THREE.Color(0x3a1a52);   // a bruised sky
+        scene.background = new THREE.Color(SKY);        // a bruised sky
         scene.fog = haze;
       }
       const k = at(BEAT.surface, BEAT.impact, t);
-      // Falling toward it, and drifting to the right as it goes.
+      // Down the valley, aimed at the smoke.
       //
-      // The drift is not decoration. The castle's keep is ninety-five tall
-      // and sits just off the line the pod was coming down, so flying
-      // straight gave you four seconds of a dark wall filling the frame —
-      // the camera passes it now instead of hitting it.
-      const height = 340 - ease(k) * 220;
-      camera.position.set(ease(k) * 95, height, 520 - k * 640);
-      camera.rotation.set(-0.42 + k * 0.2, -ease(k) * 0.16,
+      // The drift and the turn are not decoration. Their city sits off to
+      // the left of the line and the outpost is a long way beyond it, and
+      // the shot has to hold both at once — too much turn and the castle
+      // leaves the frame, too little and the pod is not going anywhere in
+      // particular.
+      camera.position.set(ease(k) * 55, 360 - ease(k) * 260, 650 - k * 900);
+      camera.rotation.set(-0.46 + ease(k) * 0.20, -ease(k) * 0.09,
                           Math.sin(t * 0.6) * 0.04);
-      pod.position.set(-2.7, -1.5 - k * 0.5, -8.2 + k * 1.4);
-      fade = 0;
+      pod.position.set(-3.6, -2.0 - k * 0.5, -10.4 + k * 1.4);
+      // Back in out of the black the reveal ended on.
+      fade = 1 - Math.min(1, (t - BEAT.surface) / 0.7);
 
     } else {
       // The ground. Nothing clever — it simply stops.
       const k = at(BEAT.impact, BEAT.over, t);
-      // The last of it: nose over, ground comes up, and the black gets
-      // there first.
-      camera.position.set(95, 120 - ease(k) * 118, -120 - k * 190);
-      camera.rotation.set(-0.22 - k * 0.6, -0.16, 0);
-      pod.position.set(-2.7, -1.5, -8.2 + k * 2.4);
+      camera.position.set(55 + k * 35, 100 - ease(k) * 62, -250 - k * 380);
+      camera.rotation.set(-0.26 - ease(k) * 0.14, -0.09, 0);
+      pod.position.set(-3.6, -2.5, -9.0 + k * 2.4);
       // Full black a little before the ground actually arrives, so you
       // never see the camera go through it.
-      fade = ease(Math.min(1, k * 1.9));
+      fade = ease(Math.min(1, Math.max(0, k - 0.3) * 2.4));
       if (t >= BEAT.over) done = true;
     }
     return done;
   }
 
   function skip() { done = true; fade = 1; }
+
+  /**
+   * Jump to a given second and stop there. Only the localhost debug hook
+   * calls this: waiting twenty seconds to look at one frame is how two of
+   * the bugs in the first cut of this survived as long as they did.
+   */
+  function seek(sec) {
+    t = 0; done = false; held = false;
+    while (t < sec && !done) update(1 / 60);
+    held = true;
+  }
   function blackness() { return fade; }
 
   function dispose() {
@@ -498,7 +775,7 @@ export function createDescent() {
     });
   }
 
-  return { scene, camera, update, skip, blackness, dispose,
+  return { scene, camera, update, skip, seek, blackness, dispose,
            get at() { return t; },
            get finished() { return done; } };
 }
