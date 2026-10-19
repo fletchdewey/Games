@@ -233,6 +233,31 @@
     padding: 20px 22px;
   }
 
+  /* The two live numbers on a card: how many have ever played it, beside
+     the name, and how many are in it right now, over on the badge side. */
+  .card-count {
+    display: none;
+    font-family: 'Courier New', monospace;
+    font-size: 10px; letter-spacing: 1.5px;
+    white-space: nowrap;
+  }
+  .count-played { color: #8a93a6; margin-left: 10px; }
+  .count-live {
+    color: #58d9a0; margin-right: 10px; margin-top: 6px;
+    align-items: center; gap: 6px;
+  }
+  .count-live .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #3a4a44; display: inline-block;
+  }
+  .count-live.on .dot {
+    background: #58d9a0;
+    box-shadow: 0 0 6px #58d9a0;
+    animation: livePulse 2s ease-in-out infinite;
+  }
+  @keyframes livePulse { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }
+  .card-right { display: flex; align-items: flex-start; }
+
   .card-top {
     display: flex;
     justify-content: space-between;
@@ -430,8 +455,11 @@
       </div>
       <div class="card-info">
         <div class="card-top">
-          <div class="card-title">Falo 3D</div>
-          <span class="card-badge badge-3d">3D FPS</span>
+          <div class="card-title">Falo 3D<span
+            class="card-count count-played" data-played="falo3d"></span></div>
+          <div class="card-right"><span class="card-count count-live"
+            data-live="falo3d"><span class="dot"></span><span
+            class="n"></span></span><span class="card-badge badge-3d">3D FPS</span></div>
         </div>
         <div class="card-desc">
           First-person shooter. Fight through a burning city with your marine squad. Kill the King Alien. Reach the extraction helicopter. Controller supported.
@@ -454,8 +482,11 @@
       </div>
       <div class="card-info">
         <div class="card-top">
-          <div class="card-title">Falo 3D-2</div>
-          <span class="card-badge badge-3d2">3D FPS</span>
+          <div class="card-title">Falo 3D-2<span
+            class="card-count count-played" data-played="falo3d-2"></span></div>
+          <div class="card-right"><span class="card-count count-live"
+            data-live="falo3d-2"><span class="dot"></span><span
+            class="n"></span></span><span class="card-badge badge-3d2">3D FPS</span></div>
         </div>
         <div class="card-desc">
           Space station crawler. Fight through 15 rooms against 4 alien species. Clear all outposts to unlock the control room. Reach the helicopter to escape.
@@ -478,8 +509,11 @@
       </div>
       <div class="card-info">
         <div class="card-top">
-          <div class="card-title">Falo</div>
-          <span class="card-badge badge-2d">2D Side-Scroller</span>
+          <div class="card-title">Falo<span
+            class="card-count count-played" data-played="falo"></span></div>
+          <div class="card-right"><span class="card-count count-live"
+            data-live="falo"><span class="dot"></span><span
+            class="n"></span></span><span class="card-badge badge-2d">2D Side-Scroller</span></div>
         </div>
         <div class="card-desc">
           The original. Side-scrolling pixel art shooter. Arrow keys to move, spacebar to shoot. Kill all aliens and reach the escape ship.
@@ -767,6 +801,46 @@
   // Kill counter
   ctx.fillStyle = 'rgba(255,170,34,0.4)';
   ctx.fillText('KILLS: 7', c.width - 80, 22);
+})();
+</script>
+
+<script>
+// ─── HOW MANY ARE HERE ──────────────────────────────
+// Two numbers per card, both from /api/counts: how many browsers have ever
+// played that game, and how many said they were still in it within the last
+// minute. If the request fails — offline, or a local copy of this page with
+// no server behind it — nothing appears at all. A made-up number would be
+// worse than no number.
+(function () {
+  var n = function (v) { return Number(v || 0).toLocaleString(); };
+
+  function paint(games) {
+    document.querySelectorAll('[data-played]').forEach(function (el) {
+      var g = games[el.getAttribute('data-played')];
+      if (!g) return;
+      el.textContent = n(g.played) + ' PLAYED';
+      el.style.display = 'inline';
+    });
+    document.querySelectorAll('[data-live]').forEach(function (el) {
+      var g = games[el.getAttribute('data-live')];
+      if (!g) return;
+      el.querySelector('.n').textContent = n(g.live) + ' PLAYING NOW';
+      el.classList.toggle('on', g.live > 0);
+      el.style.display = 'inline-flex';
+    });
+  }
+
+  function poll() {
+    fetch('/api/counts', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && d.games) paint(d.games); })
+      .catch(function () { /* no server, no numbers */ });
+  }
+  poll();
+  setInterval(function () { if (!document.hidden) poll(); }, 20000);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) poll();
+  });
 })();
 </script>
 </body>

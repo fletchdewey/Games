@@ -18,56 +18,57 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=6df9ac649c';
+import { PALETTE, getMaterial } from './shared/materials.js?v=0e33b936bd';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=6df9ac649c';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=6df9ac649c';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=0e33b936bd';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=0e33b936bd';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=6df9ac649c';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=6df9ac649c';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=0e33b936bd';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=0e33b936bd';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=6df9ac649c';
+import { createDescent } from './cutscene/descent.js?v=0e33b936bd';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=6df9ac649c';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=6df9ac649c';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=0e33b936bd';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=0e33b936bd';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=6df9ac649c';
+import { createController, updateController } from './player/controller.js?v=0e33b936bd';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=6df9ac649c';
+  from './player/classes.js?v=0e33b936bd';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=6df9ac649c';
+import { buildSoldier } from './npc/soldier.js?v=0e33b936bd';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=6df9ac649c';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=0e33b936bd';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=6df9ac649c';
-import { createSwarm } from './bosses/swarm.js?v=6df9ac649c';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=6df9ac649c';
-import { createTwins } from './bosses/twins.js?v=6df9ac649c';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=6df9ac649c';
-import { createBurrower } from './bosses/burrower.js?v=6df9ac649c';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=0e33b936bd';
+import { createSwarm } from './bosses/swarm.js?v=0e33b936bd';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=0e33b936bd';
+import { createTwins } from './bosses/twins.js?v=0e33b936bd';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=0e33b936bd';
+import { createBurrower } from './bosses/burrower.js?v=0e33b936bd';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=6df9ac649c';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=0e33b936bd';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=6df9ac649c';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=0e33b936bd';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
-import { cleanName, savedName, saveName } from './player/name.js?v=6df9ac649c';
+import { cleanName, savedName, saveName } from './player/name.js?v=0e33b936bd';
+import { startPresence } from './shared/presence.js?v=0e33b936bd';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=6df9ac649c';
+  from './map/grid_map.js?v=0e33b936bd';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -77,7 +78,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=6df9ac649c';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=0e33b936bd';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -1266,6 +1267,10 @@ if (!playerName && nameGateEl) {
   if (nameInputEl) setTimeout(() => nameInputEl.focus(), 50);
 }
 showPlayerName();
+
+// Tell the site someone is playing this one, so the library can say how
+// many are. Once, on load — nothing but a random id and the game's name.
+startPresence('falo3d-2');
 
 // Boss HUD (added to the page markup)
 const bossHudEl = document.getElementById('boss-hud');

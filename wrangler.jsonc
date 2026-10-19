@@ -5,6 +5,15 @@
   "routes": [
     { "pattern": "fletcherdewey.com/*", "zone_name": "fletcherdewey.com" }
   ],
+  "durable_objects": {
+    "bindings": [{ "name": "COUNTS", "class_name": "Counts" }]
+  },
+  // SQLite-backed, which is the kind the free plan can create. wrangler
+  // makes the namespace itself on the first deploy — there is no dashboard
+  // step and nothing to paste into this file.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Counts"] }
+  ],
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",

@@ -66,6 +66,7 @@ import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { cleanName, savedName, saveName } from './player/name.js';
+import { startPresence } from './shared/presence.js';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
   from './map/grid_map.js';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
@@ -1266,6 +1267,10 @@ if (!playerName && nameGateEl) {
   if (nameInputEl) setTimeout(() => nameInputEl.focus(), 50);
 }
 showPlayerName();
+
+// Tell the site someone is playing this one, so the library can say how
+// many are. Once, on load — nothing but a random id and the game's name.
+startPresence('falo3d-2');
 
 // Boss HUD (added to the page markup)
 const bossHudEl = document.getElementById('boss-hud');
