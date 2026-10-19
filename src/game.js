@@ -1161,6 +1161,9 @@ const escapeScreen = document.getElementById('escape-screen');
 // frozen behind it, but nothing of it is drawn.
 let descent = null;
 const descentFadeEl = document.getElementById('descent-fade');
+const descentTextEl = document.getElementById('descent-text');
+const descentLine1El = descentTextEl && descentTextEl.querySelector('.one');
+const descentLine2El = descentTextEl && descentTextEl.querySelector('.two');
 
 function startDescent() {
   descent = createDescent();
@@ -1168,6 +1171,12 @@ function startDescent() {
   if (descentFadeEl) {
     descentFadeEl.style.display = 'block';
     descentFadeEl.style.opacity = '0';
+  }
+  if (descentTextEl) {
+    descentTextEl.style.display = 'block';
+    descentTextEl.style.opacity = '0';
+    if (descentLine1El) descentLine1El.textContent = '';
+    if (descentLine2El) descentLine2El.textContent = '';
   }
   // Re-entry. The breach's air-roar is the right noise for it and already
   // tuned on the soundboard, so it is borrowed rather than written twice.
@@ -1182,6 +1191,7 @@ function endDescent() {
   descent = null;
   document.body.classList.remove('in-descent');
   if (descentFadeEl) descentFadeEl.style.display = 'none';
+  if (descentTextEl) descentTextEl.style.display = 'none';
   escapeScreen.style.display = 'flex';
   playSound('escape', { gain: 0.9 });
   if (document.pointerLockElement) document.exitPointerLock();
@@ -1844,6 +1854,7 @@ function resetRun() {
     descent = null;
     document.body.classList.remove('in-descent');
     if (descentFadeEl) descentFadeEl.style.display = 'none';
+    if (descentTextEl) descentTextEl.style.display = 'none';
   }
 
   // The room's gift is good for one run. So is anything still in the air.
@@ -2848,6 +2859,12 @@ function gameLoop(now) {
     // the clamp the whole ride down happens between two paints.
     const over = descent.update(Math.min(dt, 0.05));
     if (descentFadeEl) descentFadeEl.style.opacity = String(descent.blackness());
+    if (descentTextEl) {
+      const cap = descent.caption();
+      if (descentLine1El) descentLine1El.textContent = cap.one;
+      if (descentLine2El) descentLine2El.textContent = cap.two;
+      descentTextEl.style.opacity = String(cap.alpha);
+    }
     renderer.render(descent.scene, descent.camera);
     if (over) endDescent();
     return;

@@ -18,55 +18,55 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=aba919e74a';
+import { PALETTE, getMaterial } from './shared/materials.js?v=f222d0f280';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=aba919e74a';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=aba919e74a';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=f222d0f280';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=f222d0f280';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=aba919e74a';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=aba919e74a';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=f222d0f280';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=f222d0f280';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=aba919e74a';
+import { createDescent } from './cutscene/descent.js?v=f222d0f280';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=aba919e74a';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=aba919e74a';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=f222d0f280';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=f222d0f280';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=aba919e74a';
+import { createController, updateController } from './player/controller.js?v=f222d0f280';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=aba919e74a';
+  from './player/classes.js?v=f222d0f280';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=aba919e74a';
+import { buildSoldier } from './npc/soldier.js?v=f222d0f280';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=aba919e74a';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=f222d0f280';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=aba919e74a';
-import { createSwarm } from './bosses/swarm.js?v=aba919e74a';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=aba919e74a';
-import { createTwins } from './bosses/twins.js?v=aba919e74a';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=aba919e74a';
-import { createBurrower } from './bosses/burrower.js?v=aba919e74a';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=f222d0f280';
+import { createSwarm } from './bosses/swarm.js?v=f222d0f280';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=f222d0f280';
+import { createTwins } from './bosses/twins.js?v=f222d0f280';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=f222d0f280';
+import { createBurrower } from './bosses/burrower.js?v=f222d0f280';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=aba919e74a';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=f222d0f280';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=aba919e74a';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=f222d0f280';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=aba919e74a';
+  from './map/grid_map.js?v=f222d0f280';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -76,7 +76,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=aba919e74a';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=f222d0f280';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -1161,6 +1161,9 @@ const escapeScreen = document.getElementById('escape-screen');
 // frozen behind it, but nothing of it is drawn.
 let descent = null;
 const descentFadeEl = document.getElementById('descent-fade');
+const descentTextEl = document.getElementById('descent-text');
+const descentLine1El = descentTextEl && descentTextEl.querySelector('.one');
+const descentLine2El = descentTextEl && descentTextEl.querySelector('.two');
 
 function startDescent() {
   descent = createDescent();
@@ -1168,6 +1171,12 @@ function startDescent() {
   if (descentFadeEl) {
     descentFadeEl.style.display = 'block';
     descentFadeEl.style.opacity = '0';
+  }
+  if (descentTextEl) {
+    descentTextEl.style.display = 'block';
+    descentTextEl.style.opacity = '0';
+    if (descentLine1El) descentLine1El.textContent = '';
+    if (descentLine2El) descentLine2El.textContent = '';
   }
   // Re-entry. The breach's air-roar is the right noise for it and already
   // tuned on the soundboard, so it is borrowed rather than written twice.
@@ -1182,6 +1191,7 @@ function endDescent() {
   descent = null;
   document.body.classList.remove('in-descent');
   if (descentFadeEl) descentFadeEl.style.display = 'none';
+  if (descentTextEl) descentTextEl.style.display = 'none';
   escapeScreen.style.display = 'flex';
   playSound('escape', { gain: 0.9 });
   if (document.pointerLockElement) document.exitPointerLock();
@@ -1844,6 +1854,7 @@ function resetRun() {
     descent = null;
     document.body.classList.remove('in-descent');
     if (descentFadeEl) descentFadeEl.style.display = 'none';
+    if (descentTextEl) descentTextEl.style.display = 'none';
   }
 
   // The room's gift is good for one run. So is anything still in the air.
@@ -2848,6 +2859,12 @@ function gameLoop(now) {
     // the clamp the whole ride down happens between two paints.
     const over = descent.update(Math.min(dt, 0.05));
     if (descentFadeEl) descentFadeEl.style.opacity = String(descent.blackness());
+    if (descentTextEl) {
+      const cap = descent.caption();
+      if (descentLine1El) descentLine1El.textContent = cap.one;
+      if (descentLine2El) descentLine2El.textContent = cap.two;
+      descentTextEl.style.opacity = String(cap.alpha);
+    }
     renderer.render(descent.scene, descent.camera);
     if (over) endDescent();
     return;

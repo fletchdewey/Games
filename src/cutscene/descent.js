@@ -992,6 +992,18 @@ const BEAT = {
   over:     29.8,
 };
 
+// What it says along the top on the way down. The clock is the cutscene's
+// own, not a timer of its own, so it types in step with the beats and a
+// skip takes it with everything else.
+//
+// The second line lands just after the cloud opens, which is the moment
+// the planet stops being the one you were hoping for.
+const LINES = [
+  { at: 1.2, text: "YOU'VE ESCAPED THE SPACESHIP AND ARE NOW APPROACHING EARTH." },
+  { at: 10.0, text: "BUT SOMETHING DOESN'T FEEL RIGHT." },
+];
+const TYPE_RATE = 26;        // characters a second
+
 // How much bigger the pod gets at the moment it stops being the thing you
 // are sitting in and becomes the thing you are watching. See startLanding().
 const SWAP = 6.111;
@@ -1307,6 +1319,34 @@ export function createDescent() {
     return done;
   }
 
+  /**
+   * The caption as it stands this frame: each line typed as far as the
+   * clock has got, a cursor on whichever one is being written, and an
+   * opacity that lifts it in at the start and takes it away before the
+   * ground arrives.
+   */
+  function caption() {
+    const shown = LINES.map((L) => {
+      if (t < L.at) return null;
+      return L.text.slice(0, Math.floor((t - L.at) * TYPE_RATE));
+    });
+    const blink = Math.floor(t * 2.4) % 2 === 0;
+    const out = ['', ''];
+    for (let i = 0; i < 2; i++) {
+      if (shown[i] === null) continue;
+      const full = shown[i].length >= LINES[i].text.length;
+      // The cursor is on the line still being written; once a line is
+      // finished it only keeps the cursor while nothing has taken over.
+      const mine = i === 1 || shown[1] === null;
+      out[i] = shown[i] + (mine && (!full || blink) ? '_' : '');
+    }
+    const outAt = BEAT.surface - 0.9;
+    const alpha = t < outAt
+      ? Math.min(1, (t - LINES[0].at + 0.2) / 0.45)
+      : 1 - (t - outAt) / 0.9;
+    return { one: out[0], two: out[1], alpha: Math.min(1, Math.max(0, alpha)) };
+  }
+
   function skip() { done = true; fade = 1; }
 
   /**
@@ -1332,7 +1372,7 @@ export function createDescent() {
     });
   }
 
-  return { scene, camera, update, skip, seek, blackness, dispose,
+  return { scene, camera, update, skip, seek, blackness, caption, dispose,
            get at() { return t; },
            get finished() { return done; } };
 }

@@ -278,6 +278,34 @@
   body.in-descent #boss-banner,
   body.in-descent #damage-flash { display: none !important; }
 
+  /* What you tell yourself on the way down. Sits under the fade, so the
+     black at the end takes it with everything else. */
+  #descent-text {
+    display: none;
+    position: fixed; top: 7%; left: 50%; transform: translateX(-50%);
+    width: min(90vw, 840px); z-index: 29;
+    font-family: 'Courier New', monospace;
+    font-size: 16px; letter-spacing: 2px; line-height: 1.9;
+    text-align: center; color: #cfe8d8;
+    text-shadow: 0 0 10px rgba(0,0,0,0.95), 0 2px 3px rgba(0,0,0,0.9);
+    pointer-events: none;
+    transition: opacity 0.2s linear;
+  }
+  /* Each line carries its own backdrop, or it disappears the moment the
+     planet fills the frame — white type on bright green is nothing. The
+     :empty rule is what keeps an empty pill off the screen before a line
+     has been typed. */
+  #descent-text .one, #descent-text .two {
+    display: block; width: fit-content; max-width: 100%;
+    margin: 0 auto 7px; padding: 3px 16px;
+    background: rgba(6,4,10,0.52); border-radius: 4px;
+  }
+  #descent-text .one:empty, #descent-text .two:empty { display: none; }
+  #descent-text .two { color: #ffb0a0; }
+  @media (max-width: 620px) {
+    #descent-text { font-size: 12px; letter-spacing: 1px; }
+  }
+
   /* The last second of the ride down. */
   #descent-fade {
     display: none;
@@ -393,6 +421,7 @@
 
   <div id="use-prompt">E &mdash; LAUNCH</div>
 
+  <div id="descent-text"><div class="one"></div><div class="two"></div></div>
   <div id="descent-fade"></div>
 
   <div id="perk-hud"></div>
