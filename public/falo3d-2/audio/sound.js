@@ -692,6 +692,11 @@ export function loadSavedSound() {
         if (typeof saved[id][k] === 'number') CFG[id][k] = saved[id][k];
       }
     }
+    // The master is the one number that is not read fresh every time a sound
+    // plays — it lives on a gain node that was built when audio started. Load
+    // it into CFG alone and the game would agree it had changed while
+    // carrying on at the old volume.
+    if (master) master.gain.value = CFG.master.vol;
   } catch (e) { /* no save, no matter */ }
 }
 

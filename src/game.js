@@ -1054,6 +1054,13 @@ let difficulty = savedDifficulty();
 // Whatever you set on the soundboard last time, before a note is played.
 loadSavedSound();
 
+// And whatever you change in the soundboard's own tab, as you change it.
+// A storage event only reaches the tabs that did NOT make the change, so
+// this is the game hearing the board rather than hearing itself.
+window.addEventListener('storage', (e) => {
+  if (e.key === 'falo3d2.sound') loadSavedSound();
+});
+
 const aliens = spawnAliens(scene);
 
 // What the bodies standing in the outposts were counted out for. resetRun

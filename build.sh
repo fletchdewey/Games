@@ -83,10 +83,17 @@ done
 sed -E "s#(src=\"falo3d-2/game.js)\"#\1?v=$V2_VER\"#" public/falo3d-2.html > public/falo3d-2.html.tmp \
   && mv public/falo3d-2.html.tmp public/falo3d-2.html
 
+# The soundboard's own tab. It imports the same modules the game does, so it
+# needs the same version stamp or it will sit on a cached copy of a sound
+# you just changed.
+sed -E "s#(from '\./falo3d-2/audio/mixer\.js)'#\1?v=$V2_VER'#" src/soundboard.html \
+  > public/soundboard.html
+
 echo "✓ Built falo3d-2 ($(find "$V2_OUT" -name '*.js' | wc -l | tr -d ' ') modules, v=$V2_VER)"
 
 # === Build index.html from template ===
-GAMES=$(ls public/*.html 2>/dev/null | grep -cv 'index\.html' || echo 0)
+# The soundboard is a tool, not a game, so it does not go in the count.
+GAMES=$(ls public/*.html 2>/dev/null | grep -cvE 'index\.html|soundboard\.html' || echo 0)
 LINES=0
 for f in src/falo3d/* src/game.js src/*/*.js public/falo.html; do
   [ -f "$f" ] && LINES=$((LINES + $(wc -l < "$f")))
