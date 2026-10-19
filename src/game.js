@@ -27,6 +27,11 @@ import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatc
          EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js';
 import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js';
 
+// === Sound ===
+import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
+         setLoopGain, loadSavedSound } from './audio/sound.js';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js';
+
 // === Player ===
 import { createController, updateController } from './player/controller.js';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
@@ -87,6 +92,7 @@ const ALIEN_TYPES = {
     hit: hitCrawler, kill: killCrawler,
     hp: 3, baseY: 0.32, attackType: 'melee', attackRange: 2.5,   // feet measured at -0.32
     attackDmg: 8, attackCD: 1.5, speed: 0.04,
+    stepSound: 'crawler-step', stepEvery: 0.55,
     spawnGap: 2.8,          // 2.6 wide across the legs, plus a little air
     bodyRadius: 0.7,        // the shell; the splayed legs are allowed to overlap
     // States where the idle walk cycle should play (see aliens/crawler.js).
@@ -133,6 +139,7 @@ const ALIEN_TYPES = {
     hit: hitBrute, kill: killBrute,
     hp: 6, baseY: 0.86, attackType: 'melee', attackRange: 3.5,   // feet measured at -0.86
     attackDmg: 10, attackCD: 2.0, speed: 0.035,   // 10% of the player's 100 HP
+    stepSound: 'brute-step', stepEvery: 1.5,      // long stride, heavy
     spawnGap: 3.2,          // the widest of the four, at 3.0 shoulder to shoulder
     bodyRadius: 0.9,        // its torso. Any wider and it could not fit a doorway
     // The Brute lands damage on its slam's impact frame, not on a proximity
@@ -203,10 +210,16 @@ function createGun(camera, weaponId) {
   camera.add(g);
   // The minigun builds its six barrels on a named group so they can turn.
   // Nothing else has one, and getObjectByName returns undefined for those.
-  return { group: g, recoilTime: 0, weapon: w,
+  return { group: g, recoilTime: 0, weapon: w, id: weaponId,
            barrels: w.spins ? g.getObjectByName('barrels') : null,
            spin: 0 };
 }
+
+const GUN_SOUND = {
+  assault: 'gun-assault', rifle: 'gun-assault', sniper: 'gun-sniper',
+  smg: 'gun-smg', pistol: 'gun-pistol', minigun: 'gun-minigun',
+  rpg: 'rpg-launch',
+};
 
 function swapGun(weaponId) {
   if (gun && gun.group) {
@@ -822,6 +835,7 @@ function enterSecretRoom() {
   recordSecret();
   if (!rpgAnnounced) {
     rpgAnnounced = true;
+    playSound('unlock');
     announce('RPG UNLOCKED', 'It will be on the board when you next pick a class.');
   }
 
@@ -847,6 +861,7 @@ let rpgAnnounced = false;
 function takePerk(which) {
   if (runPerk) return;
   runPerk = which;
+  playSound('pickup');
   if (which === 'grenade') {
     grenadesLeft = 3;
     announce('THREE GRENADES', 'G throws one.');
@@ -1036,6 +1051,9 @@ let gun = createGun(camera, 'assault');
 // is not undefined, it throws.
 let difficulty = savedDifficulty();
 
+// Whatever you set on the soundboard last time, before a note is played.
+loadSavedSound();
+
 const aliens = spawnAliens(scene);
 
 // What the bodies standing in the outposts were counted out for. resetRun
@@ -1143,7 +1161,11 @@ const bossBannerLineEl = document.getElementById('boss-banner-line');
  * than a black rectangle.
  */
 function worldIsLive() {
-  return started && !isDead && !escaped;
+  // The soundboard freezes the station the same way the title screen does.
+  // You cannot tune a gunshot while a Brute is walking up behind you, and
+  // being killed by something hidden under a panel would be the game's
+  // fault rather than yours.
+  return started && !isDead && !escaped && !soundboardOpen();
 }
 
 function updateHUD() {
@@ -1207,6 +1229,7 @@ function explode(at, radius, damage) {
   ball.position.copy(at);
   ball.scale.setScalar(0.4);
   scene.add(ball);
+  playSound('explosion', { dist: at.distanceTo(camera.position) });
   blasts.push({ mesh: ball, life: 0.42, max: 0.42, radius });
   flashes.push(createFlash(scene, at.clone()));
 
@@ -1217,6 +1240,7 @@ function explode(at, radius, damage) {
   // kills things standing in the next one, which is both unfair in the hand
   // and impossible to read — you hear kills you cannot account for. The
   // Watcher's own line-of-sight test does the work.
+  let cried = false;
   for (const a of aliens) {
     if (a.gone || !a.alive) continue;
     const d = a.model.position.distanceTo(at);
@@ -1232,6 +1256,9 @@ function explode(at, radius, damage) {
       a.alive = false;
       a.deathTimer = 0;
       a.reg.kill(a.ai);
+      // One death cry for the lot of them rather than eight at the same
+      // instant, which is just a loud smear.
+      if (!cried) { cried = true; playSound('alien-death', { dist: d }); }
       killCount++;
     }
   }
@@ -1394,6 +1421,70 @@ function updateOrdnance(dt, live) {
   });
 }
 
+// ─── THE SOUNDSCAPE ─────────────────────────────────────────
+// The noises that are not events: your own boots, the drones that rise and
+// fall as you move around them, and the minigun's barrels.
+let walkRun = 0;          // ground covered since the last footfall
+let lastFootX = 0, lastFootZ = 0;
+
+function updateSoundscape(dt, live) {
+  // While the soundboard is up it owns the looping sounds — otherwise its
+  // HOLD buttons start a drone and this stops it again on the very next
+  // frame, and the three loops are the ones you most need to sit and listen
+  // to while you tune them.
+  if (soundboardOpen()) return;
+
+  if (!live) {
+    // Nothing should still be droning behind the death screen.
+    stopLoop('floater-hover');
+    stopLoop('breach');
+    stopLoop('minigun-spin');
+    return;
+  }
+
+  // Your boots, paced by distance walked and only while you are on the floor.
+  const moved = Math.hypot(ctrl.position.x - lastFootX, ctrl.position.z - lastFootZ);
+  lastFootX = ctrl.position.x; lastFootZ = ctrl.position.z;
+  if (ctrl.onGround) {
+    walkRun += moved;
+    if (walkRun >= 1.9) { walkRun = 0; playSound('footstep'); }
+  } else {
+    walkRun = 1.4;        // land already most of the way to the next step
+  }
+
+  // One hover drone for the whole station, pitched at whichever Floater is
+  // nearest. Eight separate voices would cost eight oscillators each and
+  // still only ever be heard as one sound.
+  let nearestFloater = Infinity;
+  for (const a of aliens) {
+    if (a.gone || !a.alive || a.type !== 'floater' || !a.model.visible) continue;
+    const d = a.model.position.distanceTo(ctrl.position);
+    if (d < nearestFloater) nearestFloater = d;
+  }
+  droneTo('floater-hover', nearestFloater, 16);
+
+  // The hull breach, which you can hear long before the pull starts.
+  let nearestBreach = Infinity;
+  for (const h of hazards) {
+    const x = Math.min(Math.max(ctrl.position.x, h.xMin), h.xMax);
+    const d = Math.hypot(ctrl.position.x - x, ctrl.position.z - h.z);
+    if (d < nearestBreach) nearestBreach = d;
+  }
+  droneTo('breach', nearestBreach, 26);
+
+  // The barrels, which spin while you are firing and wind down when you stop.
+  if (gun.weapon.spins && gun.recoilTime > 0) startLoop('minigun-spin');
+  else stopLoop('minigun-spin');
+}
+
+/** Hold a looping sound at a volume set by how far off the thing is. */
+function droneTo(id, dist, range) {
+  if (dist > range) { stopLoop(id); return; }
+  startLoop(id);
+  const t = 1 - dist / range;
+  setLoopGain(id, Math.min(1, t * t * 1.4));
+}
+
 function removeOrdnance(mesh) {
   scene.remove(mesh);
   mesh.traverse((o) => {
@@ -1473,6 +1564,7 @@ function fireHitscanShot(w) {
         // player's side those are the same thing.
         boss.kind.hit(boss.model, hitObj.userData.hitPart, hits[0].point,
                       boss.kind.bullet * shotDamage() / difficulty.enemyHp);
+        playSound('boss-hit');
       } else {
         for (const alien of aliens) {
           let found = false;
@@ -1481,10 +1573,13 @@ function fireHitscanShot(w) {
             alien.hp -= shotDamage();
             alien.flashTimer = 0.12;
             alien.reg.hit(alien.ai);
+            const away = alien.model.position.distanceTo(camera.position);
+            playSound('alien-hit', { dist: away });
             if (alien.hp <= 0) {
               alien.alive = false;
               alien.deathTimer = 0;
               alien.reg.kill(alien.ai);
+              playSound('alien-death', { dist: away });
               killCount++;
               updateHUD();
             }
@@ -1552,12 +1647,16 @@ function damagePlayer(amount) {
   // vacuum and the floor tentacles all arrive here.
   const taken = Math.max(1, Math.round(amount * difficulty.incoming));
   playerHp = Math.max(0, playerHp - taken);
+  playSound('player-hurt');
   dmgFlashTimer = 0.3;
   dmgFlashEl.style.opacity = '1';
   updateHUD();
 
   if (playerHp <= 0) {
     isDead = true;
+    // Everything that was droning or spinning stops with you.
+    stopAllLoops();
+    playSound('death');
     deathMsgEl.textContent = deathCause || 'The station keeps what it kills.';
     deathCause = null;
     deathScreen.style.display = 'flex';
@@ -1741,6 +1840,9 @@ function quitToTitle() {
 function escapeStation() {
   if (escaped || !worldIsLive()) return;
   escaped = true;
+  stopAllLoops();
+  playSound('pod-launch');
+  playSound('escape', { gain: 0.9 });
   // This is the only place a win is recorded. Two of them: who you were,
   // which is what eventually unlocks the Commander, and what you were up
   // against, which is what unlocks the Scout, the Medic and the Minigun.
@@ -1790,6 +1892,15 @@ escapeQuitBtn.addEventListener('click', quitToTitle);
 
 // Your hand is on the keyboard already, so take it from there too.
 document.addEventListener('keydown', (e) => {
+  // The soundboard, which works whether or not you are playing — you need to
+  // hear a gun to tune it, and you need to tune it without being eaten.
+  if (e.code === 'KeyM') {
+    startAudio();
+    if (toggleSoundboard() && document.pointerLockElement) document.exitPointerLock();
+    return;
+  }
+  if (soundboardOpen()) return;       // typing on the board is not playing
+
   // The two that do anything while you are actually playing.
   if (e.code === 'KeyE') { tryUsePod(); return; }
   if (e.code === 'KeyG') { throwGrenade(); return; }
@@ -1830,6 +1941,7 @@ function checkOutposts() {
   objectiveEl.textContent = 'OUTPOSTS CLEARED ' + clear + '/' + OUTPOSTS.length;
 
   if (clear < OUTPOSTS.length) {
+    playSound('outpost-clear');
     announce('OUTPOST CLEAR', (OUTPOSTS.length - clear) + ' still holding.');
     return;
   }
@@ -1839,6 +1951,10 @@ function checkOutposts() {
   objectiveEl.textContent = 'ALL OUTPOSTS CLEAR';
   if (!doorOpened) {
     doorOpened = true;
+    playSound('outpost-clear');
+    // Heard from wherever you are: it is the whole station's door, and you
+    // are meant to know it has moved even if you are nowhere near it.
+    playSound('door-grind');
     setLockedDoorOpen(lockedDoor, true);
     const i = walls.indexOf(lockedDoor.wall);
     if (i >= 0) walls.splice(i, 1);
@@ -1865,6 +1981,7 @@ function stepSoldier(dt, dtFrames) {
     const near = Math.hypot(ctrl.position.x - soldier.position.x,
                             ctrl.position.z - soldier.position.z);
     if (near < SOLDIER_FX.freeRange && releaseSoldier(soldier)) {
+      playSound('soldier-freed');
       announce('CUT HIM LOOSE', 'He picks up his rifle and falls in behind you.');
       soldierFreedAnnounced = true;
     }
@@ -2057,7 +2174,10 @@ function updateBoss(dt) {
   const kind = boss.kind;
 
   // The fight starts when the player steps into the Control Room.
-  if (!boss.active && playerInRoom(boss.roomId)) boss.active = true;
+  if (!boss.active && playerInRoom(boss.roomId)) {
+    boss.active = true;
+    playSound('boss-roar');
+  }
   if (!boss.active) return;
 
   // The boss brains count time in frames, so hand them dt in frames.
@@ -2076,6 +2196,7 @@ function updateBoss(dt) {
 
     if (kind.dead(d)) {
       boss.defeated = true;
+      playSound('boss-death');
       killCount++;
       updateHUD();
       // Whichever one it was says so — the banner used to claim the Puppet
@@ -2088,6 +2209,7 @@ function updateBoss(dt) {
       // of the level, though nothing can walk through it anyway — the pod is
       // in the way, and there is nothing out there to walk to.
       setSpaceDoorOpen(spaceDoor, true);
+      playSound('space-door');
       const wi = walls.indexOf(spaceDoor.wall);
       if (wi >= 0) walls.splice(wi, 1);
     }
@@ -2201,6 +2323,9 @@ drawDifficulty();
 // ─── START ──────────────────────────────────────────────────
 startOverlay.addEventListener('click', () => {
   startOverlay.style.display = 'none';
+  // A browser refuses to play anything until the person has clicked, so this
+  // is the first moment the game is allowed to make a sound at all.
+  startAudio();
   started = true;          // the station comes alive here, and not before
   applyClass();
   canvas.requestPointerLock();
@@ -2393,6 +2518,7 @@ function gameLoop(now) {
       // What leaves the weapon. Everything but the RPG puts a line
       // through the air and resolves instantly; the RPG puts an object
       // in the air and resolves wherever that object stops.
+      playSound(GUN_SOUND[gun.id] || 'gun-assault');
       if (w.rocket) fireRocketShot(w);
       else fireHitscanShot(w);
     }
@@ -2481,6 +2607,27 @@ function gameLoop(now) {
     // slumping half into a wall beats one that twitches as it falls.
     if (a.alive) keepOutOfWalls(a.model.position, wasX, wasZ, a.reg.bodyRadius || 0.6);
 
+    // The Watcher opening up. This is the only warning you get before its
+    // beam, which lands the frame it fires, so it is the most important
+    // sound in the game — hear it and you have about a second to break
+    // line of sight.
+    if (a.type === 'watcher' && a.ai.state === 'charge' && a.heard !== 'charge') {
+      playSound('watcher-charge', { dist });
+    }
+    if (a.type !== 'watcher' || a.ai.state !== a.heard) a.heard = a.ai.state;
+
+    // Footfalls, paced by ground actually covered rather than by a timer —
+    // an alien standing still should not be walking on the spot, and one
+    // sprinting should not sound like one strolling.
+    if (a.alive && a.reg.stepSound) {
+      a.stepRun = (a.stepRun || 0)
+        + Math.hypot(a.model.position.x - wasX, a.model.position.z - wasZ);
+      if (a.stepRun >= a.reg.stepEvery) {
+        a.stepRun = 0;
+        playSound(a.reg.stepSound, { dist });
+      }
+    }
+
     // Idle animation — the same walk cycles / pulses / throbs shown in
     // the Alien Workshop. Only played during locomotion/idle states so
     // it doesn't overwrite the AI's action poses (pounce, charge, slam,
@@ -2494,8 +2641,11 @@ function gameLoop(now) {
     // running both would let it hit you mid-charge, mid-stumble, or while
     // standing still, which is exactly what made the dodge pointless.
     if (a.reg.attackViaAI) {
-      if (aiEvent && (aiEvent.type === 'ground_slam' || aiEvent.type === 'eye_beam'))
+      if (aiEvent && (aiEvent.type === 'ground_slam' || aiEvent.type === 'eye_beam')) {
+        playSound(aiEvent.type === 'eye_beam' ? 'watcher-beam' : 'brute-slam',
+                  { dist });
         damagePlayer(a.reg.attackDmg);
+      }
       return;
     }
 
@@ -2510,6 +2660,7 @@ function gameLoop(now) {
         const from = a.model.position.clone();
         from.y += 0.5;   // out of the body rather than out of its feet
         const to = ctrl.position.clone(); to.y = 1.2;
+        playSound('floater-blast', { dist });
         projectiles.push(createAlienProjectile(
           scene, from, to, a.reg.projColor, a.reg.projSpeed, a.reg.attackDmg
         ));
@@ -2554,6 +2705,9 @@ function gameLoop(now) {
     if (pp.y < 0 || pp.y > 4) { removeProjectile(p); return false; }
     return true;
   });
+
+  // --- Everything that is heard rather than seen ---
+  updateSoundscape(dt, live);
 
   // --- Your rockets, your grenades, and the fire they leave ---
   updateOrdnance(dt, live);

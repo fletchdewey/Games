@@ -22,7 +22,7 @@
 // Time is in FRAMES here, 60 to the second, like the other boss files.
 
 import * as THREE from 'three';
-import { BLOOD_MAX, BLOOD_PARKED, POOL_MAX } from './twins.js?v=41b9e6b811';
+import { BLOOD_MAX, BLOOD_PARKED, POOL_MAX } from './twins.js?v=6a024c4cb3';
 
 // Scratch, so the rot tint doesn't make a Color every frame for every twin.
 const _rot = new THREE.Color();
