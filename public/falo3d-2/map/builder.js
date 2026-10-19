@@ -13,7 +13,7 @@
 // room's boundary crosses through a wall.
 
 import * as THREE from 'three';
-import { ROOMS, WALL_HEIGHT } from './layout.js?v=49146d5a4c';
+import { ROOMS, WALL_HEIGHT } from './layout.js?v=3909278891';
 
 const WH = WALL_HEIGHT;
 

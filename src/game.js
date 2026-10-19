@@ -215,6 +215,21 @@ function createGun(camera, weaponId) {
            spin: 0 };
 }
 
+// What you say when you are hit. One at random, so taking fire sounds like
+// a person rather than a doorbell.
+const HURT_SOUNDS = ['hurt-oof', 'hurt-argh', 'hurt-ah'];
+
+// Each boss has its own voice, and two of them explode rather than scream.
+// Named by the boss's own id so adding a fifth boss is one line in each.
+const BOSS_HIT_SOUND = {
+  burrower: 'boss-hit-burrower', twins: 'boss-hit-twins',
+  puppet_master: 'boss-hit-puppet_master', swarm: 'boss-hit-swarm',
+};
+const BOSS_DEATH_SOUND = {
+  burrower: 'boss-explode', twins: 'boss-explode',
+  puppet_master: 'boss-scream', swarm: 'boss-scream',
+};
+
 const GUN_SOUND = {
   assault: 'gun-assault', rifle: 'gun-assault', sniper: 'gun-sniper',
   smg: 'gun-smg', pistol: 'gun-pistol', minigun: 'gun-minigun',
@@ -1571,7 +1586,7 @@ function fireHitscanShot(w) {
         // player's side those are the same thing.
         boss.kind.hit(boss.model, hitObj.userData.hitPart, hits[0].point,
                       boss.kind.bullet * shotDamage() / difficulty.enemyHp);
-        playSound('boss-hit');
+        playSound(BOSS_HIT_SOUND[boss.kind.id] || 'boss-hit-burrower');
       } else {
         for (const alien of aliens) {
           let found = false;
@@ -1581,7 +1596,18 @@ function fireHitscanShot(w) {
             alien.flashTimer = 0.12;
             alien.reg.hit(alien.ai);
             const away = alien.model.position.distanceTo(camera.position);
-            playSound('alien-hit', { dist: away });
+            // A moan lasts nearly half a second and the minigun fires
+            // twenty-seven times a second. Let every round start one and the
+            // thing you are shooting becomes a wall of overlapping voices,
+            // so each alien only moans so often — the hits still land, it
+            // just does not say so every single time.
+            // `time` belongs to the game loop; this runs out here, so it
+            // reads the clock itself.
+            const nowSec = performance.now() / 1000;
+            if (nowSec - (alien.lastMoan || -9) > 0.3) {
+              alien.lastMoan = nowSec;
+              playSound('alien-hit', { dist: away });
+            }
             if (alien.hp <= 0) {
               alien.alive = false;
               alien.deathTimer = 0;
@@ -1654,7 +1680,7 @@ function damagePlayer(amount) {
   // vacuum and the floor tentacles all arrive here.
   const taken = Math.max(1, Math.round(amount * difficulty.incoming));
   playerHp = Math.max(0, playerHp - taken);
-  playSound('player-hurt');
+  playSound(HURT_SOUNDS[Math.floor(Math.random() * HURT_SOUNDS.length)]);
   dmgFlashTimer = 0.3;
   dmgFlashEl.style.opacity = '1';
   updateHUD();
@@ -2203,7 +2229,7 @@ function updateBoss(dt) {
 
     if (kind.dead(d)) {
       boss.defeated = true;
-      playSound('boss-death');
+      playSound(BOSS_DEATH_SOUND[boss.kind.id] || 'boss-scream');
       killCount++;
       updateHUD();
       // Whichever one it was says so — the banner used to claim the Puppet

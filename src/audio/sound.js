@@ -144,6 +144,85 @@ function warble(osc, t, dur, rate, depth) {
   lfo.start(t); lfo.stop(t + dur + 0.02);
 }
 
+/**
+ * A VOICE.
+ *
+ * FLETCHER: this is the one that makes something say "argh" instead of just
+ * making a noise, and it is worth knowing how it works because every grunt,
+ * moan and screech in the game is this same function with different numbers.
+ *
+ * A throat is two things. The cords make a buzz — one flat, ugly pitch, the
+ * sawtooth here. The mouth then puts a SHAPE over that buzz: two or three
+ * loud spots at particular frequencies, called formants. The buzz decides
+ * the note; the formants decide the vowel. Move the formants and the same
+ * note turns from "oo" into "ah" without the pitch changing at all.
+ *
+ * So each vowel below is just a pair of numbers:
+ *
+ *   oo  300 / 870     as in oof
+ *   oh  450 / 800
+ *   uh  640 / 1190
+ *   ah  730 / 1090    as in argh
+ *   ee  270 / 2300    thin and sharp, which is why it suits the aliens
+ *
+ * `rasp` adds breath, which is the difference between singing and shouting.
+ * `shake` is a wobble on the pitch — nothing alive holds a note perfectly
+ * still, and a tiny amount of it is most of what sells a voice as a throat
+ * rather than an oscillator.
+ */
+const VOWEL = {
+  oo: [[300, 1, 9], [870, 0.45, 8]],
+  oh: [[450, 1, 8], [800, 0.5, 8]],
+  uh: [[640, 1, 7], [1190, 0.4, 7]],
+  ah: [[730, 1, 7], [1090, 0.6, 7], [2440, 0.14, 9]],
+  er: [[490, 1, 7], [1350, 0.5, 7]],
+  ee: [[270, 1, 9], [2300, 0.6, 8]],
+};
+
+function voice(out, t, opts) {
+  const { pitch, to, dur, vol, vowel = 'ah', vowel2, rasp = 0, shake = 0,
+          rate = 6, type = 'sawtooth' } = opts;
+  const end = to != null ? to : pitch;
+  const o = tone(type, pitch, end, t, dur);
+  if (shake > 0) warble(o, t, dur, rate, pitch * shake);
+
+  const g = env(vol, t, dur, Math.min(0.05, dur * 0.25));
+  g.connect(out);
+
+  // The mouth. Each formant is a narrow band tapped off the same cords, so
+  // they all move together when the pitch slides — which is what keeps it
+  // one voice rather than a chord.
+  const shape = VOWEL[vowel] || VOWEL.ah;
+  const shape2 = vowel2 ? (VOWEL[vowel2] || null) : null;
+  shape.forEach(([f, lvl, q], i) => {
+    const bp = filter('bandpass', f, q);
+    // A vowel that MOVES — "argh" is an ah sliding into an er — is the
+    // difference between a word and a held note.
+    if (shape2 && shape2[i]) {
+      bp.frequency.setValueAtTime(f, t);
+      bp.frequency.linearRampToValueAtTime(shape2[i][0], t + dur * 0.8);
+    }
+    const fg = ctx.createGain();
+    // Makeup. A narrow band throws away nearly everything that is not sitting
+    // on its centre, and a sawtooth's upper harmonics are already quiet, so
+    // formants come out far weaker than the tone that went in — the first
+    // version of the Puppet Master's scream measured at a twentieth of the
+    // explosion it was supposed to be competing with.
+    fg.gain.value = lvl * 3.2;
+    o.connect(bp); bp.connect(fg); fg.connect(g);
+  });
+
+  // Breath through the same mouth shape, so a shout is still the same voice.
+  if (rasp > 0) {
+    const n = noise(dur, 1);
+    const bp = filter('bandpass', shape[0][0] * 1.6, 2.5);
+    const ng = env(vol * rasp * 0.7, t, dur, 0.02);
+    n.connect(bp); bp.connect(ng); ng.connect(out);
+    n.start(t); n.stop(t + dur + 0.02);
+  }
+  return o;
+}
+
 /** A clean pitch, for chimes and alarms rather than impacts. */
 function beep(out, t, { from, to = from, dur, vol, type = 'sine' }) {
   const o = tone(type, from, to, t, dur);
@@ -436,68 +515,55 @@ export const SOUNDS = {
     },
   },
   'alien-hit': {
-    label: 'HITTING AN ALIEN', group: 'Aliens',
+    label: 'ALIEN HIT — MOAN', group: 'Aliens',
     params: {
-      vol:   P(0.24, 0, 0.7, 0.01, 'Volume'),
-      freq:  P(420, 100, 1500, 10, 'Pitch'),
-      wet:   P(0.5, 0, 1, 0.05, 'Squelch'),
-      yelp:  P(0.3, 0, 1, 0.05, 'Yelp'),
-      spread: P(0.14, 0, 0.5, 0.02, 'Variation'),
-      dur:   P(0.1, 0.02, 0.25, 0.005, 'Length'),
+      vol:    P(0.26, 0, 0.9, 0.02, 'Volume'),
+      pitch:  P(104, 50, 260, 2, 'Voice'),
+      groan:  P(0.55, 0, 1, 0.05, 'Rasp'),
+      smack:  P(0.4, 0, 1, 0.05, 'Impact'),
+      spread: P(0.16, 0, 0.5, 0.02, 'Variation'),
+      dur:    P(0.42, 0.1, 1, 0.02, 'Length'),
     },
     make(p, t, out) {
-      // Three layers, because a bullet going into something living is not
-      // one event: the smack, the wet of it, and the thing noticing.
-      const f = vary(p.freq, p.spread);
-      thump(out, t, { freq: f, dur: p.dur, vol: p.vol * 0.55, to: 60 });
-      // The squelch — a band sliding DOWN fast, which is what reads as wet
-      // rather than as a knock on wood.
-      const n = noise(p.dur * 1.3, 1.8);
-      const bp = filter('bandpass', f * 3, 1.6);
-      bp.frequency.setValueAtTime(f * 3.4, t);
-      bp.frequency.exponentialRampToValueAtTime(f * 0.9, t + p.dur * 1.2);
-      const g = env(p.vol * p.wet, t, p.dur * 1.3);
-      n.connect(bp); bp.connect(g); g.connect(out);
-      n.start(t); n.stop(t + p.dur * 1.3 + 0.02);
-      // And the creature's own short complaint on top.
-      if (p.yelp > 0.02) {
-        beep(out, t + 0.012, { from: vary(f * 4.5, p.spread),
-                               to: vary(f * 2.4, p.spread),
-                               dur: p.dur * 0.8, vol: p.vol * p.yelp * 0.7,
-                               type: 'sawtooth' });
-      }
+      const f = vary(p.pitch, p.spread);
+      // A low, wet moan that sags as it goes — the pitch drifting DOWN and
+      // the vowel opening from "oh" into "uh" is what makes it a thing that
+      // has been hurt rather than a thing that is humming.
+      voice(out, t, { pitch: f, to: f * 0.72, dur: p.dur, vol: p.vol,
+                      vowel: 'oh', vowel2: 'uh',
+                      rasp: p.groan, shake: 0.05, rate: 4.5 });
+      // The round going in, underneath it.
+      thump(out, t, { freq: f * 3.4, dur: 0.1, vol: p.vol * p.smack, to: 60 });
+      hiss(out, t, { dur: 0.08, type: 'lowpass', freq: 1300,
+                     vol: p.vol * p.smack * 0.7, decay: 2.2 });
     },
   },
   'alien-death': {
-    label: 'ALIEN DYING', group: 'Aliens',
+    label: 'ALIEN DYING — SCREECH', group: 'Aliens',
     params: {
-      vol:    P(0.34, 0, 0.9, 0.02, 'Volume'),
-      from:   P(620, 100, 1600, 10, 'From'),
-      shake:  P(22, 0, 90, 1, 'Warble'),
-      rattle: P(0.45, 0, 1, 0.05, 'Rattle'),
-      spread: P(0.12, 0, 0.5, 0.02, 'Variation'),
-      dur:    P(0.62, 0.1, 1.4, 0.05, 'Length'),
+      vol:    P(0.85, 0, 1.8, 0.02, 'Volume'),
+      from:   P(760, 150, 2000, 10, 'From'),
+      shake:  P(26, 0, 90, 1, 'Warble'),
+      snarl:  P(0.5, 0, 1, 0.05, 'Snarl'),
+      spread: P(0.13, 0, 0.5, 0.02, 'Variation'),
+      dur:    P(0.78, 0.15, 1.8, 0.05, 'Length'),
     },
     make(p, t, out) {
-      // A screech that loses its footing. The warble is the whole trick —
-      // a clean pitch falling is a slide whistle, a wobbling one is a throat.
-      const from = vary(p.from, p.spread);
-      const o = tone('sawtooth', from, from * 0.14, t, p.dur);
-      warble(o, t, p.dur, p.shake * 0.5, from * 0.055);
-      const lp = filter('lowpass', from * 3, 2);
-      lp.frequency.setValueAtTime(from * 3.5, t);
-      lp.frequency.exponentialRampToValueAtTime(from * 0.6, t + p.dur);
-      const g = env(p.vol, t, p.dur, 0.012);
-      o.connect(lp); lp.connect(g); g.connect(out);
-      // A second voice a fifth up, quieter, so it is a creature rather than
-      // a note.
-      const o2 = tone('sawtooth', from * 1.48, from * 0.2, t + 0.02, p.dur * 0.8);
-      warble(o2, t, p.dur * 0.8, p.shake * 0.73, from * 0.04);
-      const g2 = env(p.vol * 0.4, t + 0.02, p.dur * 0.8, 0.012);
-      o2.connect(g2); g2.connect(out);
-      // The last of the air going out of it.
-      hiss(out, t + p.dur * 0.45, { dur: p.dur * 0.6, type: 'lowpass',
-                                    freq: 700, vol: p.vol * p.rattle, decay: 1.3 });
+      // Loud, and nothing like the moan: it goes UP before it goes down, and
+      // it is a thin "ee" throat rather than a round one, which is what
+      // makes it read as alien instead of as a person being hurt.
+      const f = vary(p.from, p.spread);
+      voice(out, t, { pitch: f * 0.75, to: f * 0.1, dur: p.dur, vol: p.vol,
+                      vowel: 'ee', vowel2: 'ah',
+                      rasp: p.snarl, shake: 0.06, rate: p.shake * 0.5 });
+      // A second throat a fifth up that gives out first.
+      voice(out, t + 0.03, { pitch: f * 1.49, to: f * 0.3, dur: p.dur * 0.72,
+                             vol: p.vol * 0.45, vowel: 'ee',
+                             rasp: p.snarl * 0.6, shake: 0.07,
+                             rate: p.shake * 0.73 });
+      // And the last of the air.
+      hiss(out, t + p.dur * 0.5, { dur: p.dur * 0.55, type: 'lowpass',
+                                   freq: 900, vol: p.vol * 0.4, decay: 1.3 });
     },
   },
 
@@ -607,141 +673,266 @@ export const SOUNDS = {
                      vol: p.vol * 0.35, decay: 1.1 });
     },
   },
-  'boss-hit': {
-    label: 'HITTING A BOSS', group: 'Bosses',
+  // One voice each. They are the same throat with different numbers, and
+  // the numbers are chosen so you can tell WHICH of them you are fighting
+  // with your eyes shut.
+  'boss-hit-burrower': {
+    label: 'BURROWER HIT', group: 'Bosses',
     params: {
-      vol:    P(0.3, 0, 0.8, 0.02, 'Volume'),
-      freq:   P(1300, 300, 4000, 50, 'Ring'),
-      clang:  P(0.45, 0, 1, 0.05, 'Clang'),
-      weight: P(0.4, 0, 1, 0.05, 'Weight'),
-      spread: P(0.1, 0, 0.5, 0.02, 'Variation'),
-      dur:    P(0.22, 0.03, 0.7, 0.01, 'Length'),
+      vol:    P(0.4, 0, 1.2, 0.02, 'Volume'),
+      pitch:  P(78, 30, 220, 2, 'Voice'),
+      earth:  P(0.6, 0, 1.2, 0.05, 'Earth'),
+      spread: P(0.1, 0, 0.4, 0.02, 'Variation'),
+      dur:    P(0.6, 0.15, 1.4, 0.05, 'Length'),
     },
     make(p, t, out) {
-      // Armour, so unlike an alien this one RINGS. Two partials that are not
-      // a musical interval apart, which is what makes metal sound like metal
-      // rather than like a bell.
-      const f = vary(p.freq, p.spread);
-      hiss(out, t, { dur: p.dur * 0.5, freq: f, q: 6, vol: p.vol, decay: 2.2 });
-      for (const [mult, lvl] of [[1, 1], [2.76, 0.5], [5.4, 0.22]]) {
-        beep(out, t, { from: f * mult, to: f * mult * 0.985,
-                       dur: p.dur * (mult > 3 ? 0.6 : 1.5),
-                       vol: p.vol * p.clang * lvl * 0.5, type: 'triangle' });
-      }
-      // And the mass behind the plate it just bounced off.
-      thump(out, t, { freq: 90, dur: p.dur, vol: p.vol * p.weight, to: 35 });
+      // The deepest of the four, because it comes up through the floor.
+      const f = vary(p.pitch, p.spread);
+      voice(out, t, { pitch: f, to: f * 0.6, dur: p.dur, vol: p.vol,
+                      vowel: 'oh', vowel2: 'uh', rasp: 0.6, shake: 0.04,
+                      rate: 5 });
+      thump(out, t, { freq: 48, dur: p.dur * 0.8, vol: p.vol * p.earth, to: 16 });
+      // Dirt and plating coming loose with it.
+      hiss(out, t, { dur: p.dur * 0.5, type: 'lowpass', freq: 600,
+                     vol: p.vol * p.earth * 0.45, decay: 1.4 });
     },
   },
-  'boss-death': {
-    label: 'BOSS DYING', group: 'Bosses',
+  'boss-hit-twins': {
+    label: 'TWINS HIT', group: 'Bosses',
     params: {
-      vol:    P(0.8, 0, 1.3, 0.02, 'Volume'),
-      from:   P(185, 60, 500, 5, 'Pitch'),
-      shake:  P(14, 0, 60, 1, 'Warble'),
-      sub:    P(0.6, 0, 1.2, 0.05, 'Sub'),
-      collapse: P(0.55, 0, 1, 0.05, 'Collapse'),
-      dur:    P(2.8, 0.8, 5, 0.1, 'Length'),
+      vol:    P(0.34, 0, 1.2, 0.02, 'Volume'),
+      pitch:  P(300, 120, 900, 5, 'Voice'),
+      apart:  P(0.035, 0, 0.15, 0.005, 'Detune'),
+      gap:    P(0.05, 0, 0.3, 0.01, 'Gap'),
+      dur:    P(0.42, 0.1, 1, 0.02, 'Length'),
     },
     make(p, t, out) {
-      // The roar, going down a long way and losing its grip on the way.
-      for (const [d, lvl] of [[1, 0.4], [0.985, 0.3], [1.021, 0.3]]) {
-        const o = tone('sawtooth', p.from * d, p.from * d * 0.16, t, p.dur);
-        warble(o, t, p.dur, p.shake * (0.8 + Math.random() * 0.4),
-               p.from * 0.05);
-        const g = env(p.vol * lvl, t, p.dur, 0.04);
-        o.connect(g); g.connect(out);
+      // Two of them, and that IS the sound: the same cry twice, a hair apart
+      // in pitch and a hair apart in time. Hurt one and you hear both.
+      const f = vary(p.pitch, 0.06);
+      voice(out, t, { pitch: f, to: f * 0.72, dur: p.dur, vol: p.vol * 0.75,
+                      vowel: 'ee', rasp: 0.35, shake: 0.05, rate: 9 });
+      voice(out, t + p.gap, { pitch: f * (1 + p.apart), to: f * 0.68,
+                              dur: p.dur * 0.9, vol: p.vol * 0.75,
+                              vowel: 'ee', rasp: 0.35, shake: 0.05, rate: 11 });
+    },
+  },
+  'boss-hit-puppet_master': {
+    label: 'PUPPET MASTER HIT', group: 'Bosses',
+    params: {
+      vol:    P(0.85, 0, 1.6, 0.02, 'Volume'),
+      pitch:  P(620, 200, 1800, 10, 'Voice'),
+      shriek: P(0.6, 0, 1, 0.05, 'Shriek'),
+      metal:  P(0.3, 0, 1, 0.05, 'Rig'),
+      dur:    P(0.36, 0.1, 1, 0.02, 'Length'),
+    },
+    make(p, t, out) {
+      // The highest and nastiest — it goes UP when it is hurt, which is the
+      // opposite of everything else in the game and reads as rage.
+      const f = vary(p.pitch, 0.08);
+      voice(out, t, { pitch: f, to: f * 1.45, dur: p.dur, vol: p.vol,
+                      vowel: 'ee', rasp: p.shriek, shake: 0.07, rate: 14 });
+      // Its rig taking the hit, a beat behind the voice.
+      hiss(out, t + 0.02, { dur: p.dur * 0.7, freq: 2600, q: 7,
+                            vol: p.vol * p.metal, decay: 2 });
+    },
+  },
+  'boss-hit-swarm': {
+    label: 'SWARM HIT', group: 'Bosses',
+    params: {
+      vol:    P(0.9, 0, 1.8, 0.02, 'Volume'),
+      pitch:  P(520, 150, 1600, 10, 'Voice'),
+      many:   P(6, 2, 14, 1, 'How many'),
+      chitter: P(0.5, 0, 1, 0.05, 'Chitter'),
+      dur:    P(0.34, 0.1, 1, 0.02, 'Length'),
+    },
+    make(p, t, out) {
+      // Not one voice but a crowd of small ones, each slightly off the next.
+      // Hurting a swarm should sound like hurting a hundred things at once.
+      const n = Math.round(p.many);
+      for (let i = 0; i < n; i++) {
+        const f = vary(p.pitch, 0.3);
+        voice(out, t + Math.random() * p.dur * 0.4,
+              { pitch: f, to: f * (0.7 + Math.random() * 0.5),
+                dur: p.dur * (0.4 + Math.random() * 0.5),
+                vol: (p.vol / Math.sqrt(n)) * (0.6 + Math.random() * 0.6),
+                vowel: 'ee', rasp: 0.3, shake: 0.08, rate: 12 + Math.random() * 10 });
       }
-      // Everything it was made of, coming apart.
-      const n = noise(p.dur, 0.8);
-      const f = filter('lowpass', 1800, 0.7);
-      f.frequency.setValueAtTime(2000, t);
-      f.frequency.exponentialRampToValueAtTime(80, t + p.dur);
-      const g = env(p.vol * 0.55, t, p.dur, 0.05);
+      // The dry rattle of all of them moving at once.
+      hiss(out, t, { dur: p.dur, type: 'bandpass', freq: 3400, q: 1.4,
+                     vol: p.vol * p.chitter * 0.5, decay: 1.4 });
+    },
+  },
+  'boss-explode': {
+    label: 'BOSS DIES — EXPLODES', group: 'Bosses',
+    params: {
+      vol:    P(0.62, 0, 1.4, 0.02, 'Volume'),
+      sub:    P(0.6, 0, 1.4, 0.05, 'Sub'),
+      subHz:  P(58, 25, 140, 2, 'Sub Hz'),
+      debris: P(0.6, 0, 1.2, 0.05, 'Debris'),
+      dur:    P(1.5, 0.4, 3.5, 0.1, 'Length'),
+    },
+    make(p, t, out) {
+      // The Burrower and the Twins go up rather than down. Same shape as a
+      // grenade but three times the size and much longer in the tail — you
+      // should feel this one through the floor.
+      const n = noise(p.dur, 0.9);
+      const f = filter('lowpass', 3600, 0.8);
+      f.frequency.setValueAtTime(4000, t);
+      f.frequency.exponentialRampToValueAtTime(90, t + p.dur);
+      const g = env(p.vol, t, p.dur, 0.006);
       n.connect(f); f.connect(g); g.connect(out);
       n.start(t); n.stop(t + p.dur + 0.02);
-      // Pieces of it hitting the deck on the way down.
-      const hits = Math.round(4 + p.collapse * 6);
-      for (let i = 0; i < hits; i++) {
-        const at = t + p.dur * (0.25 + Math.random() * 0.6);
-        thump(out, at, { freq: 60 + Math.random() * 60, dur: 0.22,
-                         vol: p.vol * p.collapse * 0.3, to: 20 });
+      thump(out, t, { freq: p.subHz, dur: p.dur * 0.75, vol: p.sub, to: 12 });
+      thump(out, t + 0.05, { freq: p.subHz * 1.7, dur: 0.4,
+                             vol: p.sub * 0.5, to: 20 });
+      // Everything it was made of coming down over the next second.
+      const bits = Math.round(8 + p.debris * 10);
+      for (let i = 0; i < bits; i++) {
+        const at = t + 0.08 + Math.random() * p.dur * 0.75;
+        hiss(out, at, { dur: 0.07, type: 'bandpass',
+                        freq: 900 + Math.random() * 3200, q: 2.5,
+                        vol: p.debris * (0.2 + Math.random() * 0.5), decay: 2.5 });
+        if (Math.random() < 0.4) {
+          thump(out, at, { freq: 55 + Math.random() * 70, dur: 0.25,
+                           vol: p.debris * 0.3, to: 18 });
+        }
       }
-      // And the last of it going over.
-      thump(out, t + p.dur * 0.92, { freq: 46, dur: 0.7,
-                                     vol: p.vol * p.sub, to: 14 });
+    },
+  },
+  'boss-scream': {
+    label: 'BOSS DIES — SCREAMS', group: 'Bosses',
+    params: {
+      vol:    P(1.5, 0, 2.4, 0.02, 'Volume'),
+      from:   P(700, 150, 2000, 10, 'From'),
+      throats: P(3, 1, 6, 1, 'Throats'),
+      snarl:  P(0.6, 0, 1, 0.05, 'Snarl'),
+      dur:    P(2.6, 0.8, 5, 0.1, 'Length'),
+    },
+    make(p, t, out) {
+      // The Puppet Master and the Swarm do not explode — they scream, and it
+      // is the loudest thing in the game. Several throats, each starting a
+      // little after the last and each giving out at its own moment, so it
+      // comes apart rather than stopping.
+      const n = Math.round(p.throats);
+      for (let i = 0; i < n; i++) {
+        const f = vary(p.from * (1 - i * 0.18), 0.07);
+        const d = p.dur * (0.6 + Math.random() * 0.4);
+        voice(out, t + i * 0.09, {
+          pitch: f, to: f * 0.08, dur: d,
+          vol: (p.vol / Math.sqrt(n)) * 0.9,
+          vowel: 'ee', vowel2: 'ah', rasp: p.snarl,
+          shake: 0.07, rate: 9 + Math.random() * 8,
+        });
+      }
+      // The body going over at the end of it.
+      hiss(out, t + p.dur * 0.45, { dur: p.dur * 0.55, type: 'lowpass',
+                                    freq: 800, vol: p.vol * 0.4, decay: 1.2 });
+      thump(out, t + p.dur * 0.88, { freq: 52, dur: 0.6, vol: p.vol * 0.6, to: 14 });
     },
   },
 
   // ─── MOMENTS ──────────────────────────────────────────────
-  'player-hurt': {
-    label: 'TAKING A HIT', group: 'Moments',
+  // ─── THE SOLDIER'S OWN VOICE ──────────────────────────────
+  // Three of them, and the game picks one at random each time you are hit,
+  // so taking fire sounds like a person rather than a doorbell. Each is the
+  // same throat — see voice() — saying a different thing.
+  'hurt-oof': {
+    label: 'HIT — "OOF"', group: 'Moments',
     params: {
-      vol:    P(0.38, 0, 1, 0.02, 'Volume'),
-      freq:   P(160, 50, 500, 5, 'Pitch'),
-      breath: P(0.45, 0, 1, 0.05, 'Winded'),
-      ring:   P(0.3, 0, 1, 0.05, 'Ears'),
-      spread: P(0.1, 0, 0.4, 0.02, 'Variation'),
+      vol:    P(0.42, 0, 1, 0.02, 'Volume'),
+      pitch:  P(132, 70, 260, 2, 'Voice'),
+      thud:   P(0.4, 0, 1, 0.05, 'Impact'),
+      spread: P(0.08, 0, 0.3, 0.01, 'Variation'),
+      dur:    P(0.26, 0.1, 0.6, 0.02, 'Length'),
     },
     make(p, t, out) {
-      const f = vary(p.freq, p.spread);
-      // The hit itself, in your chest rather than out in the room.
-      thump(out, t, { freq: f, dur: 0.28, vol: p.vol, to: 38 });
-      hiss(out, t, { dur: 0.1, type: 'lowpass', freq: 500,
-                     vol: p.vol * 0.45, decay: 2 });
-      // The air going out of you. A band around the voice, falling — which
-      // is a grunt without having to record one.
-      if (p.breath > 0.02) {
-        const n = noise(0.26, 1.4);
-        const bp = filter('bandpass', 420, 2.2);
-        bp.frequency.setValueAtTime(vary(480, p.spread), t + 0.02);
-        bp.frequency.exponentialRampToValueAtTime(vary(190, p.spread), t + 0.24);
-        const g = env(p.vol * p.breath * 0.8, t + 0.02, 0.26, 0.02);
-        n.connect(bp); bp.connect(g); g.connect(out);
-        n.start(t + 0.02); n.stop(t + 0.3);
-      }
-      // And the whine in your ears afterwards, which is the bit that tells
-      // you it was YOU that got hit rather than something across the room.
-      if (p.ring > 0.02) {
-        beep(out, t + 0.03, { from: vary(2400, 0.05), to: vary(2100, 0.05),
-                              dur: 0.55, vol: p.vol * p.ring * 0.14,
-                              type: 'sine' });
-      }
+      const f = vary(p.pitch, p.spread);
+      // "oo", punched out of you and falling.
+      voice(out, t, { pitch: f * 1.05, to: f * 0.74, dur: p.dur, vol: p.vol,
+                      vowel: 'oo', rasp: 0.35, shake: 0.02 });
+      // ...and the "f" on the end, which is what stops it being "oo".
+      hiss(out, t + p.dur * 0.72, { dur: 0.1, type: 'highpass', freq: 2600,
+                                    vol: p.vol * 0.3, decay: 1.6 });
+      thump(out, t, { freq: 150, dur: 0.2, vol: p.vol * p.thud, to: 40 });
+    },
+  },
+  'hurt-argh': {
+    label: 'HIT — "ARGH"', group: 'Moments',
+    params: {
+      vol:    P(0.32, 0, 1, 0.02, 'Volume'),
+      pitch:  P(124, 70, 260, 2, 'Voice'),
+      growl:  P(0.55, 0, 1, 0.05, 'Growl'),
+      thud:   P(0.35, 0, 1, 0.05, 'Impact'),
+      spread: P(0.08, 0, 0.3, 0.01, 'Variation'),
+      dur:    P(0.46, 0.15, 1, 0.02, 'Length'),
+    },
+    make(p, t, out) {
+      const f = vary(p.pitch, p.spread);
+      // The longest of the three, and the only one that is a complaint
+      // rather than a reflex: "ah" sliding into "er", with the throat in it.
+      voice(out, t, { pitch: f * 1.12, to: f * 0.68, dur: p.dur, vol: p.vol,
+                      vowel: 'ah', vowel2: 'er',
+                      rasp: p.growl, shake: 0.035, rate: 7 });
+      thump(out, t, { freq: 140, dur: 0.2, vol: p.vol * p.thud, to: 40 });
+    },
+  },
+  'hurt-ah': {
+    label: 'HIT — "AH"', group: 'Moments',
+    params: {
+      vol:    P(0.3, 0, 1, 0.02, 'Volume'),
+      pitch:  P(146, 70, 280, 2, 'Voice'),
+      thud:   P(0.35, 0, 1, 0.05, 'Impact'),
+      spread: P(0.09, 0, 0.3, 0.01, 'Variation'),
+      dur:    P(0.2, 0.08, 0.5, 0.02, 'Length'),
+    },
+    make(p, t, out) {
+      const f = vary(p.pitch, p.spread);
+      // Short and surprised — it goes UP first, which is what makes it a
+      // yelp instead of a groan.
+      voice(out, t, { pitch: f * 1.22, to: f * 0.9, dur: p.dur, vol: p.vol,
+                      vowel: 'ah', rasp: 0.25, shake: 0.02 });
+      thump(out, t, { freq: 155, dur: 0.16, vol: p.vol * p.thud, to: 45 });
     },
   },
   'death': {
-    label: 'DYING', group: 'Moments',
+    label: 'DYING — WAH WAH WAHHH', group: 'Moments',
     params: {
-      vol:   P(0.46, 0, 1, 0.02, 'Volume'),
-      from:  P(330, 100, 900, 10, 'Pitch'),
-      beat:  P(0.5, 0, 1, 0.05, 'Heartbeat'),
-      ring:  P(0.4, 0, 1, 0.05, 'Ears'),
-      dur:   P(2.2, 0.5, 4, 0.1, 'Length'),
+      vol:   P(0.4, 0, 1, 0.02, 'Volume'),
+      pitch: P(262, 120, 500, 2, 'Pitch'),
+      pace:  P(0.34, 0.12, 0.8, 0.02, 'Pace'),
+      wah:   P(0.6, 0, 1, 0.05, 'Wah'),
+      last:  P(1.5, 0.4, 3.5, 0.1, 'Last note'),
     },
     make(p, t, out) {
-      // Two notes falling a long way, slowly, as before — but now they are
-      // falling over something.
-      beep(out, t, { from: p.from, to: p.from * 0.22, dur: p.dur,
-                     vol: p.vol, type: 'sine' });
-      beep(out, t + 0.12, { from: p.from * 0.75, to: p.from * 0.164,
-                            dur: p.dur, vol: p.vol * 0.7, type: 'sine' });
-      // The last three beats, slowing down and getting further apart. This
-      // is the part that makes it YOUR death rather than a sad chord.
-      if (p.beat > 0.02) {
-        let at = t + 0.05;
-        let gap = 0.42;
-        for (let i = 0; i < 3; i++) {
-          thump(out, at, { freq: 58, dur: 0.17, vol: p.vol * p.beat * 0.9, to: 22 });
-          thump(out, at + 0.16, { freq: 48, dur: 0.2,
-                                  vol: p.vol * p.beat * 0.55, to: 18 });
-          at += gap;
-          gap *= 1.45;                 // each one further away than the last
-        }
-      }
-      // And the ringing, fading out with everything else.
-      if (p.ring > 0.02) {
-        beep(out, t, { from: 2300, to: 1500, dur: p.dur * 0.9,
-                       vol: p.vol * p.ring * 0.1, type: 'sine' });
-      }
+      // Four notes down, the last one held and sliding into the floor.
+      //
+      // The "wah" is a plunger mute: a lowpass that opens as the note starts
+      // and closes again as it ends. That sweep IS the sound — the same four
+      // notes without it are just a sad little tune, and with it they are a
+      // trombone telling you that you have died.
+      const steps = [1, 0.944, 0.891, 0.841];
+      steps.forEach((m, i) => {
+        const last = i === 3;
+        const at = t + i * p.pace;
+        const d = last ? p.last : p.pace * 0.92;
+        const f = p.pitch * m;
+        // A trombone slides between notes rather than jumping; the last one
+        // slides a very long way.
+        const o = tone('sawtooth', f, last ? f * 0.45 : f * 0.955, at, d);
+        const lp = filter('lowpass', 500, 4.5);
+        lp.frequency.setValueAtTime(380, at);
+        lp.frequency.linearRampToValueAtTime(380 + p.wah * 2400, at + d * 0.3);
+        lp.frequency.linearRampToValueAtTime(300, at + d);
+        const g = env(p.vol, at, d, 0.035);
+        o.connect(lp); lp.connect(g); g.connect(out);
+        // A little brass buzz on top, which is what keeps it from sounding
+        // like an organ.
+        const b = tone('square', f * 2, last ? f * 0.9 : f * 1.91, at, d * 0.8);
+        const bg = env(p.vol * 0.12, at, d * 0.8, 0.04);
+        b.connect(lp); bg.connect(g);
+        b.connect(bg);
+      });
     },
   },
   'escape': {

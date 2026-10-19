@@ -18,52 +18,52 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=49146d5a4c';
+import { PALETTE, getMaterial } from './shared/materials.js?v=3909278891';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=49146d5a4c';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=49146d5a4c';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=3909278891';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=3909278891';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=49146d5a4c';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=49146d5a4c';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=3909278891';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=3909278891';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=49146d5a4c';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=49146d5a4c';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=3909278891';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=3909278891';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=49146d5a4c';
+import { createController, updateController } from './player/controller.js?v=3909278891';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=49146d5a4c';
+  from './player/classes.js?v=3909278891';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=49146d5a4c';
+import { buildSoldier } from './npc/soldier.js?v=3909278891';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=49146d5a4c';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=3909278891';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=49146d5a4c';
-import { createSwarm } from './bosses/swarm.js?v=49146d5a4c';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=49146d5a4c';
-import { createTwins } from './bosses/twins.js?v=49146d5a4c';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=49146d5a4c';
-import { createBurrower } from './bosses/burrower.js?v=49146d5a4c';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=3909278891';
+import { createSwarm } from './bosses/swarm.js?v=3909278891';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=3909278891';
+import { createTwins } from './bosses/twins.js?v=3909278891';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=3909278891';
+import { createBurrower } from './bosses/burrower.js?v=3909278891';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=49146d5a4c';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=3909278891';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=49146d5a4c';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=3909278891';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=49146d5a4c';
+  from './map/grid_map.js?v=3909278891';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -73,7 +73,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=49146d5a4c';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=3909278891';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -214,6 +214,21 @@ function createGun(camera, weaponId) {
            barrels: w.spins ? g.getObjectByName('barrels') : null,
            spin: 0 };
 }
+
+// What you say when you are hit. One at random, so taking fire sounds like
+// a person rather than a doorbell.
+const HURT_SOUNDS = ['hurt-oof', 'hurt-argh', 'hurt-ah'];
+
+// Each boss has its own voice, and two of them explode rather than scream.
+// Named by the boss's own id so adding a fifth boss is one line in each.
+const BOSS_HIT_SOUND = {
+  burrower: 'boss-hit-burrower', twins: 'boss-hit-twins',
+  puppet_master: 'boss-hit-puppet_master', swarm: 'boss-hit-swarm',
+};
+const BOSS_DEATH_SOUND = {
+  burrower: 'boss-explode', twins: 'boss-explode',
+  puppet_master: 'boss-scream', swarm: 'boss-scream',
+};
 
 const GUN_SOUND = {
   assault: 'gun-assault', rifle: 'gun-assault', sniper: 'gun-sniper',
@@ -1571,7 +1586,7 @@ function fireHitscanShot(w) {
         // player's side those are the same thing.
         boss.kind.hit(boss.model, hitObj.userData.hitPart, hits[0].point,
                       boss.kind.bullet * shotDamage() / difficulty.enemyHp);
-        playSound('boss-hit');
+        playSound(BOSS_HIT_SOUND[boss.kind.id] || 'boss-hit-burrower');
       } else {
         for (const alien of aliens) {
           let found = false;
@@ -1581,7 +1596,18 @@ function fireHitscanShot(w) {
             alien.flashTimer = 0.12;
             alien.reg.hit(alien.ai);
             const away = alien.model.position.distanceTo(camera.position);
-            playSound('alien-hit', { dist: away });
+            // A moan lasts nearly half a second and the minigun fires
+            // twenty-seven times a second. Let every round start one and the
+            // thing you are shooting becomes a wall of overlapping voices,
+            // so each alien only moans so often — the hits still land, it
+            // just does not say so every single time.
+            // `time` belongs to the game loop; this runs out here, so it
+            // reads the clock itself.
+            const nowSec = performance.now() / 1000;
+            if (nowSec - (alien.lastMoan || -9) > 0.3) {
+              alien.lastMoan = nowSec;
+              playSound('alien-hit', { dist: away });
+            }
             if (alien.hp <= 0) {
               alien.alive = false;
               alien.deathTimer = 0;
@@ -1654,7 +1680,7 @@ function damagePlayer(amount) {
   // vacuum and the floor tentacles all arrive here.
   const taken = Math.max(1, Math.round(amount * difficulty.incoming));
   playerHp = Math.max(0, playerHp - taken);
-  playSound('player-hurt');
+  playSound(HURT_SOUNDS[Math.floor(Math.random() * HURT_SOUNDS.length)]);
   dmgFlashTimer = 0.3;
   dmgFlashEl.style.opacity = '1';
   updateHUD();
@@ -2203,7 +2229,7 @@ function updateBoss(dt) {
 
     if (kind.dead(d)) {
       boss.defeated = true;
-      playSound('boss-death');
+      playSound(BOSS_DEATH_SOUND[boss.kind.id] || 'boss-scream');
       killCount++;
       updateHUD();
       // Whichever one it was says so — the banner used to claim the Puppet
