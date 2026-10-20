@@ -1003,6 +1003,124 @@ export const SOUNDS = {
       beep(out, t + 0.14, { from: 587, dur: 0.3, vol: p.vol, type: 'square' });
     },
   },
+
+  // ─── HOW YOU GOT HERE ─────────────────────────────────────
+  // The two sounds the opening cutscene needs, and the only two in the game
+  // that nothing but a cutscene ever plays.
+  'rotor': {
+    // A helicopter is one noise cut into slices. The air through the blades
+    // is the noise; the blades themselves are an LFO chopping its volume
+    // five or six times a second. Take the chop away and you have wind.
+    label: 'HELICOPTER', group: 'Moments', loop: true,
+    params: {
+      vol:   P(0.5, 0, 1.2, 0.01, 'Volume'),
+      chop:  P(5.6, 2, 14, 0.1, 'Blade chop'),
+      whine: P(760, 200, 2400, 10, 'Turbine'),
+    },
+    make(p, t, out) {
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(p.vol, t + 0.7);
+      g.connect(out);
+
+      const n = noise(2, 0);
+      n.loop = true;
+      const lp = filter('lowpass', 430, 1.1);
+      // The chop. Base below one with a deeper swing, so each beat comes
+      // almost all the way down — that gap is the thud you actually hear.
+      const chop = ctx.createGain();
+      chop.gain.value = 0.62;
+      const lfo = ctx.createOscillator();
+      lfo.type = 'sawtooth';
+      lfo.frequency.value = p.chop;
+      const depth = ctx.createGain();
+      depth.gain.value = 0.62;
+      lfo.connect(depth); depth.connect(chop.gain);
+      n.connect(lp); lp.connect(chop); chop.connect(g);
+
+      // The turbine over the top of it, thin and steady.
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = p.whine;
+      const bp = filter('bandpass', p.whine, 7);
+      const og = ctx.createGain();
+      og.gain.setValueAtTime(0.0001, t);
+      og.gain.linearRampToValueAtTime(p.vol * 0.16, t + 1.0);
+      o.connect(bp); bp.connect(og); og.connect(out);
+
+      n.start(t); lfo.start(t); o.start(t);
+      return { stop: (at) => {
+        g.gain.cancelScheduledValues(at);
+        g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), at);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+        og.gain.cancelScheduledValues(at);
+        og.gain.setValueAtTime(Math.max(0.0001, og.gain.value), at);
+        og.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+        o.frequency.exponentialRampToValueAtTime(p.whine * 0.4, at + 0.6);
+        lfo.frequency.exponentialRampToValueAtTime(Math.max(0.5, p.chop * 0.3), at + 0.6);
+        n.stop(at + 0.62); o.stop(at + 0.62); lfo.stop(at + 0.62);
+      } };
+    },
+  },
+  'tractor': {
+    // The beam. Three detuned sawtooths climbing together through a filter
+    // that opens as they go, with air being dragged up over the top — it
+    // has to start under the rotor and end up owning everything.
+    label: 'THE BEAM', group: 'Moments', loop: true,
+    params: {
+      // Three sawtooths add up before anything scales them, so this
+      // number is a third of what it looks like. At its first setting the
+      // beam measured flat out at the top of the meter — three times a
+      // rifle, and clipped.
+      vol:   P(0.16, 0, 0.6, 0.01, 'Volume'),
+      pitch: P(64, 20, 260, 2, 'Pitch'),
+      rise:  P(5.5, 1, 14, 0.5, 'Rise'),
+    },
+    make(p, t, out) {
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(p.vol, t + 0.45);
+      g.connect(out);
+
+      const lp = filter('lowpass', 400, 4);
+      lp.frequency.setValueAtTime(280, t);
+      lp.frequency.exponentialRampToValueAtTime(2800, t + p.rise);
+      lp.connect(g);
+
+      const oscs = [];
+      for (const det of [1, 1.013, 1.496]) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(p.pitch * det, t);
+        o.frequency.exponentialRampToValueAtTime(p.pitch * det * 3.6, t + p.rise);
+        o.connect(lp);
+        o.start(t);
+        oscs.push(o);
+      }
+      // Everything loose in the air going up with you.
+      const n = noise(2, 0);
+      n.loop = true;
+      const hp = filter('highpass', 700, 0.8);
+      hp.frequency.setValueAtTime(600, t);
+      hp.frequency.exponentialRampToValueAtTime(2600, t + p.rise);
+      const ng = ctx.createGain();
+      ng.gain.setValueAtTime(0.0001, t);
+      ng.gain.linearRampToValueAtTime(p.vol * 0.8, t + p.rise * 0.8);
+      n.connect(hp); hp.connect(ng); ng.connect(out);
+      n.start(t);
+
+      return { stop: (at) => {
+        g.gain.cancelScheduledValues(at);
+        g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), at);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 0.35);
+        ng.gain.cancelScheduledValues(at);
+        ng.gain.setValueAtTime(Math.max(0.0001, ng.gain.value), at);
+        ng.gain.exponentialRampToValueAtTime(0.0001, at + 0.35);
+        for (const o of oscs) o.stop(at + 0.4);
+        n.stop(at + 0.4);
+      } };
+    },
+  },
 };
 
 // ─── THE NUMBERS, AND KEEPING THEM ──────────────────────────

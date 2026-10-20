@@ -310,19 +310,19 @@
 
   /* While the ride down is playing, the station's HUD has no business on
      screen — it is a cutscene, not a view out of a window. */
-  body.in-descent #crosshair,
-  body.in-descent #hud,
-  body.in-descent #kills,
-  body.in-descent #room-label,
-  body.in-descent #objective,
-  body.in-descent #controls-hint,
-  body.in-descent #soldier-hud,
-  body.in-descent #perk-hud,
-  body.in-descent #player-name,
-  body.in-descent #use-prompt,
-  body.in-descent #boss-hud,
-  body.in-descent #boss-banner,
-  body.in-descent #damage-flash { display: none !important; }
+  body.in-cutscene #crosshair,
+  body.in-cutscene #hud,
+  body.in-cutscene #kills,
+  body.in-cutscene #room-label,
+  body.in-cutscene #objective,
+  body.in-cutscene #controls-hint,
+  body.in-cutscene #soldier-hud,
+  body.in-cutscene #perk-hud,
+  body.in-cutscene #player-name,
+  body.in-cutscene #use-prompt,
+  body.in-cutscene #boss-hud,
+  body.in-cutscene #boss-banner,
+  body.in-cutscene #damage-flash { display: none !important; }
 
   /* What you tell yourself on the way down. Sits under the fade, so the
      black at the end takes it with everything else. */
@@ -352,8 +352,9 @@
     #descent-text { font-size: 12px; letter-spacing: 1px; }
   }
 
-  /* The last second of the ride down. */
-  #descent-fade {
+  /* Black over everything: the first and last seconds of a cutscene,
+     and your eyes going in and out while you come round on the floor. */
+  #cut-fade {
     display: none;
     position: fixed; inset: 0; z-index: 30;
     background: #000; opacity: 0;
@@ -469,7 +470,7 @@
   <div id="use-prompt">E &mdash; LAUNCH</div>
 
   <div id="descent-text"><div class="one"></div><div class="two"></div></div>
-  <div id="descent-fade"></div>
+  <div id="cut-fade"></div>
 
   <div id="perk-hud"></div>
 
@@ -519,6 +520,6 @@
 
   <div id="controls-hint">WASD move · mouse look · click shoot · space jump · E use · G grenade · M soundboard · esc pause</div>
 
-  <script type="module" src="falo3d-2/game.js?v=42e01392b0"></script>
+  <script type="module" src="falo3d-2/game.js?v=5fcdd0f84e"></script>
 </body>
 </html>

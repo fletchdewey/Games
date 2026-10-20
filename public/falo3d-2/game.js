@@ -18,57 +18,58 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=42e01392b0';
+import { PALETTE, getMaterial } from './shared/materials.js?v=5fcdd0f84e';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=42e01392b0';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=42e01392b0';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=5fcdd0f84e';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=5fcdd0f84e';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=42e01392b0';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=42e01392b0';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=5fcdd0f84e';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=5fcdd0f84e';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=42e01392b0';
+import { createDescent } from './cutscene/descent.js?v=5fcdd0f84e';
+import { createArrival } from './cutscene/arrival.js?v=5fcdd0f84e';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=42e01392b0';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=42e01392b0';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=5fcdd0f84e';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=5fcdd0f84e';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=42e01392b0';
+import { createController, updateController } from './player/controller.js?v=5fcdd0f84e';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=42e01392b0';
+  from './player/classes.js?v=5fcdd0f84e';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=42e01392b0';
+import { buildSoldier } from './npc/soldier.js?v=5fcdd0f84e';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=42e01392b0';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=5fcdd0f84e';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=42e01392b0';
-import { createSwarm } from './bosses/swarm.js?v=42e01392b0';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=42e01392b0';
-import { createTwins } from './bosses/twins.js?v=42e01392b0';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=42e01392b0';
-import { createBurrower } from './bosses/burrower.js?v=42e01392b0';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=5fcdd0f84e';
+import { createSwarm } from './bosses/swarm.js?v=5fcdd0f84e';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=5fcdd0f84e';
+import { createTwins } from './bosses/twins.js?v=5fcdd0f84e';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=5fcdd0f84e';
+import { createBurrower } from './bosses/burrower.js?v=5fcdd0f84e';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=42e01392b0';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=5fcdd0f84e';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=42e01392b0';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=5fcdd0f84e';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
-import { cleanName, savedName, saveName } from './player/name.js?v=42e01392b0';
-import { startPresence } from './shared/presence.js?v=42e01392b0';
+import { cleanName, savedName, saveName } from './player/name.js?v=5fcdd0f84e';
+import { startPresence } from './shared/presence.js?v=5fcdd0f84e';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=42e01392b0';
+  from './map/grid_map.js?v=5fcdd0f84e';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -78,7 +79,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=42e01392b0';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=5fcdd0f84e';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -1219,7 +1220,7 @@ const escapeScreen = document.getElementById('escape-screen');
 // is running it owns the screen: the station is still there and still
 // frozen behind it, but nothing of it is drawn.
 let descent = null;
-const descentFadeEl = document.getElementById('descent-fade');
+const cutFadeEl = document.getElementById('cut-fade');
 const descentTextEl = document.getElementById('descent-text');
 const descentLine1El = descentTextEl && descentTextEl.querySelector('.one');
 const descentLine2El = descentTextEl && descentTextEl.querySelector('.two');
@@ -1227,10 +1228,10 @@ let descentTyped = 0;        // characters already given a key click
 
 function startDescent() {
   descent = createDescent();
-  document.body.classList.add('in-descent');
-  if (descentFadeEl) {
-    descentFadeEl.style.display = 'block';
-    descentFadeEl.style.opacity = '0';
+  document.body.classList.add('in-cutscene');
+  if (cutFadeEl) {
+    cutFadeEl.style.display = 'block';
+    cutFadeEl.style.opacity = '0';
   }
   descentTyped = 0;
   if (descentTextEl) {
@@ -1255,13 +1256,132 @@ function endDescent() {
   stopLoop('breach');
   descent.dispose();
   descent = null;
-  document.body.classList.remove('in-descent');
-  if (descentFadeEl) descentFadeEl.style.display = 'none';
+  document.body.classList.remove('in-cutscene');
+  if (cutFadeEl) cutFadeEl.style.display = 'none';
   if (descentTextEl) descentTextEl.style.display = 'none';
   escapeScreen.style.display = 'flex';
   playSound('escape', { gain: 0.9 });
   if (document.pointerLockElement) document.exitPointerLock();
 }
+
+// ─── HOW YOU GOT HERE ───────────────────────────────────────
+// The opening, and the only cutscene that runs before you have played a
+// single frame. It owns the screen exactly the way the ride down does: the
+// station is built and standing behind it, and none of it is drawn.
+//
+// It does not hand you straight to the game. The helicopter goes dark, and
+// then you are on the floor of the Hangar with your eyes shutting on you —
+// that part is not the cutscene, it is the real station with the camera
+// lying on its side. Which is the point: the first thing you ever see of
+// the level is from the floor of it.
+let intro = null;
+let waking = -1;              // seconds since you came round, -1 when not
+let wakeYaw = 0;              // the way the game would have had you facing
+const WAKE_BLINK = 2.1;       // eyes, twice, before anything else
+const WAKE_STAND = 1.6;       // and then your legs
+const WAKE_TOTAL = WAKE_BLINK + WAKE_STAND;
+
+// How dark it is while you come round: shut, a crack, shut again, open.
+const BLINK = [[0, 1], [0.35, 0.22], [0.8, 0.92], [1.35, 0.08],
+               [1.6, 0.5], [2.1, 0]];
+
+function startIntro() {
+  intro = createArrival();
+  wakeYaw = ctrl.yaw;         // before the cutscene lets the mouse wander
+  document.body.classList.add('in-cutscene');
+  if (cutFadeEl) {
+    cutFadeEl.style.display = 'block';
+    cutFadeEl.style.opacity = '1';     // it opens out of black
+  }
+}
+
+/** Whatever the cutscene asks for, in the game's own voice. */
+function introCue(c) {
+  if (c === 'rotor-on') startLoop('rotor', { gain: 0.9 });
+  else if (c === 'ray-on') {
+    playSound('watcher-charge', { gain: 0.75 });
+    startLoop('tractor', { gain: 0.95 });
+  } else if (c === 'grab') {
+    stopLoop('rotor');
+    playSound('pod-launch', { gain: 0.6 });
+  } else if (c === 'swallow') {
+    playSound('space-door', { gain: 1 });
+  } else if (c === 'quiet') {
+    stopLoop('tractor');
+  }
+}
+
+/** The helicopter is gone. You are on the floor, and the game has started
+ *  without telling you. `skipped` means you pressed a key to get here, so
+ *  the blinking is cut and you only get the standing up. */
+function endIntro(skipped) {
+  if (!intro) return;
+  intro.dispose();
+  intro = null;
+  stopLoop('rotor');
+  stopLoop('tractor');
+  waking = skipped ? WAKE_BLINK - 0.25 : 0;
+  playSound('hurt-ah', { gain: 0.45 });
+}
+
+/**
+ * Coming round.
+ *
+ * The world is not live for these three and a half seconds — `started` is
+ * still false, so nothing thinks and nothing can touch you — and the camera
+ * is driven straight rather than through the controller: on its side on the
+ * floor, then up to eye height as you get your legs under you.
+ */
+function updateWaking(dt) {
+  waking += dt;
+  const k = Math.min(1, Math.max(0, (waking - WAKE_BLINK) / WAKE_STAND));
+  const e = k * k * (3 - 2 * k);
+
+  ctrl.position.set(START_POS.x, 0.32 + e * (1.6 - 0.32), START_POS.z);
+  ctrl.yaw = wakeYaw - (1 - e) * 0.3;
+  ctrl.pitch = -0.6 + e * 0.6;
+  camera.position.copy(ctrl.position);
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = ctrl.yaw;
+  camera.rotation.x = ctrl.pitch;
+  camera.rotation.z = (1 - e) * 0.7;        // your cheek is on the deck
+
+  // Eyes. Straight interpolation through the table above, so the shape of
+  // it is one line to edit rather than a nest of ifs.
+  let dark = 0;
+  for (let i = 0; i < BLINK.length - 1; i++) {
+    const [t0, v0] = BLINK[i], [t1, v1] = BLINK[i + 1];
+    if (waking >= t0 && waking <= t1) {
+      dark = v0 + (v1 - v0) * ((waking - t0) / (t1 - t0));
+      break;
+    }
+  }
+  if (cutFadeEl) cutFadeEl.style.opacity = String(dark);
+
+  if (waking >= WAKE_TOTAL) {
+    // On your feet, and it is your game from here.
+    waking = -1;
+    camera.rotation.z = 0;
+    ctrl.position.copy(START_POS);
+    ctrl.yaw = wakeYaw;
+    ctrl.pitch = 0;
+    ctrl.velocity.set(0, 0, 0);
+    ctrl.onGround = true;
+    // Any key you pressed to skip the cutscene is, as far as the browser is
+    // concerned, still held down.
+    for (const key in ctrl.keys) ctrl.keys[key] = false;
+    document.body.classList.remove('in-cutscene');
+    if (cutFadeEl) cutFadeEl.style.display = 'none';
+    started = true;
+    if (!ctrl.locked) {
+      try {
+        const lock = canvas.requestPointerLock();
+        if (lock && lock.catch) lock.catch(() => {});
+      } catch (e) { /* nothing to do about it */ }
+    }
+  }
+}
+
 const escapeTallyEl = document.getElementById('escape-tally');
 const escapeAgainBtn = document.getElementById('escape-again');
 const escapeQuitBtn = document.getElementById('escape-quit');
@@ -1620,7 +1740,7 @@ function updateSoundscape(dt, live) {
   // air-roar for re-entry, and the world is not live once you have escaped,
   // so the branch below was stopping that loop on the very next frame —
   // the whole cutscene has been running in silence since it was written.
-  if (descent) return;
+  if (descent || intro) return;
 
   if (!live) {
     // Nothing should still be droning behind the death screen.
@@ -1973,8 +2093,8 @@ function resetRun() {
     stopLoop('breach');
     descent.dispose();
     descent = null;
-    document.body.classList.remove('in-descent');
-    if (descentFadeEl) descentFadeEl.style.display = 'none';
+    document.body.classList.remove('in-cutscene');
+    if (cutFadeEl) cutFadeEl.style.display = 'none';
     if (descentTextEl) descentTextEl.style.display = 'none';
   }
 
@@ -2101,8 +2221,9 @@ escapeQuitBtn.addEventListener('click', quitToTitle);
 
 // Your hand is on the keyboard already, so take it from there too.
 document.addEventListener('keydown', (e) => {
-  // Skipping the ride down. Any key at all, because by the third time you
-  // have seen it you want the tally, not the view.
+  // Skipping a cutscene. Any key at all, because by the third time you have
+  // seen one you want the game, not the view.
+  if (intro) { intro.skip(); return; }
   if (descent) { descent.skip(); return; }
 
   // The soundboard, which works whether or not you are playing — you need to
@@ -2541,9 +2662,17 @@ startOverlay.addEventListener('click', () => {
   // A browser refuses to play anything until the person has clicked, so this
   // is the first moment the game is allowed to make a sound at all.
   startAudio();
-  started = true;          // the station comes alive here, and not before
   applyClass();
-  canvas.requestPointerLock();
+  // And you do not start on the station. You start in the back of a
+  // helicopter, about thirty seconds before anybody takes you off one.
+  // `started` stays false until you are on your feet in the Hangar.
+  startIntro();
+  // Last, and never allowed to take the rest of this with it: a browser
+  // that refuses the lock throws, and the cutscene would never have begun.
+  try {
+    const lock = canvas.requestPointerLock();
+    if (lock && lock.catch) lock.catch(() => {});
+  } catch (e) { /* the mouse just stays free; clicking the view grabs it */ }
 });
 
 document.addEventListener('pointerlockchange', () => {
@@ -2577,6 +2706,28 @@ function gameLoop(now) {
   const dt = Math.min((now - lastTime) / 1000, 0.1);
   lastTime = now;
   const time = now / 1000;
+
+  // --- The opening ---
+  // Drawn instead of the station, same as the ride down. Nothing below this
+  // runs while it is up.
+  if (intro) {
+    if (intro.camera.aspect !== camera.aspect) {
+      intro.camera.aspect = camera.aspect;
+      intro.camera.updateProjectionMatrix();
+    }
+    const over = intro.update(Math.min(dt, 0.05));
+    const due = intro.cues();
+    if (due) for (const c of due) introCue(c);
+    if (cutFadeEl) cutFadeEl.style.opacity = String(intro.blackness());
+    renderer.render(intro.scene, intro.camera);
+    // Skipping ends it through this same path, so whether a key did it is
+    // the cutscene's business to remember rather than the keyboard's.
+    if (over) endIntro(intro.skipped);
+    return;
+  }
+  // And coming round on the floor afterwards, which IS the station — so it
+  // falls through and gets drawn with everything else.
+  if (waking >= 0) updateWaking(dt);
 
   const live = worldIsLive();
   // He thinks in frames like the bosses do, not seconds like the aliens.
@@ -3019,7 +3170,7 @@ function gameLoop(now) {
     // A tab left in the background hands back one enormous frame; without
     // the clamp the whole ride down happens between two paints.
     const over = descent.update(Math.min(dt, 0.05));
-    if (descentFadeEl) descentFadeEl.style.opacity = String(descent.blackness());
+    if (cutFadeEl) cutFadeEl.style.opacity = String(descent.blackness());
     if (descentTextEl) {
       const cap = descent.caption();
       if (descentLine1El) descentLine1El.textContent = cap.one;
@@ -3056,6 +3207,22 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
     hitsWall, isFloorAt,
     /** Win on demand, so the ride down can be watched without earning it. */
     escape() { escaped = false; escapeStation(); },
+    /** Come round on the Hangar floor without sitting through the ride
+     *  in. `true` for the shorter version a key press leaves you. */
+    wakeUp(skipped) {
+      if (intro) { intro.dispose(); intro = null; }
+      document.body.classList.add('in-cutscene');
+      if (cutFadeEl) cutFadeEl.style.display = 'block';
+      started = false;
+      waking = skipped ? WAKE_BLINK - 0.25 : 0;
+      return true;
+    },
+    /** Watch the opening again without reloading the page. */
+    replayIntro() { if (!intro) { waking = -1; startIntro(); } return true; },
+    get introAt() { return intro ? intro.at : -1; },
+    /** The whole cutscene object, for poking at a frame from the console. */
+    get introObj() { return intro; },
+    introSeek(sec) { if (intro) intro.seek(sec); return intro ? intro.at : -1; },
     /** Where the cutscene has got to, in seconds. */
     get descentAt() { return descent ? descent.at : -1; },
     /** Hold the cutscene on the frame at a given second, to look at it. */
