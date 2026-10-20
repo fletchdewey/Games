@@ -33,6 +33,12 @@
 // handing your own line to a woman. Names only — there is nothing in a
 // voice object that says who it is supposed to be.
 const FEMALE = /^(samantha|karen|moira|tessa|victoria|allison|ava|susan|vicki|kate|serena|fiona|nicky|zoe|flo|sandy|shelley|princess|kathy|catherine|linda|heather|amelie|anna|ellen|joana|female|google uk english female|microsoft (zira|hazel|susan|linda|heather|eva|catherine|hazel))/i;
+// The handful that are genuinely low to start with, rather than a normal
+// voice pushed down. Given one of these, the player's line does not need
+// dragging nearly as far down the range — and a voice that is already
+// deep, dragged to the bottom, stops being words at all.
+const DEEP = /^(ralph|alex|fred|microsoft (david|george|guy))/i;
+
 const MALE = /^(daniel|alex|rocko|reed|eddy|fred|rishi|aaron|arthur|gordon|oliver|thomas|tom|ralph|lee|james|male|google uk english male|microsoft (david|mark|george|ryan|guy|james|sean))/i;
 
 // Names to avoid outright: every one of these is a novelty voice, and one
@@ -48,8 +54,13 @@ const WANTED = {
   // the machine has rather than whatever the three soldiers left behind —
   // and it has to be nothing like theirs, which on a Mac means not one of
   // the three American ones that are all the same family underneath.
-  you:   ['Daniel', 'Alex', 'Rocko', 'Oliver', 'Arthur', 'Aaron', 'Fred',
-          'Google UK English Male', 'Microsoft David', 'Microsoft Mark'],
+  // Deepest first, now, rather than nicest first. Ralph is the lowest
+  // voice a Mac ships that is still reading rather than performing; Alex
+  // is the lowest that sounds completely natural; Fred is the old low
+  // one. Daniel, which used to be first here, is a light British voice
+  // and no amount of pitch made it a soldier.
+  you:   ['Ralph', 'Alex', 'Fred', 'Microsoft David', 'Microsoft George',
+          'Daniel', 'Rocko', 'Oliver', 'Arthur', 'Google UK English Male'],
   radio: ['Karen', 'Samantha', 'Moira', 'Microsoft Zira', 'Google UK English Female'],
   s1:    ['Rocko', 'Microsoft Mark', 'Google US English', 'Alex'],
   s2:    ['Rishi', 'Reed', 'Tessa', 'Microsoft David', 'Google UK English Male'],
@@ -62,12 +73,10 @@ const TONE = {
   // Rate is the one that matters. At 1.0 every one of these voices leaves
   // a gap between words that a person in the back of a helicopter does
   // not leave, and five lines of it sounds like a station announcement.
-  // Low, and then lower. Every voice on a machine like this one is built
-  // to read a web page pleasantly, which puts all of them above a man in
-  // the back of a helicopter: 0.95 read young, 0.76 still did. This is
-  // most of the way down the range the browser allows, which is as deep
-  // as it goes before the words stop being words.
-  you:   { pitch: 0.55, rate: 1.08 },
+  // Two numbers, because it depends who answered. A light voice gets
+  // pushed to the bottom of the range; one of the deep ones above does
+  // not need it and goes to pieces if you try.
+  you:   { pitch: 0.5, rate: 1.08, deepPitch: 0.72 },
   // Thinner and faster still, because she is shouting into a handset.
   radio: { pitch: 1.14, rate: 1.12, gain: 0.95 },
   s1:    { pitch: 0.96, rate: 1.18 },
@@ -163,6 +172,7 @@ export function say(role, text, gain = 1) {
     if (v) { u.voice = v; u.lang = v.lang; }
     const tone = TONE[role] || {};
     u.pitch = tone.pitch != null ? tone.pitch : 1;
+    if (tone.deepPitch != null && v && DEEP.test(v.name)) u.pitch = tone.deepPitch;
     u.rate = tone.rate != null ? tone.rate : 1;
     const level = gain * (tone.gain != null ? tone.gain : 1);
     u.volume = Math.max(0, Math.min(1, level));
@@ -185,6 +195,11 @@ export function hush() {
 export function castList() {
   const v = voices();
   const out = {};
-  for (const k of Object.keys(WANTED)) out[k] = v[k] ? v[k].name : '(default)';
+  for (const k of Object.keys(WANTED)) {
+    const tone = TONE[k] || {};
+    const deep = v[k] && tone.deepPitch != null && DEEP.test(v[k].name);
+    const pitch = deep ? tone.deepPitch : (tone.pitch != null ? tone.pitch : 1);
+    out[k] = (v[k] ? v[k].name : '(default)') + ' @ pitch ' + pitch;
+  }
   return out;
 }
