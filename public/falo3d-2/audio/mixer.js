@@ -24,7 +24,7 @@
 
 import { SOUNDS, soundValue, setSoundValue, saveSound, resetSound,
          soundJSON, playSound, startLoop, stopLoop, loopRunning,
-         startAudio, loadSavedSound } from './sound.js?v=42aab17414';
+         startAudio, loadSavedSound } from './sound.js?v=55f769279b';
 
 // ─── LOOK ───────────────────────────────────────────────────
 // Carried here rather than in the game's HTML, so the standalone page and

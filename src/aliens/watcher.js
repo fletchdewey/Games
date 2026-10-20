@@ -308,10 +308,23 @@ export function restWatcher(model) {
   if (d.beam) beamOff(d);
 }
 
-/** 1 HP. Anything that hits it, kills it — that is the whole trade. */
+/**
+ * Hit, and still standing.
+ *
+ * This used to put it straight into its death — which was true enough
+ * while it had one hit point and nothing could leave it alive, and a lie
+ * the moment anything gave it two. The game calls hit() on every round
+ * that lands and kill() only on the one that finishes it, so a Watcher
+ * with health to spare went down on the floor and stayed alive.
+ *
+ * What it does now is slam shut. Whatever it was winding up is gone, and
+ * it has to track, open and charge again before it can fire — so a round
+ * into a Watcher that is charging is the difference between a near miss
+ * and most of your health.
+ */
 export function hitWatcher(ai) {
   if (ai.state === STATE.DEAD) return;
-  ai.state = STATE.DEAD;
+  ai.state = STATE.SEAL;
   ai.stateTimer = 0;
 }
 

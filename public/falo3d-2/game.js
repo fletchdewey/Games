@@ -18,60 +18,60 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=42aab17414';
+import { PALETTE, getMaterial } from './shared/materials.js?v=55f769279b';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=42aab17414';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=42aab17414';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=55f769279b';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=55f769279b';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=42aab17414';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=42aab17414';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=55f769279b';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=55f769279b';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=42aab17414';
-import { createArrival } from './cutscene/arrival.js?v=42aab17414';
+import { createDescent } from './cutscene/descent.js?v=55f769279b';
+import { createArrival } from './cutscene/arrival.js?v=55f769279b';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=42aab17414';
-import { masterVolume } from './audio/sound.js?v=42aab17414';
-import { say, hush, castList } from './audio/speech.js?v=42aab17414';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=42aab17414';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=55f769279b';
+import { masterVolume } from './audio/sound.js?v=55f769279b';
+import { say, hush, castList } from './audio/speech.js?v=55f769279b';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=55f769279b';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=42aab17414';
+import { createController, updateController } from './player/controller.js?v=55f769279b';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=42aab17414';
+  from './player/classes.js?v=55f769279b';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=42aab17414';
+import { buildSoldier } from './npc/soldier.js?v=55f769279b';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=42aab17414';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=55f769279b';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=42aab17414';
-import { createSwarm } from './bosses/swarm.js?v=42aab17414';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=42aab17414';
-import { createTwins } from './bosses/twins.js?v=42aab17414';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=42aab17414';
-import { createBurrower } from './bosses/burrower.js?v=42aab17414';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=55f769279b';
+import { createSwarm } from './bosses/swarm.js?v=55f769279b';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=55f769279b';
+import { createTwins } from './bosses/twins.js?v=55f769279b';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=55f769279b';
+import { createBurrower } from './bosses/burrower.js?v=55f769279b';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=42aab17414';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=55f769279b';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=42aab17414';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=55f769279b';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
-import { cleanName, savedName, saveName } from './player/name.js?v=42aab17414';
-import { startPresence } from './shared/presence.js?v=42aab17414';
+import { cleanName, savedName, saveName } from './player/name.js?v=55f769279b';
+import { startPresence } from './shared/presence.js?v=55f769279b';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=42aab17414';
+  from './map/grid_map.js?v=55f769279b';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -81,7 +81,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=42aab17414';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=55f769279b';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -124,7 +124,18 @@ const ALIEN_TYPES = {
     build: buildWatcher, animate: animateWatcher,
     createAI: createWatcherAI, updateAI: updateWatcherAI,
     hit: hitWatcher, kill: killWatcher,
-    hp: 1, baseY: 0.05, attackType: 'beam', attackRange: 12,   // feet measured at -0.05
+    // One hit kills it, on every difficulty, and that is deliberate — see
+    // fixedHp. Its trade is that its beam lands the instant it fires and
+    // takes most of you with it; the answer to a Watcher is to shoot it
+    // first, not to out-last it.
+    //
+    // It used to scale like everything else, which on Impossible gave it
+    // three hit points — and because the model goes down on `hit` rather
+    // than on `kill`, the first shot folded it onto the floor with its eye
+    // out while it was still alive, still counted by its outpost, and
+    // still needing two more rounds. A corpse you have to finish.
+    hp: 1, fixedHp: true,
+    baseY: 0.05, attackType: 'beam', attackRange: 12,   // feet measured at -0.05
     attackDmg: 15, attackCD: 0, speed: 0,
     spawnGap: 3.4,          // 2.6 across the tripod, and it never moves off it
     bodyRadius: 0.8,        // never actually moves, so this never comes up
@@ -389,7 +400,7 @@ function placeAlien(aliens, scene, reg, plan, x, z) {
   aliens.push({
     model, ai, type: plan.type, reg,
     room: plan.room,          // used to park aliens in rooms you're not in
-    hp: enemyHp(reg.hp), maxHp: enemyHp(reg.hp),
+    hp: enemyHp(reg.hp, reg.fixedHp), maxHp: enemyHp(reg.hp, reg.fixedHp),
     alive: true, gone: false, flashTimer: 0, deathTimer: 0,
     spawnPos: new THREE.Vector3(x, reg.baseY, z),
     attackTimer: reg.attackCD * (0.5 + Math.random()),
@@ -1606,7 +1617,12 @@ function updateHUD() {
 
 /** Put the chosen class into effect. Called when a run begins. */
 /** How much of a thing there is to shoot through, at this difficulty. */
-function enemyHp(base) {
+function enemyHp(base, fixed) {
+  // A fixed-health alien ignores the difficulty entirely. Only the Watcher
+  // asks for that, and it has to: it is built around dying to one hit of
+  // anything, and a Watcher that takes three of them is not a harder
+  // Watcher — see its entry in ALIEN_TYPES for what actually happened.
+  if (fixed) return Math.max(1, Math.round(base));
   return Math.max(1, Math.round(base * difficulty.enemyHp));
 }
 
@@ -2247,7 +2263,7 @@ function resetRun() {
     a.gone = false;
     // Re-read rather than reused: the difficulty may have changed since
     // these were built, and maxHp was fixed at the old one.
-    a.maxHp = enemyHp(a.reg.hp);
+    a.maxHp = enemyHp(a.reg.hp, a.reg.fixedHp);
     a.hp = a.maxHp;
     a.deathTimer = 0;
     a.flashTimer = 0;
