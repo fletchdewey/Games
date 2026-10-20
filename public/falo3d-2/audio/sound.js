@@ -1067,6 +1067,71 @@ export const SOUNDS = {
   // talking. The browser's speech cannot be put through a filter — it does
   // not come out anywhere this mixer can reach it — so the radio is sold
   // by what is around the voice rather than by what is done to it.
+  'reentry': {
+    // Coming down through air, which is not the same noise as air leaving
+    // a hole in a wall. The ride down used to borrow the hull breach for
+    // this, and it was the giveaway: the same thin hiss you hear standing
+    // next to the Hangar's breach, played over a planet.
+    //
+    // This one is low and broad, with the pod buffeting in it.
+    label: 'RE-ENTRY', group: 'Moments', loop: true,
+    params: {
+      vol:    P(0.34, 0, 0.9, 0.01, 'Volume'),
+      tone:   P(330, 80, 1400, 10, 'Tone'),
+      rumble: P(52, 20, 140, 1, 'Rumble'),
+      buffet: P(0.8, 0, 4, 0.05, 'Buffeting'),
+    },
+    make(p, t, out) {
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(p.vol, t + 1.4);   // it builds
+      g.connect(out);
+
+      // The roar: noise with everything above the tone taken off it.
+      const n = noise(2, 0);
+      n.loop = true;
+      const lp = filter('lowpass', p.tone, 0.8);
+      const roar = ctx.createGain();
+      roar.gain.value = 1;
+      n.connect(lp); lp.connect(roar); roar.connect(g);
+      n.start(t);
+
+      // Buffeting: the whole roar swelling and dropping, unevenly, which
+      // is the difference between a shell coming down and a fan.
+      const shake = ctx.createOscillator();
+      shake.type = 'sine';
+      shake.frequency.value = p.buffet;
+      const shakeDepth = ctx.createGain();
+      shakeDepth.gain.value = 0.42;
+      shake.connect(shakeDepth); shakeDepth.connect(roar.gain);
+      shake.start(t);
+      const shake2 = ctx.createOscillator();
+      shake2.type = 'sine';
+      shake2.frequency.value = p.buffet * 2.7;
+      const shake2Depth = ctx.createGain();
+      shake2Depth.gain.value = 0.18;
+      shake2.connect(shake2Depth); shake2Depth.connect(roar.gain);
+      shake2.start(t);
+
+      // And the weight under it: a note you feel rather than hear.
+      const low = ctx.createOscillator();
+      low.type = 'sine';
+      low.frequency.value = p.rumble;
+      const lowG = ctx.createGain();
+      lowG.gain.value = 0.5;
+      low.connect(lowG); lowG.connect(g);
+      low.start(t);
+
+      return { stop: (at) => {
+        g.gain.cancelScheduledValues(at);
+        g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), at);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+        for (const node of [n, shake, shake2, low]) {
+          try { node.stop(at + 0.55); } catch (e) { /* already gone */ }
+        }
+      } };
+    },
+  },
   'radio-squelch': {
     label: 'RADIO SQUELCH', group: 'Moments',
     params: {

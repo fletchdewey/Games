@@ -18,60 +18,60 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=3fb94f9293';
+import { PALETTE, getMaterial } from './shared/materials.js?v=42aab17414';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=3fb94f9293';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=3fb94f9293';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=42aab17414';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=42aab17414';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=3fb94f9293';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=3fb94f9293';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=42aab17414';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=42aab17414';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=3fb94f9293';
-import { createArrival } from './cutscene/arrival.js?v=3fb94f9293';
+import { createDescent } from './cutscene/descent.js?v=42aab17414';
+import { createArrival } from './cutscene/arrival.js?v=42aab17414';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=3fb94f9293';
-import { masterVolume } from './audio/sound.js?v=3fb94f9293';
-import { say, hush, castList } from './audio/speech.js?v=3fb94f9293';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=3fb94f9293';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=42aab17414';
+import { masterVolume } from './audio/sound.js?v=42aab17414';
+import { say, hush, castList } from './audio/speech.js?v=42aab17414';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=42aab17414';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=3fb94f9293';
+import { createController, updateController } from './player/controller.js?v=42aab17414';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=3fb94f9293';
+  from './player/classes.js?v=42aab17414';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=3fb94f9293';
+import { buildSoldier } from './npc/soldier.js?v=42aab17414';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=3fb94f9293';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=42aab17414';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=3fb94f9293';
-import { createSwarm } from './bosses/swarm.js?v=3fb94f9293';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=3fb94f9293';
-import { createTwins } from './bosses/twins.js?v=3fb94f9293';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=3fb94f9293';
-import { createBurrower } from './bosses/burrower.js?v=3fb94f9293';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=42aab17414';
+import { createSwarm } from './bosses/swarm.js?v=42aab17414';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=42aab17414';
+import { createTwins } from './bosses/twins.js?v=42aab17414';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=42aab17414';
+import { createBurrower } from './bosses/burrower.js?v=42aab17414';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=3fb94f9293';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=42aab17414';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=3fb94f9293';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=42aab17414';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
-import { cleanName, savedName, saveName } from './player/name.js?v=3fb94f9293';
-import { startPresence } from './shared/presence.js?v=3fb94f9293';
+import { cleanName, savedName, saveName } from './player/name.js?v=42aab17414';
+import { startPresence } from './shared/presence.js?v=42aab17414';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=3fb94f9293';
+  from './map/grid_map.js?v=42aab17414';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -81,7 +81,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=3fb94f9293';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=42aab17414';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -611,12 +611,38 @@ const BOSS_KINDS = [
   },
 ];
 
+// Which of the four can turn up, and on what.
+//
+// Easy, Normal and Hard put all of them in the hat and draw one — a new
+// run rolls the dice again, so you are not handed the same fight twice
+// just because it is the one that killed you.
+//
+// Impossible draws from two. The Twins pick each other back up and the
+// Burrower takes the floor out from under you, and neither of those can
+// be beaten by standing in a corner and holding the trigger, which is
+// what the other two allow if you are patient. On the difficulty that is
+// meant to be unfair, the boss should be unfair in that particular way.
+const BOSS_POOL = {
+  impossible: ['twins', 'burrower'],
+};
+
+function bossPool() {
+  const only = BOSS_POOL[difficulty.id];
+  if (!only) return BOSS_KINDS;
+  const pool = BOSS_KINDS.filter((k) => only.includes(k.id));
+  // Never an empty hat: a typo in the list above would otherwise mean no
+  // boss at all, which reads as the Control Room being empty.
+  return pool.length ? pool : BOSS_KINDS;
+}
+
 // `forceId` is only ever passed by the localhost dev hook, so a particular
-// boss can be checked without reloading until it comes up.
+// boss can be checked without reloading until it comes up — and it ignores
+// the pool, because that is the whole point of it.
 function spawnBoss(scene, forceId) {
+  const pool = bossPool();
   const kind = forceId
     ? BOSS_KINDS.find((k) => k.id === forceId)
-    : BOSS_KINDS[Math.floor(Math.random() * BOSS_KINDS.length)];
+    : pool[Math.floor(Math.random() * pool.length)];
   // Middle of the arena. roomSpawn() always lands on a painted cell.
   const at = roomSpawn(BOSS_ROOM) || new THREE.Vector3(0, 0, 0);
 
@@ -1272,15 +1298,20 @@ function startDescent() {
   // the way to the planet.
   stopLoop('floater-hover');
   stopLoop('minigun-spin');
-  // Re-entry. The breach's air-roar is the right noise for it and already
-  // tuned on the soundboard, so it is borrowed rather than written twice.
-  startLoop('breach', { gain: 0.5 });
+  // Re-entry, which has its own noise now. It used to borrow the hull
+  // breach's — and that was the giveaway, because the breach is a thin
+  // hiss of air leaving a hole and this is a planet's whole atmosphere
+  // coming up at you.
+  // Measured: at 0.9 it peaked at 0.194, which is louder than the
+  // helicopter and most of the way to a rifle. It is the only thing you
+  // can hear down there, not the loudest thing in the game.
+  startLoop('reentry', { gain: 0.7 });
 }
 
 /** The cutscene is over — show what the run came to. */
 function endDescent() {
   if (!descent) return;
-  stopLoop('breach');
+  stopLoop('reentry');
   descent.dispose();
   descent = null;
   document.body.classList.remove('in-cutscene');
@@ -1919,7 +1950,7 @@ function updateSoundscape(dt, live) {
     const d = a.model.position.distanceTo(ctrl.position);
     if (d < nearestFloater) nearestFloater = d;
   }
-  droneTo('floater-hover', nearestFloater, 16);
+  droneTo('floater-hover', nearestFloater, 16, dt);
 
   // The hull breach, which you can hear long before the pull starts.
   let nearestBreach = Infinity;
@@ -1928,19 +1959,35 @@ function updateSoundscape(dt, live) {
     const d = Math.hypot(ctrl.position.x - x, ctrl.position.z - h.z);
     if (d < nearestBreach) nearestBreach = d;
   }
-  droneTo('breach', nearestBreach, 26);
+  droneTo('breach', nearestBreach, 26, dt);
 
   // The barrels, which spin while you are firing and wind down when you stop.
   if (gun.weapon.spins && gun.recoilTime > 0) startLoop('minigun-spin');
   else stopLoop('minigun-spin');
 }
 
-/** Hold a looping sound at a volume set by how far off the thing is. */
-function droneTo(id, dist, range) {
-  if (dist > range) { stopLoop(id); return; }
+/**
+ * Hold a looping sound at a volume set by how far off the thing is.
+ *
+ * The level is eased towards rather than set, so a drone fades up over
+ * about a second instead of arriving at full volume on one frame — which
+ * is what the hull breach did the instant you got to your feet at the
+ * start of a run, having been silent all the way through the opening.
+ */
+const droneAt = new Map();
+function droneTo(id, dist, range, dt = 0.016) {
+  if (dist > range) { stopLoop(id); droneAt.delete(id); return; }
+  const fresh = !droneAt.has(id);
   startLoop(id);
   const t = 1 - dist / range;
-  setLoopGain(id, Math.min(1, t * t * 1.4));
+  const want = Math.min(1, t * t * 1.4);
+  // A drone that has only just started comes up from nothing; one that is
+  // already sounding follows the distance as fast as you can walk.
+  const now = fresh ? 0 : droneAt.get(id);
+  const rate = fresh ? 1.1 : 4;
+  const next = now + Math.max(-rate * dt, Math.min(rate * dt, want - now));
+  droneAt.set(id, next);
+  setLoopGain(id, next);
 }
 
 function removeOrdnance(mesh) {
@@ -2240,7 +2287,7 @@ function resetRun() {
 
   // If a run is restarted out from under the ride down, it goes with it.
   if (descent) {
-    stopLoop('breach');
+    stopLoop('reentry');
     descent.dispose();
     descent = null;
     document.body.classList.remove('in-cutscene');
