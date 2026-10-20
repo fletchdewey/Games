@@ -73,7 +73,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
-         buildAlienBoard, buildAlienPods, prisonBrokenCell,
+         buildAlienBoard, buildAlienPods, buildWorkstations, prisonBrokenCell,
          buildEscapePod, setEscapePodUnlocked, updateEscapePod,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
@@ -929,8 +929,10 @@ function atSecretExit() {
 const wreckage = buildOutpostWreckage(scene, ROOMS.find((r) => r.id === 'room7'));
 propColliders.push(...wreckage.colliders);
 
-// The pods room: one of each alien held in a green tank, along the south
-// wall — the room's only solid run, and the wall you face coming in.
+// The pods room, which is now four walls doing four different jobs: the
+// tanks along the north, the station's own summary screen on the east with
+// the chair nobody is in, the four desks that watched them on the south,
+// and the one that didn't hold standing in the middle of all of it.
 const pods = buildAlienPods(scene, ROOMS.find((r) => r.id === 'room8'));
 propColliders.push(...pods.colliders);
 
@@ -938,6 +940,10 @@ propColliders.push(...pods.colliders);
 // the far wall.
 const study = buildStudyScreen(scene, ROOMS.find((r) => r.id === 'room8'));
 propColliders.push(...study.colliders);
+
+// One desk per tank, each with that specimen's own readout still up.
+const stations = buildWorkstations(scene, ROOMS.find((r) => r.id === 'room8'));
+propColliders.push(...stations.colliders);
 
 // The Control Room: a window onto space along the wall you walk at, the
 // station's control station filling it underneath, and the crew still at it.

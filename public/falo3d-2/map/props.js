@@ -12,15 +12,15 @@
 
 import * as THREE from 'three';
 import { roomIdAt, worldToCell, isFloorAt, WALL_HEIGHT as WALL_H,
-         SURFACE_WHITE } from './grid_map.js?v=0e33b936bd';
+         SURFACE_WHITE } from './grid_map.js?v=dcbc488115';
 // Specimens for the pods room. These come from workshop_models.js — the
 // current models, straight out of the Alien Workshop — not from the older
 // crawler/floater/brute modules the fightable aliens are still built from.
 import { buildCrawler, buildFloater, buildBrute, buildWatcher }
-  from '../aliens/workshop_models.js?v=0e33b936bd';
+  from '../aliens/workshop_models.js?v=dcbc488115';
 // The control room's map screen is drawn from the same painted cells the
 // level itself is built from.
-import { GRID } from './grid_data.js?v=0e33b936bd';
+import { GRID } from './grid_data.js?v=dcbc488115';
 
 // Deterministic jitter, so the wreck looks scattered but lands in the same
 // place every run. Math.random() here would move the bodies on every reload.
@@ -2521,9 +2521,11 @@ export function buildAlienPods(scene, room, seed = 8808) {
     { make: buildBrute,   fill: 1.0 },
   ];
 
-  const pz = room.z0 + 1.0;
+  // All four along the north wall: the room's long unbroken run, and the
+  // one you are looking straight at coming in from the south-west corner.
+  const pz = room.z0 + 1.25;
   SPECIMENS.forEach((spec, i) => {
-    const px = room.x0 + 1.7 + i * 2.2;
+    const px = room.x0 + 2.9 + i * 2.75;
     const pod = new THREE.Group();
     pod.position.set(px, 0, pz);
     group.add(pod);
@@ -2635,7 +2637,13 @@ export function buildAlienPods(scene, room, seed = 8808) {
   // to hold something down are snapped open, and the fluid it was kept in is
   // across the floor.
   {
-    const BX = room.x0 + 7.5, BZ = room.z0 + 4.5;   // measured against the map
+    // Dead centre of the room now that there is a room to be central in —
+    // the three working walls are taken, and this is the thing you walk
+    // round rather than the thing in a corner.
+    // Centre of the WALKABLE floor, which is not the centre of the room —
+    // three of the four walls have something standing against them, and the
+    // first attempt at centring put this between the door and the tanks.
+    const BX = room.x0 + 5.8, BZ = room.z0 + 6.0;
     const BR = 1.7, BASE = 0.55, GLASS = 3.0, CAP = 0.45;
     const big = new THREE.Group();
     big.position.set(BX, 0, BZ);
@@ -2816,16 +2824,20 @@ export function buildAlienPods(scene, room, seed = 8808) {
 
 const STUDY = [
   { pod: 'POD 1', name: 'CRAWLER', cls: 'pack hunter', mass: '41 kg',
-    threat: 'MODERATE',
+    threat: 'MODERATE', status: 'SEDATED', state: 'ok',
+    bars: [['SEDATION', 0.84], ['FEED LINE', 0.76], ['ACTIVITY', 0.14]],
     notes: 'Flanks. Will not come at you straight. Closes the last four metres in one jump.' },
   { pod: 'POD 2', name: 'FLOATER', cls: 'psionic', mass: '23 kg',
-    threat: 'HIGH',
+    threat: 'HIGH', status: 'DOSE DOUBLED', state: 'warn',
+    bars: [['SEDATION', 0.49], ['FEED LINE', 0.63], ['CORE OUTPUT', 0.97]],
     notes: 'No muscle anywhere in it. Holds altitude with nothing. Cabin pressure spikes a half second before it fires.' },
   { pod: 'POD 3', name: 'WATCHER', cls: 'ranged', mass: '58 kg',
-    threat: 'SEVERE',
+    threat: 'SEVERE', status: 'AWAKE', state: 'bad',
+    bars: [['SEDATION', 0.08], ['FEED LINE', 0.31], ['ACTIVITY', 0.92]],
     notes: 'The eye is the only soft tissue on it. One clean hit is lethal. It knows, and keeps the lids shut until it fires.' },
   { pod: 'POD 4', name: 'BRUTE', cls: 'shock', mass: '310 kg',
-    threat: 'SEVERE',
+    threat: 'SEVERE', status: 'SEDATED / RESTRAINED', state: 'ok',
+    bars: [['SEDATION', 0.91], ['FEED LINE', 0.80], ['ACTIVITY', 0.09]],
     notes: 'Plate is grown, not worn. Commits to a charge and cannot turn out of it. Give it a wall.' },
 ];
 
@@ -2969,12 +2981,195 @@ export function buildStudyScreen(scene, room) {
   lg.computeVertexNormals();
   group.add(new THREE.Mesh(lg, new THREE.MeshBasicMaterial({ color: 0x6effa8 })));
 
-  // Hung on the wall opposite the tanks, turned to face back down the room.
-  group.position.set(room.x0 + 6.0, 1.85, room.z1 - 0.08);
-  group.rotation.y = Math.PI;
+  // The east wall, facing back across the room at the tanks.
+  const SX = room.x1 - 0.08, SZ = room.z0 + 6.0;
+  group.position.set(SX, 1.85, SZ);
+  group.rotation.y = -Math.PI / 2;
   group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
   scene.add(group);
-  return { group, colliders: [{ x: room.x0 + 6.0, z: room.z1 - 0.5, r: 0.6 }] };
+
+  // And the chair in front of it.
+  //
+  // FLETCHER: it is empty, and it is turned away from the screen it was
+  // pulled up to. A chair square-on to a desk reads as furniture. One left
+  // at an angle, with nobody in it, reads as somebody who got up.
+  const chair = commandChair(true);
+  // Off to one side of the screen rather than square in front of it: dead
+  // centre, the chair back covers the half of the readout you want to read.
+  chair.position.set(room.x1 - 2.4, 0, SZ + 1.15);
+  chair.rotation.y = -0.52;
+  scene.add(chair);
+
+  return { group, colliders: [
+    { x: SX - 0.5, z: SZ, r: 0.7 },
+    { x: room.x1 - 2.4, z: SZ + 1.15, r: 0.45 },
+  ] };
+}
+
+// ─── THE WORKSTATIONS ───────────────────────────────────────
+// FLETCHER'S GUIDE:
+// Four desks along the south wall, one per tank, each with that specimen's
+// own readout on it. They are the reason the big screen on the east wall is
+// a summary: somebody sat at each of these watching ONE of them, and the
+// state those four screens are in is the story of what went wrong here —
+// two sedated and quiet, one with its dose doubled and its core output
+// nearly off the scale, and one that is simply awake.
+//
+// The numbers come from the same STUDY table the big screen reads, so the
+// two walls cannot disagree about what is in the tanks.
+
+/** Text that wraps itself, because a notes field does not fit on one line. */
+function wrapText(x, text, left, top, width, lineH) {
+  const words = String(text).split(' ');
+  let line = '', y = top;
+  for (const word of words) {
+    const test = line ? line + ' ' + word : word;
+    if (x.measureText(test).width > width && line) {
+      x.fillText(line, left, y); line = word; y += lineH;
+    } else line = test;
+  }
+  if (line) x.fillText(line, left, y);
+  return y;
+}
+
+function stationCanvas(s) {
+  return crtPanel(512, 384, (x, w) => {
+    const bad = s.state === 'bad', warn = s.state === 'warn';
+    const hue = bad ? BAD : warn ? WARN : GREEN;
+
+    x.fillStyle = bad ? '#3a0f0c' : warn ? '#3a2a0c' : '#0c2f1d';
+    x.fillRect(0, 0, w, 40);
+    x.fillStyle = hue;
+    x.font = 'bold 22px "Courier New", monospace';
+    x.fillText(s.pod + '  ' + s.name, 14, 28);
+
+    // The status line, which is the thing you are meant to read first.
+    x.fillStyle = DIM;
+    x.font = '15px "Courier New", monospace';
+    x.fillText('STATUS', 14, 74);
+    x.fillStyle = hue;
+    x.font = 'bold 26px "Courier New", monospace';
+    x.fillText(s.status, 14, 102);
+
+    x.font = '16px "Courier New", monospace';
+    let y = 140;
+    for (const [k, v] of [['CLASS', s.cls], ['MASS', s.mass], ['THREAT', s.threat]]) {
+      x.fillStyle = DIM; x.fillText(k, 14, y);
+      x.fillStyle = k === 'THREAT' ? hue : GREEN;
+      x.fillText(String(v).toUpperCase(), 150, y);
+      y += 24;
+    }
+
+    // Bars. A number is a number; a bar says at a glance which one is wrong.
+    y += 10;
+    for (const [label, frac] of s.bars) {
+      x.fillStyle = DIM;
+      x.font = '14px "Courier New", monospace';
+      x.fillText(label, 14, y);
+      x.strokeStyle = '#174a31'; x.lineWidth = 2;
+      x.strokeRect(150, y - 12, 330, 14);
+      x.fillStyle = frac > 0.9 ? BAD : frac < 0.2 ? BAD : frac < 0.55 ? WARN : GREEN;
+      x.fillRect(152, y - 10, 326 * Math.max(0.02, frac), 10);
+      y += 26;
+    }
+
+    x.fillStyle = DIM;
+    x.font = '14px "Courier New", monospace';
+    wrapText(x, s.notes, 14, y + 12, w - 28, 19);
+  });
+}
+
+export function buildWorkstations(scene, room) {
+  const group = new THREE.Group();
+  const colliders = [];
+  const shell = M.metal(), dark = M.hullDk();
+  const lampMat = new THREE.MeshBasicMaterial({ color: 0x6effa8 });
+
+  STUDY.forEach((s, i) => {
+    const x = room.x0 + 3.6 + i * 2.9;
+    const z = room.z1 - 1.05;              // backs to the south wall
+    const desk = new THREE.Group();
+    desk.position.set(x, 0, z);
+    group.add(desk);
+
+    const top = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.08, 0.8), shell);
+    top.position.y = 0.78;
+    desk.add(top);
+    for (const sx of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.78, 0.7), dark);
+      leg.position.set(sx * 0.95, 0.39, 0);
+      desk.add(leg);
+    }
+    const back = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.5, 0.06), dark);
+    back.position.set(0, 0.48, 0.34);
+    desk.add(back);
+
+    // The screen, tipped back and facing out into the room.
+    const bezel = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.92, 0.07), dark);
+    bezel.position.set(0, 1.38, 0.2);
+    bezel.rotation.x = 0.15;
+    desk.add(bezel);
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.8),
+      new THREE.MeshBasicMaterial({ map: stationCanvas(s) }));
+    face.position.set(0, 1.38, 0.155);
+    face.rotation.x = 0.15;
+    face.rotation.y = Math.PI;             // the canvas faces -z, into the room
+    desk.add(face);
+    const stand = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.42, 0.12), shell);
+    stand.position.set(0, 1.0, 0.24);
+    desk.add(stand);
+
+    // Keyboard, and a lamp that is still on.
+    const keys = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.04, 0.26), dark);
+    keys.position.set(-0.1, 0.84, -0.18);
+    keys.rotation.x = -0.08;
+    desk.add(keys);
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.1), lampMat);
+    lamp.position.set(0.72, 0.86, -0.1);
+    desk.add(lamp);
+
+    // A stool, pushed in at three of them and shoved aside at the Watcher's.
+    const stool = new THREE.Group();
+    const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.07, 10), dark);
+    seat.position.y = 0.52;
+    stool.add(seat);
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + 0.7;
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.52, 5), shell);
+      leg.position.set(Math.cos(a) * 0.14, 0.26, Math.sin(a) * 0.14);
+      leg.rotation.z = -Math.cos(a) * 0.12;
+      leg.rotation.x = Math.sin(a) * 0.12;
+      stool.add(leg);
+    }
+    const shoved = s.state === 'bad';
+    stool.position.set(shoved ? 0.9 : 0.05, 0, -1.0 + (shoved ? -0.35 : 0));
+    stool.rotation.y = shoved ? 0.6 : 0;
+    desk.add(stool);
+
+    // The plate on the wall above it, so the desk is that one's desk even
+    // with the screen dark.
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.26, 0.05), dark);
+    plate.position.set(x, 2.3, room.z1 - 0.1);
+    group.add(plate);
+    const label = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 0.2),
+      new THREE.MeshBasicMaterial({
+        map: crtPanel(256, 56, (c, w2) => {
+          c.fillStyle = '#6effa8';
+          c.font = 'bold 26px "Courier New", monospace';
+          c.textAlign = 'center';
+          c.fillText(s.pod + ' / ' + s.name, w2 / 2, 38);
+        }),
+      }));
+    label.position.set(x, 2.3, room.z1 - 0.14);
+    label.rotation.y = Math.PI;
+    group.add(label);
+
+    colliders.push({ x, z: z + 0.1, r: 0.95 });
+  });
+
+  group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
+  scene.add(group);
+  return { group, colliders };
 }
 
 

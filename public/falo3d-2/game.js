@@ -18,67 +18,67 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=0e33b936bd';
+import { PALETTE, getMaterial } from './shared/materials.js?v=dcbc488115';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=0e33b936bd';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=0e33b936bd';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=dcbc488115';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=dcbc488115';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=0e33b936bd';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=0e33b936bd';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=dcbc488115';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=dcbc488115';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=0e33b936bd';
+import { createDescent } from './cutscene/descent.js?v=dcbc488115';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=0e33b936bd';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=0e33b936bd';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=dcbc488115';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=dcbc488115';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=0e33b936bd';
+import { createController, updateController } from './player/controller.js?v=dcbc488115';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=0e33b936bd';
+  from './player/classes.js?v=dcbc488115';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=0e33b936bd';
+import { buildSoldier } from './npc/soldier.js?v=dcbc488115';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=0e33b936bd';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=dcbc488115';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=0e33b936bd';
-import { createSwarm } from './bosses/swarm.js?v=0e33b936bd';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=0e33b936bd';
-import { createTwins } from './bosses/twins.js?v=0e33b936bd';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=0e33b936bd';
-import { createBurrower } from './bosses/burrower.js?v=0e33b936bd';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=dcbc488115';
+import { createSwarm } from './bosses/swarm.js?v=dcbc488115';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=dcbc488115';
+import { createTwins } from './bosses/twins.js?v=dcbc488115';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=dcbc488115';
+import { createBurrower } from './bosses/burrower.js?v=dcbc488115';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=0e33b936bd';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=dcbc488115';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=0e33b936bd';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=dcbc488115';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
-import { cleanName, savedName, saveName } from './player/name.js?v=0e33b936bd';
-import { startPresence } from './shared/presence.js?v=0e33b936bd';
+import { cleanName, savedName, saveName } from './player/name.js?v=dcbc488115';
+import { startPresence } from './shared/presence.js?v=dcbc488115';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=0e33b936bd';
+  from './map/grid_map.js?v=dcbc488115';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
          buildHumanDebris, buildPrison, buildArmory,
-         buildAlienBoard, buildAlienPods, prisonBrokenCell,
+         buildAlienBoard, buildAlienPods, buildWorkstations, prisonBrokenCell,
          buildEscapePod, setEscapePodUnlocked, updateEscapePod,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=0e33b936bd';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=dcbc488115';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -929,8 +929,10 @@ function atSecretExit() {
 const wreckage = buildOutpostWreckage(scene, ROOMS.find((r) => r.id === 'room7'));
 propColliders.push(...wreckage.colliders);
 
-// The pods room: one of each alien held in a green tank, along the south
-// wall — the room's only solid run, and the wall you face coming in.
+// The pods room, which is now four walls doing four different jobs: the
+// tanks along the north, the station's own summary screen on the east with
+// the chair nobody is in, the four desks that watched them on the south,
+// and the one that didn't hold standing in the middle of all of it.
 const pods = buildAlienPods(scene, ROOMS.find((r) => r.id === 'room8'));
 propColliders.push(...pods.colliders);
 
@@ -938,6 +940,10 @@ propColliders.push(...pods.colliders);
 // the far wall.
 const study = buildStudyScreen(scene, ROOMS.find((r) => r.id === 'room8'));
 propColliders.push(...study.colliders);
+
+// One desk per tank, each with that specimen's own readout still up.
+const stations = buildWorkstations(scene, ROOMS.find((r) => r.id === 'room8'));
+propColliders.push(...stations.colliders);
 
 // The Control Room: a window onto space along the wall you walk at, the
 // station's control station filling it underneath, and the crew still at it.
