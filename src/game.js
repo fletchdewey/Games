@@ -973,16 +973,38 @@ const SHOCK_INTERVAL = 0.9;            // seconds between shocks while stood on 
 let shockCooldown = 0;
 let shockFlash = 0;
 
-// `r` is how wide the thing being moved is. It defaults to the player, who
-// was the only one that ever asked — the aliens walked through walls because
-// nothing on their side ever called this.
-function hitsWall(x, z, r = PLAYER_RADIUS) {
+// Ankle height. Anything this low is floor junk you walk over without
+// thinking about it, and a spilled ammo box that stops a two-hundred-kilo
+// Brute dead is the kind of thing that makes a room feel broken.
+const STEP_OVER = 0.42;
+
+/**
+ * `r` is how wide the thing being moved is. It defaults to the player, who
+ * was the only one that ever asked — the aliens walked through walls because
+ * nothing on their side ever called this.
+ *
+ * `feet` is how high off the floor whoever is moving currently is. Pass it
+ * and prop colliders start caring about their own height: anything shorter
+ * than STEP_OVER never blocks at all, and anything you are already above you
+ * pass straight over. Leave it out and every collider is as solid as it ever
+ * was, from the floor to the sky — which is what the spawn checks, the
+ * grenades and the rockets all still want.
+ *
+ * A collider with no `h` is infinitely tall whoever is asking. Height is
+ * opt-in, so nothing that was solid yesterday stopped being solid today.
+ */
+function hitsWall(x, z, r = PLAYER_RADIUS, feet = null) {
   // Solid props. Circles, so a rotated wreck blocks its own shape rather than
   // a square patch around it. Checked first — it's a much shorter list.
   for (const c of propColliders) {
     const dx = x - c.x, dz = z - c.z;
     const rr = c.r + r;
-    if (dx * dx + dz * dz < rr * rr) return true;
+    if (dx * dx + dz * dz >= rr * rr) continue;
+    if (feet !== null && c.h != null) {
+      if (c.h <= STEP_OVER) continue;          // stepped over
+      if (feet >= c.h - 0.06) continue;        // jumped over, or stood on
+    }
+    return true;
   }
   for (const w of walls) {
     if (w.axis === 'x') {
@@ -996,6 +1018,29 @@ function hitsWall(x, z, r = PLAYER_RADIUS) {
     }
   }
   return false;
+}
+
+/**
+ * The top of the tallest thing you are stood over, or 0 for bare floor.
+ *
+ * Without this, clearing a crate lands you INSIDE it: the jump carries you
+ * over because your feet are above its top, then gravity puts them back
+ * below it and every direction you try to move is blocked, including the
+ * one you came from. With it, you land on the lid.
+ */
+function propTopAt(x, z, r = PLAYER_RADIUS) {
+  let top = 0;
+  for (const c of propColliders) {
+    if (c.h == null || c.h <= STEP_OVER || c.h <= top) continue;
+    const dx = x - c.x, dz = z - c.z;
+    // EXACTLY the blocking radius, and that matters. Any smaller and there
+    // is a ring where you are too close to walk but not close enough to be
+    // lifted — land in it and every direction you try is blocked, including
+    // back the way you came, and you are stuck there for good.
+    const rr = c.r + r;
+    if (dx * dx + dz * dz < rr * rr) top = c.h;
+  }
+  return top;
 }
 
 /**
@@ -1045,9 +1090,11 @@ function keepOutOfWalls(pos, prevX, prevZ, r) {
   // floor, let it move freely rather than freezing it out there forever.
   if (!isFloorAt(prevX, prevZ)) return;
 
-  const alreadyTouching = hitsWall(prevX, prevZ, r);
+  // feet 0: on the floor, so ankle-high junk is stepped over and anything
+  // taller still stops them.
+  const alreadyTouching = hitsWall(prevX, prevZ, r, 0);
   const blocked = (x, z) =>
-    !isFloorAt(x, z) || (!alreadyTouching && hitsWall(x, z, r));
+    !isFloorAt(x, z) || (!alreadyTouching && hitsWall(x, z, r, 0));
 
   if (blocked(pos.x, prevZ)) pos.x = prevX;
   if (blocked(pos.x, pos.z)) pos.z = prevZ;
@@ -2580,6 +2627,15 @@ function gameLoop(now) {
       tentacles.glowMat.color.setHex(shockFlash > 0 ? 0xffffff : 0xff9ad8);
     }
 
+    // What is under your feet this frame — the floor, or the lid of
+    // something you jumped onto.
+    const gy = 1.6 + propTopAt(ctrl.position.x, ctrl.position.z);
+    ctrl.groundY = gy;
+    // And if the ground just dropped out from under you, you are no longer
+    // standing on it. The controller only applies gravity when it thinks you
+    // are in the air, so without this, walking off a crate walks you out
+    // over the floor at crate height and keeps you there.
+    if (ctrl.onGround && ctrl.position.y > gy + 0.02) ctrl.onGround = false;
     updateController(ctrl, dt);
 
   // ─── VACUUM ─────────────────────────────────────────────
@@ -2617,8 +2673,9 @@ function gameLoop(now) {
     // Wall collision — resolve X and Z independently so the player
     // slides along walls instead of sticking, and doorways stay open.
     const pos = ctrl.position;
-    if (hitsWall(pos.x, prevZ)) pos.x = prevX;
-    if (hitsWall(pos.x, pos.z)) pos.z = prevZ;
+    const feet = pos.y - 1.6;
+    if (hitsWall(pos.x, prevZ, PLAYER_RADIUS, feet)) pos.x = prevX;
+    if (hitsWall(pos.x, pos.z, PLAYER_RADIUS, feet)) pos.z = prevZ;
     camera.position.copy(pos);
   }
   updateGun(gun, dt);

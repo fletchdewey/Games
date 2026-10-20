@@ -12,15 +12,15 @@
 
 import * as THREE from 'three';
 import { roomIdAt, worldToCell, isFloorAt, WALL_HEIGHT as WALL_H,
-         SURFACE_WHITE } from './grid_map.js?v=dcbc488115';
+         SURFACE_WHITE } from './grid_map.js?v=51cc7f3465';
 // Specimens for the pods room. These come from workshop_models.js — the
 // current models, straight out of the Alien Workshop — not from the older
 // crawler/floater/brute modules the fightable aliens are still built from.
 import { buildCrawler, buildFloater, buildBrute, buildWatcher }
-  from '../aliens/workshop_models.js?v=dcbc488115';
+  from '../aliens/workshop_models.js?v=51cc7f3465';
 // The control room's map screen is drawn from the same painted cells the
 // level itself is built from.
-import { GRID } from './grid_data.js?v=dcbc488115';
+import { GRID } from './grid_data.js?v=51cc7f3465';
 
 // Deterministic jitter, so the wreck looks scattered but lands in the same
 // place every run. Math.random() here would move the bodies on every reload.
@@ -1034,10 +1034,35 @@ export function buildOutpostWreckage(scene, room, seed = 9042) {
     return [x, z];
   };
 
+  /**
+   * A spot against one of the four walls.
+   *
+   * FLETCHER: the crates used to be dropped anywhere in the room, and four
+   * Brutes in a twelve-by-eight room with three crates in the middle of it
+   * spend the fight shouldering into furniture. Shoved to the edges they do
+   * the same job — cover, and something to put between you and a charge —
+   * without standing in the middle of the only floor anybody is using.
+   */
+  const spotAtEdge = (sep, taken) => {
+    const EDGE = 1.15;
+    let x = 0, z = 0;
+    for (let tries = 0; tries < 50; tries++) {
+      const side = Math.floor(rand() * 4);
+      const t = 0.14 + rand() * 0.72;
+      if (side === 0) { x = room.x0 + EDGE; z = room.z0 + (room.z1 - room.z0) * t; }
+      else if (side === 1) { x = room.x1 - EDGE; z = room.z0 + (room.z1 - room.z0) * t; }
+      else if (side === 2) { z = room.z0 + EDGE; x = room.x0 + (room.x1 - room.x0) * t; }
+      else { z = room.z1 - EDGE; x = room.x0 + (room.x1 - room.x0) * t; }
+      if (taken.every((p) => (p[0] - x) ** 2 + (p[1] - z) ** 2 > sep * sep)) break;
+    }
+    taken.push([x, z]);
+    return [x, z];
+  };
+
   // Three smashed crates, kept apart so they don't read as one heap.
   const big = [];
   for (let i = 0; i < 3; i++) {
-    const [x, z] = spotIn(3.0, big);
+    const [x, z] = spotAtEdge(3.0, big);
     const w = 1.0 + rand() * 0.5, h = 0.75 + rand() * 0.4, d = 1.0 + rand() * 0.5;
     const c = brokenCrate(w, h, d, rand);
     c.position.set(x, 0, z);
@@ -1046,7 +1071,9 @@ export function buildOutpostWreckage(scene, room, seed = 9042) {
     // floor and buries the other, and the sprung panels already say "wrecked"
     // without it.
     group.add(c);
-    colliders.push({ x, z, r: Math.max(w, d) * 0.6 });
+    // Its real height goes with it, so it can be jumped onto and stood on
+    // rather than being a wall with no top.
+    colliders.push({ x, z, r: Math.max(w, d) * 0.6, h: h + 0.06 });
   }
 
   // Spilled contents and torn-off boards, scattered freely — this is the
@@ -3164,7 +3191,7 @@ export function buildWorkstations(scene, room) {
     label.rotation.y = Math.PI;
     group.add(label);
 
-    colliders.push({ x, z: z + 0.1, r: 0.95 });
+    colliders.push({ x, z: z + 0.1, r: 0.95, h: 0.86 });   // vault the desk
   });
 
   group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
@@ -5075,7 +5102,7 @@ export function addAftermath(scene, room, want = {}, opts = {}) {
     m.position.set(s.x, 0, s.z);
     m.rotation.y = rand() * Math.PI * 2;
     group.add(m);
-    colliders.push({ x: s.x, z: s.z, r: 0.42 });
+    colliders.push({ x: s.x, z: s.z, r: 0.42, h: 0.3 });   // walked over
   }
   for (let i = 0; i < (want.panel || 0); i++) {
     const s = takeFloor(5);
@@ -5084,7 +5111,9 @@ export function addAftermath(scene, room, want = {}, opts = {}) {
     m.position.set(s.x, 0, s.z);
     m.rotation.y = rand() * Math.PI * 2;
     group.add(m);
-    colliders.push({ x: s.x + 0.7, z: s.z, r: 0.5 });   // the plate on edge
+    // The plate standing on edge: too tall to walk through, low enough to
+    // jump, and a thing you can stand on once you are up there.
+    colliders.push({ x: s.x + 0.7, z: s.z, r: 0.5, h: 0.95 });
   }
 
   group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });

@@ -18,57 +18,57 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=dcbc488115';
+import { PALETTE, getMaterial } from './shared/materials.js?v=51cc7f3465';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=dcbc488115';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=dcbc488115';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=51cc7f3465';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=51cc7f3465';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=dcbc488115';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=dcbc488115';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=51cc7f3465';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=51cc7f3465';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=dcbc488115';
+import { createDescent } from './cutscene/descent.js?v=51cc7f3465';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=dcbc488115';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=dcbc488115';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=51cc7f3465';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=51cc7f3465';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=dcbc488115';
+import { createController, updateController } from './player/controller.js?v=51cc7f3465';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=dcbc488115';
+  from './player/classes.js?v=51cc7f3465';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=dcbc488115';
+import { buildSoldier } from './npc/soldier.js?v=51cc7f3465';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=dcbc488115';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=51cc7f3465';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=dcbc488115';
-import { createSwarm } from './bosses/swarm.js?v=dcbc488115';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=dcbc488115';
-import { createTwins } from './bosses/twins.js?v=dcbc488115';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=dcbc488115';
-import { createBurrower } from './bosses/burrower.js?v=dcbc488115';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=51cc7f3465';
+import { createSwarm } from './bosses/swarm.js?v=51cc7f3465';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=51cc7f3465';
+import { createTwins } from './bosses/twins.js?v=51cc7f3465';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=51cc7f3465';
+import { createBurrower } from './bosses/burrower.js?v=51cc7f3465';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=dcbc488115';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=51cc7f3465';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=dcbc488115';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=51cc7f3465';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
-import { cleanName, savedName, saveName } from './player/name.js?v=dcbc488115';
-import { startPresence } from './shared/presence.js?v=dcbc488115';
+import { cleanName, savedName, saveName } from './player/name.js?v=51cc7f3465';
+import { startPresence } from './shared/presence.js?v=51cc7f3465';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=dcbc488115';
+  from './map/grid_map.js?v=51cc7f3465';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -78,7 +78,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=dcbc488115';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=51cc7f3465';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -973,16 +973,38 @@ const SHOCK_INTERVAL = 0.9;            // seconds between shocks while stood on 
 let shockCooldown = 0;
 let shockFlash = 0;
 
-// `r` is how wide the thing being moved is. It defaults to the player, who
-// was the only one that ever asked — the aliens walked through walls because
-// nothing on their side ever called this.
-function hitsWall(x, z, r = PLAYER_RADIUS) {
+// Ankle height. Anything this low is floor junk you walk over without
+// thinking about it, and a spilled ammo box that stops a two-hundred-kilo
+// Brute dead is the kind of thing that makes a room feel broken.
+const STEP_OVER = 0.42;
+
+/**
+ * `r` is how wide the thing being moved is. It defaults to the player, who
+ * was the only one that ever asked — the aliens walked through walls because
+ * nothing on their side ever called this.
+ *
+ * `feet` is how high off the floor whoever is moving currently is. Pass it
+ * and prop colliders start caring about their own height: anything shorter
+ * than STEP_OVER never blocks at all, and anything you are already above you
+ * pass straight over. Leave it out and every collider is as solid as it ever
+ * was, from the floor to the sky — which is what the spawn checks, the
+ * grenades and the rockets all still want.
+ *
+ * A collider with no `h` is infinitely tall whoever is asking. Height is
+ * opt-in, so nothing that was solid yesterday stopped being solid today.
+ */
+function hitsWall(x, z, r = PLAYER_RADIUS, feet = null) {
   // Solid props. Circles, so a rotated wreck blocks its own shape rather than
   // a square patch around it. Checked first — it's a much shorter list.
   for (const c of propColliders) {
     const dx = x - c.x, dz = z - c.z;
     const rr = c.r + r;
-    if (dx * dx + dz * dz < rr * rr) return true;
+    if (dx * dx + dz * dz >= rr * rr) continue;
+    if (feet !== null && c.h != null) {
+      if (c.h <= STEP_OVER) continue;          // stepped over
+      if (feet >= c.h - 0.06) continue;        // jumped over, or stood on
+    }
+    return true;
   }
   for (const w of walls) {
     if (w.axis === 'x') {
@@ -996,6 +1018,29 @@ function hitsWall(x, z, r = PLAYER_RADIUS) {
     }
   }
   return false;
+}
+
+/**
+ * The top of the tallest thing you are stood over, or 0 for bare floor.
+ *
+ * Without this, clearing a crate lands you INSIDE it: the jump carries you
+ * over because your feet are above its top, then gravity puts them back
+ * below it and every direction you try to move is blocked, including the
+ * one you came from. With it, you land on the lid.
+ */
+function propTopAt(x, z, r = PLAYER_RADIUS) {
+  let top = 0;
+  for (const c of propColliders) {
+    if (c.h == null || c.h <= STEP_OVER || c.h <= top) continue;
+    const dx = x - c.x, dz = z - c.z;
+    // EXACTLY the blocking radius, and that matters. Any smaller and there
+    // is a ring where you are too close to walk but not close enough to be
+    // lifted — land in it and every direction you try is blocked, including
+    // back the way you came, and you are stuck there for good.
+    const rr = c.r + r;
+    if (dx * dx + dz * dz < rr * rr) top = c.h;
+  }
+  return top;
 }
 
 /**
@@ -1045,9 +1090,11 @@ function keepOutOfWalls(pos, prevX, prevZ, r) {
   // floor, let it move freely rather than freezing it out there forever.
   if (!isFloorAt(prevX, prevZ)) return;
 
-  const alreadyTouching = hitsWall(prevX, prevZ, r);
+  // feet 0: on the floor, so ankle-high junk is stepped over and anything
+  // taller still stops them.
+  const alreadyTouching = hitsWall(prevX, prevZ, r, 0);
   const blocked = (x, z) =>
-    !isFloorAt(x, z) || (!alreadyTouching && hitsWall(x, z, r));
+    !isFloorAt(x, z) || (!alreadyTouching && hitsWall(x, z, r, 0));
 
   if (blocked(pos.x, prevZ)) pos.x = prevX;
   if (blocked(pos.x, pos.z)) pos.z = prevZ;
@@ -2580,6 +2627,15 @@ function gameLoop(now) {
       tentacles.glowMat.color.setHex(shockFlash > 0 ? 0xffffff : 0xff9ad8);
     }
 
+    // What is under your feet this frame — the floor, or the lid of
+    // something you jumped onto.
+    const gy = 1.6 + propTopAt(ctrl.position.x, ctrl.position.z);
+    ctrl.groundY = gy;
+    // And if the ground just dropped out from under you, you are no longer
+    // standing on it. The controller only applies gravity when it thinks you
+    // are in the air, so without this, walking off a crate walks you out
+    // over the floor at crate height and keeps you there.
+    if (ctrl.onGround && ctrl.position.y > gy + 0.02) ctrl.onGround = false;
     updateController(ctrl, dt);
 
   // ─── VACUUM ─────────────────────────────────────────────
@@ -2617,8 +2673,9 @@ function gameLoop(now) {
     // Wall collision — resolve X and Z independently so the player
     // slides along walls instead of sticking, and doorways stay open.
     const pos = ctrl.position;
-    if (hitsWall(pos.x, prevZ)) pos.x = prevX;
-    if (hitsWall(pos.x, pos.z)) pos.z = prevZ;
+    const feet = pos.y - 1.6;
+    if (hitsWall(pos.x, prevZ, PLAYER_RADIUS, feet)) pos.x = prevX;
+    if (hitsWall(pos.x, pos.z, PLAYER_RADIUS, feet)) pos.z = prevZ;
     camera.position.copy(pos);
   }
   updateGun(gun, dt);
