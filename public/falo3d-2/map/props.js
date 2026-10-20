@@ -12,15 +12,15 @@
 
 import * as THREE from 'three';
 import { roomIdAt, worldToCell, isFloorAt, WALL_HEIGHT as WALL_H,
-         SURFACE_WHITE } from './grid_map.js?v=269e3c9535';
+         SURFACE_WHITE } from './grid_map.js?v=3fb94f9293';
 // Specimens for the pods room. These come from workshop_models.js — the
 // current models, straight out of the Alien Workshop — not from the older
 // crawler/floater/brute modules the fightable aliens are still built from.
 import { buildCrawler, buildFloater, buildBrute, buildWatcher }
-  from '../aliens/workshop_models.js?v=269e3c9535';
+  from '../aliens/workshop_models.js?v=3fb94f9293';
 // The control room's map screen is drawn from the same painted cells the
 // level itself is built from.
-import { GRID } from './grid_data.js?v=269e3c9535';
+import { GRID } from './grid_data.js?v=3fb94f9293';
 
 // Deterministic jitter, so the wreck looks scattered but lands in the same
 // place every run. Math.random() here would move the bodies on every reload.
@@ -4338,6 +4338,163 @@ export function lockedDoorIsOpen(door) {
 //
 // It returns its own wall segments for the caller to push into the level's
 // collision list. Without them you would walk straight out into the dark.
+/** A canvas drawn once and tiled across a surface. */
+function tiled(w, h, rx, ry, draw) {
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  draw(cv.getContext('2d'), w, h);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(rx, ry);
+  return tex;
+}
+
+/** Deck plate: seams, rivets along them, and sixty years of boots. */
+function deckTexture(rx, ry) {
+  return tiled(256, 256, rx, ry, (g, w, h) => {
+    g.fillStyle = '#4f555b';
+    g.fillRect(0, 0, w, h);
+    // Two plates across the tile, so the seams do not line up in a grid.
+    g.strokeStyle = '#3c4248';
+    g.lineWidth = 3;
+    g.strokeRect(0, 0, w, h);
+    g.beginPath(); g.moveTo(w / 2, 0); g.lineTo(w / 2, h); g.stroke();
+    g.fillStyle = '#595f65';
+    for (let i = 0; i < 26; i++) {           // rivets down the seams
+      const y = 10 + i * 10;
+      g.fillRect(4, y, 3, 3); g.fillRect(w - 7, y, 3, 3);
+      g.fillRect(w / 2 - 5, y, 3, 3);
+    }
+    // Scuffs and stains. Nothing regular, or it reads as a pattern.
+    for (let i = 0; i < 40; i++) {
+      g.fillStyle = Math.random() < 0.5
+        ? 'rgba(255,255,255,0.045)' : 'rgba(30,26,24,0.09)';
+      g.fillRect(Math.random() * w, Math.random() * h,
+                 10 + Math.random() * 60, 2 + Math.random() * 8);
+    }
+    for (let i = 0; i < 5; i++) {
+      const x = Math.random() * w, y = Math.random() * h;
+      const st = g.createRadialGradient(x, y, 0, x, y, 20 + Math.random() * 34);
+      st.addColorStop(0, 'rgba(36,28,22,0.3)');
+      st.addColorStop(1, 'rgba(36,28,22,0)');
+      g.fillStyle = st;
+      g.fillRect(x - 60, y - 60, 120, 120);
+    }
+  });
+}
+
+/** Wall plating: a seam across the middle, rivets, rust running down from
+ *  them, and a kick plate along the bottom where everything gets kicked. */
+function wallPlateTexture(rx) {
+  return tiled(256, 256, rx, 1, (g, w, h) => {
+    g.fillStyle = '#656b71';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#5a6066';                 // upper half, very slightly off
+    g.fillRect(0, 0, w, 96);
+    g.strokeStyle = '#5d646b';
+    g.lineWidth = 3;
+    for (const y of [96, 0]) {
+      g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+    }
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(0, h); g.stroke();
+    g.fillStyle = '#656c72';
+    for (let i = 0; i < 14; i++) g.fillRect(8 + i * 18, 90, 4, 4);
+    // Rust, running down from every seam it can.
+    for (let i = 0; i < 9; i++) {
+      const x = Math.random() * w, y = 96 + Math.random() * 10;
+      const run = g.createLinearGradient(0, y, 0, y + 40 + Math.random() * 70);
+      run.addColorStop(0, 'rgba(96,58,30,0.42)');
+      run.addColorStop(1, 'rgba(96,58,30,0)');
+      g.fillStyle = run;
+      g.fillRect(x, y, 3 + Math.random() * 7, 110);
+    }
+    g.fillStyle = '#3e454b';                 // kick plate
+    g.fillRect(0, 214, w, 42);
+    g.fillStyle = 'rgba(20,18,16,0.25)';
+    for (let i = 0; i < 18; i++) {
+      g.fillRect(Math.random() * w, 216 + Math.random() * 36,
+                 4 + Math.random() * 26, 2 + Math.random() * 5);
+    }
+  });
+}
+
+/** Letters sprayed through a stencil onto a strip of plate. */
+function stencilStrip(text) {
+  const cv = document.createElement('canvas');
+  cv.width = 256; cv.height = 72;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#3c4249';
+  g.fillRect(0, 0, 256, 72);
+  g.fillStyle = '#c3c8bd';
+  g.font = 'bold 40px monospace';
+  g.textAlign = 'center';
+  g.fillText(text, 128, 52);
+  // Sprayed, not printed: a few gaps where the stencil sat proud.
+  g.fillStyle = 'rgba(60,66,73,0.85)';
+  for (let i = 0; i < 16; i++) {
+    g.fillRect(Math.random() * 256, 14 + Math.random() * 44,
+               2 + Math.random() * 7, 2 + Math.random() * 5);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = tex.magFilter = THREE.LinearFilter;
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.generateMipmaps = false;
+  return tex;
+}
+
+/** The thing pinned over the bench: somebody's map of the station, with
+ *  the way out of it worked out in pencil. */
+function pinnedNoteTexture() {
+  const cv = document.createElement('canvas');
+  cv.width = 256; cv.height = 192;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#d9d2bd';
+  g.fillRect(0, 0, 256, 192);
+  g.fillStyle = 'rgba(120,100,70,0.16)';
+  for (let i = 0; i < 24; i++) {
+    g.fillRect(Math.random() * 256, Math.random() * 192,
+               6 + Math.random() * 30, 2 + Math.random() * 10);
+  }
+  // A plan of somewhere, drawn by somebody who was not an architect.
+  g.strokeStyle = '#4a4336';
+  g.lineWidth = 2;
+  const rooms = [[18, 30, 60, 46], [92, 22, 54, 40], [160, 34, 66, 52],
+                 [26, 104, 74, 52], [120, 96, 48, 40], [182, 110, 48, 44]];
+  for (const [x, y, w, h] of rooms) g.strokeRect(x, y, w, h);
+  g.lineWidth = 1.4;
+  g.setLineDash([5, 4]);
+  g.beginPath();
+  g.moveTo(48, 130); g.lineTo(48, 76); g.lineTo(119, 60);
+  g.lineTo(144, 96); g.lineTo(206, 110);
+  g.stroke();
+  g.setLineDash([]);
+  // The one that is circled, and twice underlined, is this one.
+  g.strokeStyle = '#8a2a1e';
+  g.lineWidth = 2.5;
+  g.beginPath(); g.ellipse(53, 130, 40, 32, 0, 0, Math.PI * 2); g.stroke();
+  g.font = 'bold 13px monospace';
+  g.fillStyle = '#8a2a1e';
+  g.fillText('HERE', 34, 134);
+  g.fillStyle = '#4a4336';
+  g.font = '11px monospace';
+  g.fillText('DO NOT USE THE DOOR', 20, 176);
+  // Days, in fives, in the corner.
+  g.strokeStyle = '#4a4336';
+  g.lineWidth = 1.6;
+  for (let b = 0; b < 4; b++) {
+    const x = 196 + b * 14;
+    for (let i = 0; i < 4; i++) {
+      g.beginPath(); g.moveTo(x + i * 2.6, 158); g.lineTo(x + i * 2.6, 172); g.stroke();
+    }
+    g.beginPath(); g.moveTo(x - 2, 172); g.lineTo(x + 11, 158); g.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = tex.magFilter = THREE.LinearFilter;
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.generateMipmaps = false;
+  return tex;
+}
+
 export function buildSecretRoom(scene, at, seed = 4413) {
   const rand = rng(seed);
   const group = new THREE.Group();
@@ -4345,97 +4502,311 @@ export function buildSecretRoom(scene, at, seed = 4413) {
 
   const W = 11, D = 9, H = 3.4;                 // lower than the station: tight
   const x0 = -W / 2, x1 = W / 2, z0 = -D / 2, z1 = D / 2;
+  const colliders = [];
+  const put = (mesh, x, y, z, ry = 0) => {
+    mesh.position.set(x, y, z);
+    mesh.rotation.y = ry;
+    group.add(mesh);
+    return mesh;
+  };
+  const box = (w, h, d, mat) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  const solid = (x, z, r, h) => colliders.push(h == null
+    ? { x: at.x + x, z: at.z + z, r }
+    : { x: at.x + x, z: at.z + z, r, h });
 
-  // Lighter than they look right, because out here there is nothing but the
-  // station's thin ambient and this room's one bulb — the grid's ceiling
-  // lamps only exist over painted floor, and this floor was never painted.
-  const wallMat = new THREE.MeshLambertMaterial({ color: 0x9aa0a6 });
-  const trimMat = new THREE.MeshLambertMaterial({ color: 0x575f66 });
-  const floorMat = new THREE.MeshLambertMaterial({ color: 0x8a8f94 });
+  const trimMat = new THREE.MeshLambertMaterial({ color: 0x4e555c });
+  const steelMat = M.metal();
+  const darkMat = new THREE.MeshLambertMaterial({ color: 0x343a40 });
 
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), floorMat);
+  // ── The room itself ──────────────────────────────────────
+  // Plated rather than painted. The walls were four blank slabs and the
+  // floor one flat grey sheet, which is why the whole thing read as a
+  // corridor somebody had forgotten to finish.
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D),
+    new THREE.MeshLambertMaterial({ map: deckTexture(4, 3) }));
   floor.rotation.x = -Math.PI / 2;
   group.add(floor);
-  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, D), trimMat);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, D),
+    new THREE.MeshLambertMaterial({ color: 0x272c31 }));
   ceil.rotation.x = Math.PI / 2;
   ceil.position.y = H;
   group.add(ceil);
 
-  // Four walls, drawn and solid. The solid half goes back to the caller.
-  const slabs = [[0, z0, W, 0.2], [0, z1, W, 0.2]];
-  for (const [cx, cz, w, d] of slabs) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, H, d), wallMat);
-    m.position.set(cx, H / 2, cz);
-    group.add(m);
-  }
-  for (const cx of [x0, x1]) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(0.2, H, D), wallMat);
-    m.position.set(cx, H / 2, 0);
-    group.add(m);
-  }
-  // Ribs, so the walls aren't four blank slabs.
+  const longWall = new THREE.MeshLambertMaterial({ map: wallPlateTexture(3) });
+  const endWall = new THREE.MeshLambertMaterial({ map: wallPlateTexture(2.5) });
+  for (const cz of [z0, z1]) put(box(W, H, 0.2, longWall), 0, H / 2, cz);
+  for (const cx of [x0, x1]) put(box(0.2, H, D, endWall), cx, H / 2, 0);
+
+  // Ribs standing off the long walls, and a rail along both of them at
+  // shoulder height — the room reads as built rather than as a box.
   for (let i = 1; i < 5; i++) {
     for (const cz of [z0 + 0.14, z1 - 0.14]) {
-      const rib = new THREE.Mesh(new THREE.BoxGeometry(0.12, H, 0.06), trimMat);
-      rib.position.set(x0 + (W / 5) * i, H / 2, cz);
-      group.add(rib);
+      put(box(0.12, H, 0.08, trimMat), x0 + (W / 5) * i, H / 2, cz);
+    }
+  }
+  for (const cz of [z0 + 0.2, z1 - 0.2]) {
+    put(box(W - 0.6, 0.07, 0.07, trimMat), 0, 2.05, cz);
+  }
+
+  // ── Up top: pipes, a vent, and the lamp's own cable ───────
+  for (const cz of [-2.3, 2.3]) {
+    const pipe = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.1, W - 0.4, 8), steelMat);
+    pipe.rotation.z = Math.PI / 2;
+    put(pipe, 0, H - 0.22, cz);
+    for (const cx of [-3.4, -0.6, 2.2, 4.4]) {
+      put(box(0.1, 0.3, 0.16, trimMat), cx, H - 0.08, cz);   // hangers
+    }
+  }
+  const vent = put(box(1.1, 0.07, 0.8, darkMat), -2.0, H - 0.05, -3.2);
+  for (let i = 0; i < 6; i++) {
+    put(box(1.0, 0.03, 0.06, trimMat), -2.0, H - 0.09, -3.5 + i * 0.12);
+  }
+
+  // ── The one light in here ────────────────────────────────
+  const flex = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.02, 0.02, 0.5, 5), darkMat);
+  put(flex, 0, H - 0.25, 0);
+  const cage = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.3, 0.34, 0.2, 8), trimMat);
+  put(cage, 0, H - 0.5, 0);
+  for (let i = 0; i < 6; i++) {               // the cage over the glass
+    const bar = box(0.02, 0.3, 0.02, trimMat);
+    bar.position.set(Math.cos(i / 6 * Math.PI * 2) * 0.24, H - 0.72,
+                     Math.sin(i / 6 * Math.PI * 2) * 0.24);
+    group.add(bar);
+  }
+  const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffe9b0 });
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), bulbMat);
+  put(bulb, 0, H - 0.66, 0);
+  // Short range on purpose. At twenty-two it lit the room evenly, corner
+  // to corner, which is what a ceiling grid does — not what one bulb on a
+  // flex does. Now it falls off and the ends of the room are dim.
+  const lamp = new THREE.PointLight(0xffe2a0, 2.5, 14, 1.2);
+  put(lamp, 0, H - 0.8, 0);
+  const fill = new THREE.PointLight(0xdfe6f0, 0.55, 12, 1.3);
+  put(fill, x0 + 2.4, H - 0.9, 0);
+
+  // ── Somebody lived in here ───────────────────────────────
+  // A bunk against the far wall, and the shelf by the way in with the two
+  // things on it that the game offers you the moment you arrive. They
+  // were a line of text and nothing else before this.
+  const matMat = new THREE.MeshLambertMaterial({ color: 0x4a5144 });
+  const blanketMat = new THREE.MeshLambertMaterial({ color: 0x3b4336 });
+  const bunkX = 1.6, bunkZ = z1 - 0.75;
+  put(box(2.1, 0.12, 0.9, M.crateTrim()), bunkX, 0.3, bunkZ);
+  for (const dx of [-0.9, 0.9]) {
+    for (const dz of [-0.35, 0.35]) {
+      put(box(0.1, 0.3, 0.1, M.crateTrim()), bunkX + dx, 0.15, bunkZ + dz);
+    }
+  }
+  put(box(2.0, 0.16, 0.8, matMat), bunkX, 0.44, bunkZ);
+  const blanket = box(0.9, 0.2, 0.75, blanketMat);
+  put(blanket, bunkX - 0.5, 0.58, bunkZ, 0.1);
+  const pillow = box(0.5, 0.14, 0.4, matMat);
+  put(pillow, bunkX + 0.72, 0.57, bunkZ, -0.2);
+  solid(bunkX, bunkZ, 1.15, 0.6);
+
+  // The shelf: two boards, three grenades on the lower one and a field
+  // kit on the upper. These are the choice the prompt is talking about.
+  // Where you can see it from the spot you arrive on, which is the whole
+  // point of it: the game offers you its two things the instant you land
+  // in here, and the shelf they are on was out of frame.
+  const shelfX = 0.6, shelfZ = z0 + 0.52;
+  for (const dx of [-0.85, 0.85]) {
+    put(box(0.09, 1.85, 0.5, trimMat), shelfX + dx, 0.92, shelfZ);
+  }
+  for (const sy of [0.62, 1.22, 1.78]) {
+    put(box(1.8, 0.07, 0.5, M.benchTop()), shelfX, sy, shelfZ);
+  }
+  const kit = put(box(0.52, 0.3, 0.36, M.labCoat()), shelfX - 0.5, 1.4, shelfZ, 0.12);
+  put(box(0.3, 0.07, 0.02, new THREE.MeshBasicMaterial({ color: 0xcc2b2b })),
+      shelfX - 0.5, 1.42, shelfZ + 0.19, 0.12);
+  put(box(0.07, 0.22, 0.02, new THREE.MeshBasicMaterial({ color: 0xcc2b2b })),
+      shelfX - 0.5, 1.42, shelfZ + 0.19, 0.12);
+  for (let i = 0; i < 3; i++) {
+    const nade = new THREE.Mesh(new THREE.SphereGeometry(0.1, 7, 6), M.ammoBox());
+    put(nade, shelfX + 0.1 + i * 0.26, 0.76, shelfZ - 0.04 + (i % 2) * 0.12);
+    put(box(0.03, 0.12, 0.03, M.gunMetal()),
+        shelfX + 0.1 + i * 0.26, 0.9, shelfZ - 0.04 + (i % 2) * 0.12);
+  }
+  // Tins and a canteen on the top board, because he had to eat.
+  for (let i = 0; i < 4; i++) {
+    const tin = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.07, 0.1, 8), M.ammoBox());
+    put(tin, shelfX - 0.7 + i * 0.2, 1.86, shelfZ + 0.1);
+  }
+  solid(shelfX, shelfZ, 0.95);
+
+  // A crate for a table, with what he had on it.
+  // Between the ribs, not on one: the ribs stand at x0 + 2.2i, and the
+  // first cut of this put the table and the note it is under at -1.1,
+  // which is exactly where one of them is. The note read as two sheets
+  // with a post down the middle of it.
+  const tableX = -2.3, tableZ = z0 + 0.7;
+  put(box(1.0, 0.86, 0.8, M.crateMetal()), tableX, 0.43, tableZ, 0.06);
+  put(box(1.3, 0.07, 0.95, M.crateWood()), tableX, 0.9, tableZ, 0.06);
+  const mug = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.07, 0.06, 0.12, 8), M.labTrim());
+  put(mug, tableX + 0.32, 0.99, tableZ + 0.12);
+  put(box(0.26, 0.02, 0.2, M.labCoat()), tableX - 0.2, 0.94, tableZ - 0.05, 0.3);
+  const lampShade = new THREE.Mesh(
+    new THREE.ConeGeometry(0.16, 0.18, 8, 1, true), trimMat);
+  lampShade.rotation.x = Math.PI;
+  put(lampShade, tableX - 0.45, 1.08, tableZ - 0.2);
+  solid(tableX, tableZ, 0.85, 1.0);
+
+  // What he worked out, pinned over it.
+  // Under the rail rather than across it, and clear of the table top.
+  const note = new THREE.Mesh(new THREE.PlaneGeometry(1.24, 0.93),
+    new THREE.MeshBasicMaterial({ map: pinnedNoteTexture() }));
+  put(note, tableX, 1.52, z0 + 0.12);
+  for (const dx of [-0.54, 0.54]) {
+    const pin = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5),
+      new THREE.MeshBasicMaterial({ color: 0xcc3322 }));
+    put(pin, tableX + dx, 1.92, z0 + 0.13);
+  }
+
+  // A bucket, a coil of cable, and two crates shoved where they will not
+  // be in the way of anybody walking the length of the room.
+  const bucket = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.22, 0.17, 0.34, 10), steelMat);
+  put(bucket, 3.6, 0.17, z1 - 0.6);
+  solid(3.6, z1 - 0.6, 0.3, 0.38);
+  const coil = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.07, 5, 12), darkMat);
+  coil.rotation.x = Math.PI / 2;
+  put(coil, 4.6, 0.07, z1 - 1.4);
+  solid(4.6, z1 - 1.4, 0.38, 0.2);
+  for (const [cx, cz, cw, ch, cd, rot] of [
+    [x0 + 1.3, z0 + 1.2, 1.0, 0.8, 0.9, 0.2],
+    [x0 + 1.1, z1 - 1.3, 0.8, 0.6, 0.8, -0.4],
+  ]) {
+    const crate = box(cw, ch, cd, M.crateMetal());
+    put(crate, cx, ch / 2, cz, rot);
+    solid(cx, cz, Math.max(cw, cd) * 0.6, ch + 0.05);
+  }
+
+  // ── And what the room is for now ─────────────────────────
+  // A ring bolted to the wall where the soldier sits, with the chain still
+  // on it. He is put there by the game, not by this file.
+  const ringX = x0 + 2.6, ringZ = z1 - 0.18;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.03, 5, 10), darkMat);
+  put(ring, ringX, 0.85, ringZ);
+  put(box(0.16, 0.16, 0.08, trimMat), ringX, 0.85, ringZ + 0.06);
+  for (let i = 0; i < 5; i++) {
+    const link = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.016, 4, 8), darkMat);
+    link.rotation.x = Math.PI / 2;
+    link.rotation.z = i * 0.6;
+    put(link, ringX + 0.05 + i * 0.07, 0.78 - i * 0.14, ringZ - 0.1 - i * 0.05);
+  }
+
+  // Days, in fives, cut into the plating where he could reach them.
+  const scratch = new THREE.MeshBasicMaterial({ color: 0x2a2320 });
+  for (let b = 0; b < 6; b++) {
+    const bz = -2.0 + b * 0.78;
+    const full = b < 5;
+    const n = full ? 4 : 2;
+    for (let i = 0; i < n; i++) {
+      const s = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.3 + rand() * 0.06, 0.02),
+        scratch);
+      s.position.set(x1 - 0.12, 1.1, bz + i * 0.1);
+      s.rotation.x = (rand() - 0.5) * 0.14;
+      group.add(s);
+    }
+    if (full) {                         // the fifth, struck across the four
+      const s = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.44, 0.02), scratch);
+      s.position.set(x1 - 0.12, 1.1, bz + 0.15);
+      s.rotation.x = 1.0;
+      group.add(s);
     }
   }
 
-  // One caged lamp, and it is the only light in here.
-  const cage = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.2, 8), trimMat);
-  cage.position.set(0, H - 0.18, 0);
-  group.add(cage);
-  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6),
-    new THREE.MeshBasicMaterial({ color: 0xffe9b0 }));
-  bulb.position.set(0, H - 0.34, 0);
-  group.add(bulb);
-  const lamp = new THREE.PointLight(0xffe2a0, 2.2, 22, 1.1);
-  lamp.position.set(0, H - 0.5, 0);
-  group.add(lamp);
-  // A second, dimmer one down the far end, or the hatch sits in the dark.
-  const fill = new THREE.PointLight(0xdfe6f0, 0.8, 14, 1.3);
-  fill.position.set(x0 + 2.4, H - 0.9, 0);
-  group.add(fill);
+  // A panel off the wall with the loom behind it showing — this room is
+  // somewhere between two others, and nothing in here was finished.
+  put(box(0.06, 0.9, 1.1, darkMat), x1 - 0.1, 1.5, z0 + 1.6);
+  for (let i = 0; i < 5; i++) {
+    const wire = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 0.7 + rand() * 0.5, 5),
+      i % 2 ? new THREE.MeshLambertMaterial({ color: 0x7a2f2f })
+            : new THREE.MeshLambertMaterial({ color: 0x2f4a7a }));
+    wire.rotation.z = 0.3 + rand() * 0.5;
+    wire.rotation.x = (rand() - 0.5) * 0.6;
+    put(wire, x1 - 0.22, 1.5 - i * 0.12, z0 + 1.3 + i * 0.16);
+  }
+  const leaning = box(0.05, 1.0, 1.1, trimMat);   // the panel itself
+  put(leaning, x1 - 0.42, 0.5, z0 + 2.6, 0.2);
+  leaning.rotation.z = 0.22;
+  solid(x1 - 0.42, z0 + 2.6, 0.6, 1.05);
 
-  // Crates and a footlocker, shoved against the walls.
-  const colliders = [];
-  for (const [cx, cz, cw, ch, cd, rot] of [
-    [x0 + 1.3, z0 + 1.1, 1.0, 0.8, 0.9, 0.2],
-    [x0 + 1.1, z0 + 2.3, 0.8, 0.6, 0.8, -0.4],
-    [x1 - 1.4, z1 - 1.2, 1.2, 0.7, 0.9, 0.35],
-  ]) {
-    const crate = new THREE.Mesh(new THREE.BoxGeometry(cw, ch, cd), M.crateMetal());
-    crate.position.set(cx, ch / 2, cz);
-    crate.rotation.y = rot;
-    group.add(crate);
-    colliders.push({ x: at.x + cx, z: at.z + cz, r: Math.max(cw, cd) * 0.6 });
+  // A drain in the deck, because somebody washed this floor down once.
+  const drain = new THREE.Mesh(new THREE.CircleGeometry(0.26, 12), darkMat);
+  drain.rotation.x = -Math.PI / 2;
+  put(drain, -3.0, 0.012, 2.4);
+  for (let i = 0; i < 5; i++) {
+    put(box(0.44, 0.012, 0.04, trimMat), -3.0, 0.02, 2.2 + i * 0.1);
   }
 
-  // Scratches, low down. Something was kept in here before he was.
-  for (let i = 0; i < 9; i++) {
-    const s = new THREE.Mesh(
-      new THREE.BoxGeometry(0.03, 0.26 + rand() * 0.4, 0.02),
-      new THREE.MeshBasicMaterial({ color: 0x2a2320 }));
-    s.position.set(x1 - 0.12, 0.5 + rand() * 0.9, z0 + 1.4 + i * 0.55);
-    s.rotation.z = (rand() - 0.5) * 0.5;
-    group.add(s);
+  // ── The way out ──────────────────────────────────────────
+  // A hatch, dogged shut, with a wheel on it and a light that says it
+  // still works. It used to be a plain slab with a green dot over it.
+  const hatchX = x0 + 0.12;
+  put(box(0.1, 2.3, 1.7, trimMat), hatchX + 0.02, 1.15, 0);       // frame
+  const leaf = put(box(0.14, 2.0, 1.4, steelMat), hatchX + 0.08, 1.0, 0);
+  for (const [dy, dz] of [[0.78, 0.55], [0.78, -0.55], [-0.78, 0.55], [-0.78, -0.55]]) {
+    put(box(0.1, 0.16, 0.16, darkMat), hatchX + 0.17, 1.0 + dy, dz);   // dogs
   }
-
-  // The way out: a hatch in the far wall, lit so you can find it.
-  const hatch = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.0, 1.3), trimMat);
-  hatch.position.set(x0 + 0.12, 1.0, 0);
-  group.add(hatch);
-  const hatchLamp = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 5),
+  const wheelMat = new THREE.MeshLambertMaterial({ color: 0x8e959b });
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.055, 6, 16), wheelMat);
+  wheel.rotation.y = Math.PI / 2;
+  put(wheel, hatchX + 0.24, 1.0, 0);
+  for (let i = 0; i < 4; i++) {
+    const spoke = box(0.05, 0.64, 0.05, wheelMat);
+    spoke.rotation.x = i * Math.PI / 4;
+    put(spoke, hatchX + 0.24, 1.0, 0);
+  }
+  // Stencilled, rather than a blank white bar with nothing on it.
+  const label = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.22),
+    new THREE.MeshBasicMaterial({ map: stencilStrip('MAINT. 7') }));
+  label.rotation.y = Math.PI / 2;
+  put(label, hatchX + 0.17, 2.15, 0);
+  for (let i = 0; i < 5; i++) {                                      // hazard
+    const st = box(0.03, 0.2, 0.18, M.hazard());
+    st.rotation.x = 0.6;
+    put(st, hatchX + 0.17, 0.18, -0.5 + i * 0.25);
+  }
+  const hatchLamp = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5),
     new THREE.MeshBasicMaterial({ color: 0x44ff88 }));
-  hatchLamp.position.set(x0 + 0.24, 2.2, 0);
-  group.add(hatchLamp);
+  put(hatchLamp, hatchX + 0.26, 2.5, 0);
+  const hatchGlow = new THREE.PointLight(0x44ff88, 0.7, 5, 1.4);
+  put(hatchGlow, hatchX + 0.5, 2.4, 0);
 
   group.traverse((o) => { if (o.isMesh) o.userData.isWall = true; });
   scene.add(group);
 
+  // The bulb is not well. Mostly it sits still; every few seconds it dips
+  // for a tenth of a second, which is the difference between a room with a
+  // light in it and a room nobody has been able to fix.
+  let clock = 0, dipLeft = 0, nextDip = 3 + rand() * 5;
+  function tick(dt) {
+    clock += dt;
+    if (dipLeft > 0) {
+      dipLeft -= dt;
+      const k = 0.4 + Math.random() * 0.45;
+      lamp.intensity = 2.5 * k;
+      bulbMat.color.setRGB(1, 0.7 + k * 0.21, 0.4 + k * 0.29);
+      if (dipLeft <= 0) {
+        lamp.intensity = 2.5;
+        bulbMat.color.setHex(0xffe9b0);
+        nextDip = clock + 3 + Math.random() * 7;
+      }
+    } else if (clock >= nextDip) {
+      dipLeft = 0.06 + Math.random() * 0.14;
+    }
+  }
+
   return {
     group,
+    tick,
     // Pushed into the level's wall list by the caller, or you walk out of it.
     walls: [
       { axis: 'z', pos: at.z + z0, min: at.x + x0, max: at.x + x1 },

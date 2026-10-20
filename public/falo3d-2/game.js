@@ -18,60 +18,60 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=269e3c9535';
+import { PALETTE, getMaterial } from './shared/materials.js?v=3fb94f9293';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=269e3c9535';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=269e3c9535';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=3fb94f9293';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=3fb94f9293';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=269e3c9535';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=269e3c9535';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=3fb94f9293';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=3fb94f9293';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=269e3c9535';
-import { createArrival } from './cutscene/arrival.js?v=269e3c9535';
+import { createDescent } from './cutscene/descent.js?v=3fb94f9293';
+import { createArrival } from './cutscene/arrival.js?v=3fb94f9293';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=269e3c9535';
-import { masterVolume } from './audio/sound.js?v=269e3c9535';
-import { say, hush, castList } from './audio/speech.js?v=269e3c9535';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=269e3c9535';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=3fb94f9293';
+import { masterVolume } from './audio/sound.js?v=3fb94f9293';
+import { say, hush, castList } from './audio/speech.js?v=3fb94f9293';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=3fb94f9293';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=269e3c9535';
+import { createController, updateController } from './player/controller.js?v=3fb94f9293';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=269e3c9535';
+  from './player/classes.js?v=3fb94f9293';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=269e3c9535';
+import { buildSoldier } from './npc/soldier.js?v=3fb94f9293';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=269e3c9535';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=3fb94f9293';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=269e3c9535';
-import { createSwarm } from './bosses/swarm.js?v=269e3c9535';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=269e3c9535';
-import { createTwins } from './bosses/twins.js?v=269e3c9535';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=269e3c9535';
-import { createBurrower } from './bosses/burrower.js?v=269e3c9535';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=3fb94f9293';
+import { createSwarm } from './bosses/swarm.js?v=3fb94f9293';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=3fb94f9293';
+import { createTwins } from './bosses/twins.js?v=3fb94f9293';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=3fb94f9293';
+import { createBurrower } from './bosses/burrower.js?v=3fb94f9293';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=269e3c9535';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=3fb94f9293';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=269e3c9535';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=3fb94f9293';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
-import { cleanName, savedName, saveName } from './player/name.js?v=269e3c9535';
-import { startPresence } from './shared/presence.js?v=269e3c9535';
+import { cleanName, savedName, saveName } from './player/name.js?v=3fb94f9293';
+import { startPresence } from './shared/presence.js?v=3fb94f9293';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=269e3c9535';
+  from './map/grid_map.js?v=3fb94f9293';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -81,7 +81,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=269e3c9535';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=3fb94f9293';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -869,7 +869,11 @@ function enterSecretRoom() {
   cameFrom = { x: 2.4, z: ALIEN_BOARD.z };
   ctrl.position.set(secretRoom.arrive.x, 1.6, secretRoom.arrive.z);
   ctrl.velocity.set(0, 0, 0);
-  ctrl.yaw = Math.PI / 2;          // facing back down the room
+  // Down the room, turned a little towards the long wall — the shelf, the
+  // bench and the map pinned over it are all on that side, and facing
+  // squarely down the middle put every one of them past the edge of the
+  // frame on the one occasion the game needs you to see them.
+  ctrl.yaw = Math.PI / 2 - 0.3;
   ctrl.pitch = 0;
   bringSoldier(secretRoom.arrive.x, secretRoom.arrive.z);
 
@@ -3011,6 +3015,11 @@ function gameLoop(now) {
   // path that forgot to call it.
   if (live) checkOutposts();
   updateLockedDoor(lockedDoor, dt);
+  // The bulb in the hidden room, which is on its way out. Stepped whether
+  // or not you are in there — it costs one number a frame and it means the
+  // light is already misbehaving when you arrive rather than starting to
+  // the moment you look at it.
+  secretRoom.tick(dt);
 
   // --- The escape pod ---
   // Its hatch and lamp animate even on the menus: the lamp is scenery, and a

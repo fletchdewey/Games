@@ -869,7 +869,11 @@ function enterSecretRoom() {
   cameFrom = { x: 2.4, z: ALIEN_BOARD.z };
   ctrl.position.set(secretRoom.arrive.x, 1.6, secretRoom.arrive.z);
   ctrl.velocity.set(0, 0, 0);
-  ctrl.yaw = Math.PI / 2;          // facing back down the room
+  // Down the room, turned a little towards the long wall — the shelf, the
+  // bench and the map pinned over it are all on that side, and facing
+  // squarely down the middle put every one of them past the edge of the
+  // frame on the one occasion the game needs you to see them.
+  ctrl.yaw = Math.PI / 2 - 0.3;
   ctrl.pitch = 0;
   bringSoldier(secretRoom.arrive.x, secretRoom.arrive.z);
 
@@ -3011,6 +3015,11 @@ function gameLoop(now) {
   // path that forgot to call it.
   if (live) checkOutposts();
   updateLockedDoor(lockedDoor, dt);
+  // The bulb in the hidden room, which is on its way out. Stepped whether
+  // or not you are in there — it costs one number a frame and it means the
+  // light is already misbehaving when you arrive rather than starting to
+  // the moment you look at it.
+  secretRoom.tick(dt);
 
   // --- The escape pod ---
   // Its hatch and lamp animate even on the menus: the lamp is scenery, and a
