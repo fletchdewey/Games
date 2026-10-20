@@ -62,9 +62,12 @@ const TONE = {
   // Rate is the one that matters. At 1.0 every one of these voices leaves
   // a gap between words that a person in the back of a helicopter does
   // not leave, and five lines of it sounds like a station announcement.
-  // Low. It is a soldier in the back of a helicopter, and every one of
-  // these voices sits higher than that — 0.95 was still reading young.
-  you:   { pitch: 0.76, rate: 1.1 },
+  // Low, and then lower. Every voice on a machine like this one is built
+  // to read a web page pleasantly, which puts all of them above a man in
+  // the back of a helicopter: 0.95 read young, 0.76 still did. This is
+  // most of the way down the range the browser allows, which is as deep
+  // as it goes before the words stop being words.
+  you:   { pitch: 0.55, rate: 1.08 },
   // Thinner and faster still, because she is shouting into a handset.
   radio: { pitch: 1.14, rate: 1.12, gain: 0.95 },
   s1:    { pitch: 0.96, rate: 1.18 },
