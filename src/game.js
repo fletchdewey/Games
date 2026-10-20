@@ -2799,6 +2799,30 @@ function gameLoop(now) {
     // drawn at once — so the title screen showed creatures through the walls
     // from three rooms away. Thinking stops here; being invisible does not.
     if (!live) return;
+
+    // ─── STRAGGLERS GO HOME ───────────────────────────────────
+    //
+    // FLETCHER'S GUIDE:
+    // Anything that chased you out of its outpost and then lost you is
+    // frozen exactly where it stopped, because parked aliens do not think.
+    // It stands in that corridor for the rest of the run, alive — and an
+    // outpost is counted clear when nothing BELONGING to it is still
+    // standing, so the room you emptied goes on reporting itself as held.
+    // You are told four are holding when three are, and there is nothing in
+    // any of the four rooms to kill.
+    //
+    // A parked alien is also invisible, so putting it back where it started
+    // cannot be seen happening. It only ever moves while no one is looking,
+    // and it means a straggler is always findable in the room whose name is
+    // on it. Anything still inside its own room is left where it wandered.
+    if (!active && a.alive && !a.gone &&
+        roomIdAt(a.model.position.x, a.model.position.z) !== a.room) {
+      a.model.position.copy(a.spawnPos);
+      if (a.reg.rest) a.reg.rest(a.model);      // drop a half-fired beam
+      a.ai = a.reg.createAI();                  // and come home idle
+      a.model.userData.ai = a.ai;
+    }
+
     if (!active) return;
 
     // Flash timer

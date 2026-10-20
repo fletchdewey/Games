@@ -17,7 +17,7 @@
 import * as THREE from 'three';
 // The body is a brute's body, so it fights like one. Same cycle, same numbers.
 import { createBruteAttack, stepBruteAttack, bruteAttackReady,
-         beginBruteAttack, bruteAttackBusy } from '../shared/brute_attack.js?v=51cc7f3465';
+         beginBruteAttack, bruteAttackBusy } from '../shared/brute_attack.js?v=42e01392b0';
 
 // ─── SETUP ──────────────────────────────────────
 // Call this ONCE when the boss spawns into the room.

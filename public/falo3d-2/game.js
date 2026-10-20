@@ -18,57 +18,57 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=51cc7f3465';
+import { PALETTE, getMaterial } from './shared/materials.js?v=42e01392b0';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=51cc7f3465';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=51cc7f3465';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=42e01392b0';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=42e01392b0';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=51cc7f3465';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=51cc7f3465';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=42e01392b0';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=42e01392b0';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=51cc7f3465';
+import { createDescent } from './cutscene/descent.js?v=42e01392b0';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=51cc7f3465';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=51cc7f3465';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=42e01392b0';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=42e01392b0';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=51cc7f3465';
+import { createController, updateController } from './player/controller.js?v=42e01392b0';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=51cc7f3465';
+  from './player/classes.js?v=42e01392b0';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=51cc7f3465';
+import { buildSoldier } from './npc/soldier.js?v=42e01392b0';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=51cc7f3465';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=42e01392b0';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=51cc7f3465';
-import { createSwarm } from './bosses/swarm.js?v=51cc7f3465';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=51cc7f3465';
-import { createTwins } from './bosses/twins.js?v=51cc7f3465';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=51cc7f3465';
-import { createBurrower } from './bosses/burrower.js?v=51cc7f3465';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=42e01392b0';
+import { createSwarm } from './bosses/swarm.js?v=42e01392b0';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=42e01392b0';
+import { createTwins } from './bosses/twins.js?v=42e01392b0';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=42e01392b0';
+import { createBurrower } from './bosses/burrower.js?v=42e01392b0';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=51cc7f3465';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=42e01392b0';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=51cc7f3465';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=42e01392b0';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
-import { cleanName, savedName, saveName } from './player/name.js?v=51cc7f3465';
-import { startPresence } from './shared/presence.js?v=51cc7f3465';
+import { cleanName, savedName, saveName } from './player/name.js?v=42e01392b0';
+import { startPresence } from './shared/presence.js?v=42e01392b0';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=51cc7f3465';
+  from './map/grid_map.js?v=42e01392b0';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -78,7 +78,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=51cc7f3465';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=42e01392b0';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -2799,6 +2799,30 @@ function gameLoop(now) {
     // drawn at once — so the title screen showed creatures through the walls
     // from three rooms away. Thinking stops here; being invisible does not.
     if (!live) return;
+
+    // ─── STRAGGLERS GO HOME ───────────────────────────────────
+    //
+    // FLETCHER'S GUIDE:
+    // Anything that chased you out of its outpost and then lost you is
+    // frozen exactly where it stopped, because parked aliens do not think.
+    // It stands in that corridor for the rest of the run, alive — and an
+    // outpost is counted clear when nothing BELONGING to it is still
+    // standing, so the room you emptied goes on reporting itself as held.
+    // You are told four are holding when three are, and there is nothing in
+    // any of the four rooms to kill.
+    //
+    // A parked alien is also invisible, so putting it back where it started
+    // cannot be seen happening. It only ever moves while no one is looking,
+    // and it means a straggler is always findable in the room whose name is
+    // on it. Anything still inside its own room is left where it wandered.
+    if (!active && a.alive && !a.gone &&
+        roomIdAt(a.model.position.x, a.model.position.z) !== a.room) {
+      a.model.position.copy(a.spawnPos);
+      if (a.reg.rest) a.reg.rest(a.model);      // drop a half-fired beam
+      a.ai = a.reg.createAI();                  // and come home idle
+      a.model.userData.ai = a.ai;
+    }
+
     if (!active) return;
 
     // Flash timer
