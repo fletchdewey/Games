@@ -18,60 +18,60 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=a527ec0e62';
+import { PALETTE, getMaterial } from './shared/materials.js?v=2a06bd2eb6';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=a527ec0e62';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=a527ec0e62';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=2a06bd2eb6';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=2a06bd2eb6';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=a527ec0e62';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=a527ec0e62';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=2a06bd2eb6';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=2a06bd2eb6';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=a527ec0e62';
-import { createArrival } from './cutscene/arrival.js?v=a527ec0e62';
+import { createDescent } from './cutscene/descent.js?v=2a06bd2eb6';
+import { createArrival } from './cutscene/arrival.js?v=2a06bd2eb6';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=a527ec0e62';
-import { masterVolume } from './audio/sound.js?v=a527ec0e62';
-import { say, hush, castList } from './audio/speech.js?v=a527ec0e62';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=a527ec0e62';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=2a06bd2eb6';
+import { masterVolume } from './audio/sound.js?v=2a06bd2eb6';
+import { say, hush, castList } from './audio/speech.js?v=2a06bd2eb6';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=2a06bd2eb6';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=a527ec0e62';
+import { createController, updateController } from './player/controller.js?v=2a06bd2eb6';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=a527ec0e62';
+  from './player/classes.js?v=2a06bd2eb6';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=a527ec0e62';
+import { buildSoldier } from './npc/soldier.js?v=2a06bd2eb6';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=a527ec0e62';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=2a06bd2eb6';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=a527ec0e62';
-import { createSwarm } from './bosses/swarm.js?v=a527ec0e62';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=a527ec0e62';
-import { createTwins } from './bosses/twins.js?v=a527ec0e62';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=a527ec0e62';
-import { createBurrower } from './bosses/burrower.js?v=a527ec0e62';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=2a06bd2eb6';
+import { createSwarm } from './bosses/swarm.js?v=2a06bd2eb6';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=2a06bd2eb6';
+import { createTwins } from './bosses/twins.js?v=2a06bd2eb6';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=2a06bd2eb6';
+import { createBurrower } from './bosses/burrower.js?v=2a06bd2eb6';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=a527ec0e62';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=2a06bd2eb6';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=a527ec0e62';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=2a06bd2eb6';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
-import { cleanName, savedName, saveName } from './player/name.js?v=a527ec0e62';
-import { startPresence } from './shared/presence.js?v=a527ec0e62';
+import { cleanName, savedName, saveName } from './player/name.js?v=2a06bd2eb6';
+import { startPresence } from './shared/presence.js?v=2a06bd2eb6';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=a527ec0e62';
+  from './map/grid_map.js?v=2a06bd2eb6';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -81,7 +81,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=a527ec0e62';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=2a06bd2eb6';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can

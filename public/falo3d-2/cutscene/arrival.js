@@ -33,7 +33,7 @@
 // Press any key to skip it.
 
 import * as THREE from 'three';
-import { buildSoldier } from '../npc/soldier.js?v=a527ec0e62';
+import { buildSoldier } from '../npc/soldier.js?v=2a06bd2eb6';
 
 // ─── THE CLOCK ──────────────────────────────────────────────
 // Every beat of the thing, in seconds. Changing the pace of the cutscene
@@ -79,8 +79,8 @@ const SCRIPT = [
     text: "We better get going. I mean, we wouldn't want to be stuck out here." },
   // The last one is yours, which is why it has no name on it here: the
   // game puts the name you typed in on the front of it.
-  { at: 19.90, dur: 3.10, role: 'you', who: null,
-    text: "Let's get going. I don't want to be stuck out here." },
+  { at: 19.90, dur: 3.35, role: 'you', who: null,
+    text: "Let's get going. I don't want to be stuck out here either." },
 ]
 const SKY_TOP  = 0x2e6ca8;
 const SKY_HAZE = 0xa89e92;      // the horizon, and the fog, and the smoke in it
