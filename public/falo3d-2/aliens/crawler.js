@@ -17,9 +17,9 @@
 // The Crawler works the same way, just with a jump instead of a swing.
 
 import * as THREE from 'three';
-import { buildCrawler as buildCrawlerModel } from './workshop_models.js?v=560d6f9142';
-import { rememberColors, restoreColor, baseColorRGB } from './model_colors.js?v=560d6f9142';
-import { createBehaviorSpec } from '../shared/behavior.js?v=560d6f9142';
+import { buildCrawler as buildCrawlerModel } from './workshop_models.js?v=b6f95d5579';
+import { rememberColors, restoreColor, baseColorRGB } from './model_colors.js?v=b6f95d5579';
+import { createBehaviorSpec } from '../shared/behavior.js?v=b6f95d5579';
 
 
 // ─── 1. GEOMETRY ────────────────────────────────────────────────

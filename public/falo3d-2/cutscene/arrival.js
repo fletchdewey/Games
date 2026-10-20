@@ -33,7 +33,7 @@
 // Press any key to skip it.
 
 import * as THREE from 'three';
-import { buildSoldier } from '../npc/soldier.js?v=560d6f9142';
+import { buildSoldier } from '../npc/soldier.js?v=b6f95d5579';
 
 // ─── THE CLOCK ──────────────────────────────────────────────
 // Every beat of the thing, in seconds. Changing the pace of the cutscene
@@ -41,15 +41,15 @@ import { buildSoldier } from '../npc/soldier.js?v=560d6f9142';
 const BEAT = {
   cabin:  1.0,   // black lifts; you are in the back of the aircraft
   spot:   7.5,   // out of the open door, something on the horizon
-  wide:  18.6,   // cut outside — how big it actually is
-  wrong: 24.0,   // its belly opens, and the light out of it is wrong
-  ray:   26.6,   // the beam
-  pull:  28.2,   // taken, far too fast
-  tumble:29.7,   // back inside, everything sideways
-  white: 31.8,   // over the lip
-  dark:  33.0,
-  over:  34.6,
-};
+  wide:  16.8,   // cut outside — how big it actually is
+  wrong: 21.6,   // its belly opens, and the light out of it is wrong
+  ray:   24.2,   // the beam
+  pull:  25.8,   // taken, far too fast
+  tumble:27.3,   // back inside, everything sideways
+  white: 29.4,   // over the lip
+  dark:  30.6,
+  over:  32.2,
+}
 
 // ─── WHAT THEY SAY ──────────────────────────────────────────
 // Five lines, and the clock above is cut around them rather than the
@@ -57,28 +57,31 @@ const BEAT = {
 // do not want to be stuck out here.
 //
 // `dur` is not a guess. Each line was spoken by the voice it is going to
-// be spoken by, at the pitch and rate that voice is given, and timed: the
-// subtitle stays up for exactly as long as the words take, and the next
-// man does not start talking over the end of the last one.
+// be spoken by, at the pitch and rate that voice is given, and timed by
+// watching the synthesiser rather than by asking it — its own "finished"
+// event does not always arrive. The gaps between lines are then set from
+// those numbers: about half a second of air after one man stops and
+// before the next starts, which is a conversation. A second and a half,
+// which is what this had first, is a tannoy.
 //
 // `speak` exists for the one line where what is written and what is said
 // have to differ — a speech synthesiser reads "?!" as a pause and a
 // shrug, and the subtitle wants the "?!".
 const SCRIPT = [
-  { at: 1.8,  dur: 2.5, role: 's1', who: 'SOLDIER', crew: 0,
+  { at: 1.80, dur: 2.20, role: 's1', who: 'SOLDIER', crew: 0,
     text: "I thought I was a goner back there." },
-  { at: 5.1,  dur: 4.0, role: 's2', who: 'SOLDIER', crew: 2,
+  { at: 4.45, dur: 3.25, role: 's2', who: 'SOLDIER', crew: 2,
     text: "Yeah, we were lucky that this helicopter was still working." },
-  { at: 9.9,  dur: 5.4, role: 'radio', who: 'RADIO', radio: true,
+  { at: 8.90, dur: 5.20, role: 'radio', who: 'RADIO', radio: true,
     text: "Hello? Hello?! This is an emergency. Get towards the military ship immediately.",
     speak: "Hello? Hello! This is an emergency. Get towards the military ship immediately." },
-  { at: 15.8, dur: 4.8, role: 's3', who: 'SOLDIER', crew: 1,
+  { at: 14.90, dur: 4.35, role: 's3', who: 'SOLDIER', crew: 1,
     text: "We better get going. I mean, we wouldn't want to be stuck out here." },
   // The last one is yours, which is why it has no name on it here: the
   // game puts the name you typed in on the front of it.
-  { at: 21.3, dur: 4.2, role: 'you', who: null,
+  { at: 19.90, dur: 3.10, role: 'you', who: null,
     text: "Let's get going. I don't want to be stuck out here." },
-];
+]
 const SKY_TOP  = 0x2e6ca8;
 const SKY_HAZE = 0xa89e92;      // the horizon, and the fog, and the smoke in it
 // How fast the world goes past, in units a second. The ground, the cloud
@@ -899,18 +902,18 @@ export function createArrival() {
     // it goes wherever the talking is, and ends up out of the door.
     { at: 0.0,  yaw: 2.10, pitch: -0.24 },
     { at: 1.5,  yaw: 0.80, pitch: -0.02 },   // the man opposite you
-    { at: 4.8,  yaw: 0.80, pitch: -0.02 },
-    { at: 5.0,  yaw: -0.10, pitch: 0.00 },   // the man beside you
-    { at: 9.0,  yaw: -0.10, pitch: 0.00 },
-    { at: 9.5,  yaw: 0.34, pitch:  0.02 },   // forward, at the radio
-    { at: 11.9, yaw: 0.34, pitch:  0.02 },
-    { at: 12.7, yaw: 1.45, pitch: -0.05 },   // and out of the door
-    { at: 15.3, yaw: 1.45, pitch: -0.05 },
-    { at: 15.6, yaw: 2.05, pitch:  0.00 },   // the man aft of the door
-    { at: 18.4, yaw: 2.05, pitch:  0.00 },
+    { at: 4.1,  yaw: 0.80, pitch: -0.02 },
+    { at: 4.3,  yaw: -0.10, pitch: 0.00 },   // the man beside you
+    { at: 8.0,  yaw: -0.10, pitch: 0.00 },
+    { at: 8.4,  yaw: 0.34, pitch:  0.02 },   // forward, at the radio
+    { at: 10.6, yaw: 0.34, pitch:  0.02 },
+    { at: 11.4, yaw: 1.45, pitch: -0.05 },   // and out of the door, at the
+    { at: 14.2, yaw: 1.45, pitch: -0.05 },   // ship she is telling you about
+    { at: 14.5, yaw: 2.05, pitch:  0.00 },   // the man aft of the door
+    { at: 16.6, yaw: 2.05, pitch:  0.00 },
     // Only reached again when the camera comes back inside for the last
     // seconds, by which time the door is where all the light is.
-    { at: 29.2, yaw: 1.35, pitch:  0.02 },
+    { at: 26.8, yaw: 1.35, pitch:  0.02 },
   ];
   function lookNow(time) {
     let i = 0;

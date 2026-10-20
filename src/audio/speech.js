@@ -34,22 +34,30 @@ const NOVELTY = /^(albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jes
 // Who sounds like what, best first. Mac names, then Windows, then the
 // Google ones that Android and Chrome OS carry.
 const WANTED = {
-  s1:    ['Rocko', 'Daniel', 'Alex', 'Microsoft Mark', 'Google US English'],
-  s2:    ['Daniel', 'Reed', 'Alex', 'Microsoft David', 'Google UK English Male'],
+  // You pick first, out of everybody. Your line is the last one in the
+  // scene and the one with your own name on it, so it gets the best voice
+  // the machine has rather than whatever the three soldiers left behind —
+  // and it has to be nothing like theirs, which on a Mac means not one of
+  // the three American ones that are all the same family underneath.
+  you:   ['Daniel', 'Alex', 'Google UK English Male', 'Microsoft David'],
   radio: ['Karen', 'Samantha', 'Moira', 'Microsoft Zira', 'Google UK English Female'],
-  s3:    ['Reed', 'Rishi', 'Rocko', 'Microsoft Mark', 'Google US English'],
-  you:   ['Eddy', 'Rishi', 'Tessa', 'Microsoft David', 'Google US English'],
+  s1:    ['Rocko', 'Microsoft Mark', 'Google US English', 'Alex'],
+  s2:    ['Rishi', 'Reed', 'Tessa', 'Microsoft David', 'Google UK English Male'],
+  s3:    ['Reed', 'Rocko', 'Moira', 'Microsoft Mark', 'Google US English'],
 };
 
 // And how each of them is pitched. This is what keeps five men apart on a
 // machine that only has one voice to give.
 const TONE = {
-  s1:    { pitch: 0.96, rate: 1.0 },
-  s2:    { pitch: 0.86, rate: 0.96 },
-  // Thinner and faster, because he is shouting into a handset.
-  radio: { pitch: 1.14, rate: 1.1, gain: 0.95 },
-  s3:    { pitch: 1.04, rate: 1.03 },
-  you:   { pitch: 0.8, rate: 0.95 },
+  // Rate is the one that matters. At 1.0 every one of these voices leaves
+  // a gap between words that a person in the back of a helicopter does
+  // not leave, and five lines of it sounds like a station announcement.
+  you:   { pitch: 0.95, rate: 1.1 },
+  // Thinner and faster still, because she is shouting into a handset.
+  radio: { pitch: 1.14, rate: 1.12, gain: 0.95 },
+  s1:    { pitch: 0.96, rate: 1.18 },
+  s2:    { pitch: 0.94, rate: 1.14 },
+  s3:    { pitch: 1.04, rate: 1.18 },
 };
 
 let chosen = null;
