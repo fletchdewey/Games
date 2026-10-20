@@ -26,6 +26,15 @@
 // The subtitles are not from here. They are on screen whatever happens,
 // so a machine with no speech at all still gets the scene.
 
+// Voices that are somebody's idea of a woman, and voices that are
+// somebody's idea of a man. Which voices a machine has is up to the
+// machine, so asking for one by name is a wish rather than a plan: when
+// the wish cannot be granted these two lists are what stop the fallback
+// handing your own line to a woman. Names only — there is nothing in a
+// voice object that says who it is supposed to be.
+const FEMALE = /^(samantha|karen|moira|tessa|victoria|allison|ava|susan|vicki|kate|serena|fiona|nicky|zoe|flo|sandy|shelley|princess|kathy|catherine|linda|heather|amelie|anna|ellen|joana|female|google uk english female|microsoft (zira|hazel|susan|linda|heather|eva|catherine|hazel))/i;
+const MALE = /^(daniel|alex|rocko|reed|eddy|fred|rishi|aaron|arthur|gordon|oliver|thomas|tom|ralph|lee|james|male|google uk english male|microsoft (david|mark|george|ryan|guy|james|sean))/i;
+
 // Names to avoid outright: every one of these is a novelty voice, and one
 // of them reading a man's last line before he is taken would be the
 // funniest thing in the game for all the wrong reasons.
@@ -39,7 +48,8 @@ const WANTED = {
   // the machine has rather than whatever the three soldiers left behind —
   // and it has to be nothing like theirs, which on a Mac means not one of
   // the three American ones that are all the same family underneath.
-  you:   ['Daniel', 'Alex', 'Google UK English Male', 'Microsoft David'],
+  you:   ['Daniel', 'Alex', 'Rocko', 'Oliver', 'Arthur', 'Aaron', 'Fred',
+          'Google UK English Male', 'Microsoft David', 'Microsoft Mark'],
   radio: ['Karen', 'Samantha', 'Moira', 'Microsoft Zira', 'Google UK English Female'],
   s1:    ['Rocko', 'Microsoft Mark', 'Google US English', 'Alex'],
   s2:    ['Rishi', 'Reed', 'Tessa', 'Microsoft David', 'Google UK English Male'],
@@ -52,7 +62,9 @@ const TONE = {
   // Rate is the one that matters. At 1.0 every one of these voices leaves
   // a gap between words that a person in the back of a helicopter does
   // not leave, and five lines of it sounds like a station announcement.
-  you:   { pitch: 0.95, rate: 1.1 },
+  // Low. It is a soldier in the back of a helicopter, and every one of
+  // these voices sits higher than that — 0.95 was still reading young.
+  you:   { pitch: 0.76, rate: 1.1 },
   // Thinner and faster still, because she is shouting into a handset.
   radio: { pitch: 1.14, rate: 1.12, gain: 0.95 },
   s1:    { pitch: 0.96, rate: 1.18 },
@@ -91,8 +103,17 @@ function assign() {
                                v.name.toLowerCase().startsWith(want.toLowerCase()));
       if (found) break;
     }
-    // Then anything on the machine itself, then anything at all.
-    if (!found) found = list.find((v) => !used.has(v.name) && v.localService !== false);
+    // Then anything on the machine itself, then anything at all — except
+    // for the player, whose own voice would rather be nobody's than a
+    // woman's. A machine with four voices and three of them female is
+    // exactly how your line ended up sounding like somebody else.
+    const male = role === 'you';
+    const free = (v) => !used.has(v.name) && !(male && FEMALE.test(v.name));
+    if (!found && male) {
+      found = list.find((v) => free(v) && v.localService !== false && MALE.test(v.name));
+    }
+    if (!found) found = list.find((v) => free(v) && v.localService !== false);
+    if (!found) found = list.find((v) => free(v));
     if (!found) found = list.find((v) => !used.has(v.name));
     if (!found) found = list[0];
     if (found) used.add(found.name);

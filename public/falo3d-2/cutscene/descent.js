@@ -22,11 +22,11 @@
 // Press any key to skip it.
 
 import * as THREE from 'three';
-import { buildCrawler } from '../aliens/crawler.js?v=0c8e1ae1b2';
-import { buildBrute } from '../aliens/brute.js?v=0c8e1ae1b2';
-import { buildWatcher } from '../aliens/watcher.js?v=0c8e1ae1b2';
-import { buildFloater } from '../aliens/floater.js?v=0c8e1ae1b2';
-import { buildSoldier, poseStand, poseAim, freeSoldier } from '../npc/soldier.js?v=0c8e1ae1b2';
+import { buildCrawler } from '../aliens/crawler.js?v=ffde837483';
+import { buildBrute } from '../aliens/brute.js?v=ffde837483';
+import { buildWatcher } from '../aliens/watcher.js?v=ffde837483';
+import { buildFloater } from '../aliens/floater.js?v=ffde837483';
+import { buildSoldier, poseStand, poseAim, freeSoldier } from '../npc/soldier.js?v=ffde837483';
 
 // ─── WHERE EVERYTHING IS ────────────────────────────────────
 // The pod comes down the middle of a valley. Their city is ahead and to the
