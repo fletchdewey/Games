@@ -52,7 +52,11 @@ const BEAT = {
 };
 
 const SKY_TOP  = 0x2e6ca8;
-const SKY_HAZE = 0x9fb6cc;      // the horizon, and the fog, and the sea of it
+const SKY_HAZE = 0xa89e92;      // the horizon, and the fog, and the smoke in it
+// How fast the world goes past, in units a second. The ground, the cloud
+// and the fires all move at this one number — they are at different
+// distances, so the parallax sorts itself out.
+const WORLD_SPEED = 110;
 
 // Where the ship is at the three moments that matter, as offsets from the
 // helicopter. It comes in off the port bow — that is the side the door is
@@ -102,44 +106,108 @@ function spanTo(mesh, a, b, girth) {
 
 // ─── WHAT THE WORLD IS MADE OF ──────────────────────────────
 
-/** Farmland from two thousand metres: fields, woods, a river through it. */
-function earthTexture() {
+/**
+ * A city from two thousand feet, and a lot of it alight.
+ *
+ * Drawn once onto one 512-pixel tile and repeated across the ground, so
+ * everything in here has to survive being seen next to a copy of itself:
+ * the streets line up across the seam, and the fires are kept to char and
+ * glow rather than anything you would recognise twice. The burning you
+ * actually read is not in this picture — it is the smoke standing up off
+ * it in buildFire(), which is at real places in the world and repeats
+ * nowhere.
+ */
+function cityTexture() {
   return painted(512, 512, (g, w, h) => {
-    g.fillStyle = '#4e5a3a';
+    g.fillStyle = '#26262a';                       // wet asphalt
     g.fillRect(0, 0, w, h);
-    // Fields. Rectangles at two angles, because every landscape from the
-    // air is somebody's property line.
-    const greens = ['#5c6b3c', '#6b7444', '#47532f', '#7a7a46', '#5a6336',
-                    '#86804a', '#3f4a2c'];
-    for (let i = 0; i < 260; i++) {
-      g.save();
-      g.translate(Math.random() * w, Math.random() * h);
-      g.rotate(Math.random() < 0.5 ? 0.12 : 1.44);
-      g.fillStyle = greens[(Math.random() * greens.length) | 0];
-      g.fillRect(0, 0, 18 + Math.random() * 58, 14 + Math.random() * 40);
-      g.restore();
-    }
-    // Woodland: dark clumps with no straight edges.
-    g.fillStyle = 'rgba(28,46,26,0.85)';
-    for (let i = 0; i < 70; i++) {
-      const x = Math.random() * w, y = Math.random() * h;
-      g.beginPath();
-      for (let k = 0; k <= 8; k++) {
-        const a = (k / 8) * Math.PI * 2;
-        const r = (10 + Math.random() * 22);
-        g[k ? 'lineTo' : 'moveTo'](x + Math.cos(a) * r, y + Math.sin(a) * r);
+
+    const BLOCK = 64;                              // a block, side street to side street
+    const roofs = ['#44444a', '#3b3b42', '#4e4b48', '#36383e', '#55514d',
+                   '#303238', '#484341'];
+    // Blocks, each one packed with buildings, each building with a shadow
+    // on the same side — one sun, or none of it reads as height.
+    for (let by = 0; by < h; by += BLOCK) {
+      for (let bx = 0; bx < w; bx += BLOCK) {
+        const r = Math.random();
+        if (r < 0.07) {                            // a park
+          g.fillStyle = '#2b3a27';
+          g.fillRect(bx + 4, by + 4, BLOCK - 8, BLOCK - 8);
+          continue;
+        }
+        if (r < 0.12) {                            // a yard full of nothing
+          g.fillStyle = '#35353a';
+          g.fillRect(bx + 4, by + 4, BLOCK - 8, BLOCK - 8);
+          continue;
+        }
+        const cols = 2 + ((Math.random() * 2) | 0);
+        const cell = (BLOCK - 8) / cols;
+        for (let i = 0; i < cols; i++) {
+          for (let k = 0; k < cols; k++) {
+            if (Math.random() < 0.12) continue;    // a gap, a lot, a ruin
+            const x = bx + 4 + i * cell, y = by + 4 + k * cell;
+            const ww = cell * (0.72 + Math.random() * 0.26);
+            const hh = cell * (0.72 + Math.random() * 0.26);
+            const lift = 1 + Math.random() * 4;    // how tall it pretends to be
+            g.fillStyle = 'rgba(0,0,0,0.5)';
+            g.fillRect(x + lift, y + lift, ww, hh);
+            g.fillStyle = roofs[(Math.random() * roofs.length) | 0];
+            g.fillRect(x, y, ww, hh);
+          }
+        }
       }
-      g.fill();
     }
-    // A river, and a road that does not care where the river goes.
-    g.strokeStyle = '#38556b'; g.lineWidth = 7; g.lineCap = 'round';
+
+    // The street grid over the top, so the blocks sit inside it rather
+    // than beside it. Avenues are wider and brighter than side streets.
+    g.strokeStyle = '#34343a'; g.lineWidth = 4;
+    for (let x = 0; x <= w; x += BLOCK) {
+      g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke();
+      g.beginPath(); g.moveTo(0, x); g.lineTo(w, x); g.stroke();
+    }
+    g.strokeStyle = '#43434a'; g.lineWidth = 9;
+    for (let x = BLOCK * 2; x <= w; x += BLOCK * 4) {
+      g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke();
+      g.beginPath(); g.moveTo(0, x); g.lineTo(w, x); g.stroke();
+    }
+
+    // Burnt out. Soot first, wide and soft, then whatever is still alight
+    // in the middle of it. Only a handful: this tile is laid down forty
+    // times across the ground, so six fires here is already two hundred
+    // and fifty fires out of the door, and the first cut of it — with
+    // twenty-six — read as orange spots on a tablecloth rather than as a
+    // city with parts of it alight.
+    for (let i = 0; i < 6; i++) {
+      const x = Math.random() * w, y = Math.random() * h;
+      const r = 12 + Math.random() * 26;
+      const soot = g.createRadialGradient(x, y, 0, x, y, r * 1.9);
+      soot.addColorStop(0, 'rgba(14,11,10,0.8)');
+      soot.addColorStop(0.5, 'rgba(18,14,12,0.42)');
+      soot.addColorStop(1, 'rgba(20,16,14,0)');
+      g.fillStyle = soot;
+      g.beginPath(); g.arc(x, y, r * 1.9, 0, Math.PI * 2); g.fill();
+
+      const fire = g.createRadialGradient(x, y, 0, x, y, r * 0.55);
+      fire.addColorStop(0, 'rgba(255,238,170,0.95)');
+      fire.addColorStop(0.35, 'rgba(255,146,38,0.8)');
+      fire.addColorStop(1, 'rgba(120,30,8,0)');
+      g.fillStyle = fire;
+      g.beginPath(); g.arc(x, y, r * 0.55, 0, Math.PI * 2); g.fill();
+      // Embers: the block next door catching.
+      for (let k = 0; k < 3; k++) {
+        g.fillStyle = 'rgba(255,170,60,' + (0.15 + Math.random() * 0.35) + ')';
+        g.fillRect(x + (Math.random() - 0.5) * r * 2.4,
+                   y + (Math.random() - 0.5) * r * 2.4,
+                   2 + Math.random() * 5, 2 + Math.random() * 5);
+      }
+    }
+
+    // And the river, which is the one thing down there not burning.
+    g.strokeStyle = '#2b3a44'; g.lineWidth = 22; g.lineCap = 'round';
     g.beginPath();
-    g.moveTo(-10, 120);
-    for (let x = 0; x <= w + 10; x += 32) g.lineTo(x, 120 + Math.sin(x / 48) * 46);
+    g.moveTo(-10, 150);
+    for (let x = 0; x <= w + 10; x += 32) g.lineTo(x, 150 + Math.sin(x / 70) * 40);
     g.stroke();
-    g.strokeStyle = '#8d8778'; g.lineWidth = 2.5;
-    g.beginPath(); g.moveTo(330, -10); g.lineTo(300, h + 10); g.stroke();
-    g.beginPath(); g.moveTo(-10, 380); g.lineTo(w + 10, 350); g.stroke();
   });
 }
 
@@ -159,10 +227,10 @@ function puffTexture(r = 255, gg = 255, b = 255) {
 function skyTexture() {
   return painted(16, 256, (g, w, h) => {
     const grd = g.createLinearGradient(0, 0, 0, h);
-    grd.addColorStop(0, '#1d4f85');
-    grd.addColorStop(0.45, '#4e86bb');
-    grd.addColorStop(0.72, '#9fb6cc');
-    grd.addColorStop(1, '#c3cedb');
+    grd.addColorStop(0, '#1c4a7e');
+    grd.addColorStop(0.42, '#4b7ea8');
+    grd.addColorStop(0.68, '#95978f');      // where the smoke starts
+    grd.addColorStop(1, '#b5a794');
     g.fillStyle = grd;
     g.fillRect(0, 0, w, h);
   });
@@ -224,6 +292,45 @@ function beamTexture() {
       g.fillRect(0, y, w, 2 + Math.random() * 9);
     }
   });
+}
+
+/**
+ * One fire on the ground and the column standing off it.
+ *
+ * This is what actually sells the city as burning. The ground texture can
+ * only ever say where the fire WAS — a flat orange smudge seen from above
+ * reads as paint. A column of smoke eight hundred feet high, leaning, that
+ * you fly past and that passes behind the aircraft, reads as a fire.
+ */
+function buildFire(puff) {
+  const g = new THREE.Group();
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: puff,
+    color: 0xff7a1e, transparent: true, opacity: 0.8,
+    blending: THREE.AdditiveBlending, depthWrite: false }));
+  const gs = 150 + Math.random() * 180;
+  glow.scale.set(gs, gs * 0.5, 1);
+  glow.position.y = 10;
+  g.add(glow);
+
+  // The column: eight puffs up a leaning line, each one bigger and
+  // thinner than the last, and the bottom two lit from underneath.
+  const n = 9;
+  const lean = 0.5 + Math.random() * 1.0;
+  const top = 340 + Math.random() * 460;
+  for (let i = 0; i < n; i++) {
+    const f = i / (n - 1);
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: puff,
+      color: f < 0.22 ? 0x7a4026 : 0x3b3734, transparent: true,
+      opacity: 0.66 - f * 0.4, depthWrite: false }));
+    const sz = 130 + f * (230 + Math.random() * 200);
+    m.scale.set(sz, sz, 1);
+    m.position.set(lean * f * 240 + (Math.random() - 0.5) * 36,
+                   12 + f * top,
+                   lean * f * 90 + (Math.random() - 0.5) * 36);
+    g.add(m);
+  }
+  g.userData = { glow, flick: Math.random() * 6.3 };
+  return g;
 }
 
 // ─── THE AIRCRAFT ───────────────────────────────────────────
@@ -576,51 +683,57 @@ function buildShip() {
   const strobe = lamp(0xffffff, 0, 292, 60, 10);
 
   // ── The part that is not theirs ──────────────────────────
-  // Set INTO the keel rather than hung under it. The first cut of this had
-  // the throat slung below the hull, where it read as a purple slab bolted
-  // to the bottom of the ship from four kilometres out — the whole point
-  // is that there is nothing to see until the plates move.
+  // A shallow bay on the underside of the keel, mostly let into it and
+  // standing a few metres proud of it, with the plates as its floor.
+  //
+  // It cannot be flush, because the keel is one solid wedge and a solid
+  // wedge has no hole in it — set the throat inside it and the keel's own
+  // bottom covers the opening for ever. Set it too big instead and the
+  // corners of it come out through the sides of the ship, which is what
+  // the first cut did: a purple seam down the flank, visible from four
+  // kilometres out, eight seconds before there is supposed to be anything
+  // to see.
   const maw = new THREE.Group();
-  maw.position.set(0, -70, -60);
+  maw.position.set(0, -84, -60);
   g.add(maw);
   // Dark, with the light deep inside it. A bright box here reads as a
   // purple slab painted on the hull; what you want is a hole with
   // something lit at the bottom of it.
-  const throat = new THREE.Mesh(new THREE.BoxGeometry(100, 40, 200),
+  const throat = new THREE.Mesh(new THREE.BoxGeometry(78, 18, 170),
     new THREE.MeshLambertMaterial({ color: 0x2e0f47 }));
   maw.add(throat);
-  const gullet = new THREE.Mesh(new THREE.BoxGeometry(62, 8, 150),
+  const gullet = new THREE.Mesh(new THREE.BoxGeometry(44, 5, 110),
     new THREE.MeshBasicMaterial({ color: 0x9d45ff }));
-  gullet.position.y = 16;
+  gullet.position.y = 5;
   maw.add(gullet);
-  const core = new THREE.Mesh(new THREE.PlaneGeometry(94, 190),
+  const core = new THREE.Mesh(new THREE.PlaneGeometry(70, 160),
     new THREE.MeshBasicMaterial({ map: puffTexture(220, 150, 255),
       transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending,
       depthWrite: false }));
   core.rotation.x = Math.PI / 2;
-  core.position.y = -14;
+  core.position.y = -6;
   maw.add(core);
   // Ribs across the opening — grown, not welded.
   const ribM = new THREE.MeshLambertMaterial({ color: 0x3a1a4e });
   for (let i = 0; i < 7; i++) {
-    const rib = new THREE.Mesh(new THREE.TorusGeometry(48, 6, 5, 10,
+    const rib = new THREE.Mesh(new THREE.TorusGeometry(32, 5, 5, 10,
       Math.PI), ribM);
     rib.rotation.y = Math.PI / 2;
     rib.rotation.z = Math.PI;
-    rib.position.set(0, 2, -80 + i * 27);
-    rib.scale.set(1, 0.5, 1);
+    rib.position.set(0, -7, -66 + i * 22);
+    rib.scale.set(1, 0.45, 1);
     maw.add(rib);
   }
   const doorM = new THREE.MeshLambertMaterial({ map: hullTexture(), color: 0x9aa3a9 });
-  const doorL = new THREE.Mesh(new THREE.BoxGeometry(54, 12, 212), doorM);
-  const doorR = new THREE.Mesh(new THREE.BoxGeometry(54, 12, 212), doorM);
-  doorL.position.set(-27, -20, 0);
-  doorR.position.set(27, -20, 0);
+  const doorL = new THREE.Mesh(new THREE.BoxGeometry(42, 7, 180), doorM);
+  const doorR = new THREE.Mesh(new THREE.BoxGeometry(42, 7, 180), doorM);
+  doorL.position.set(-21, -9, 0);
+  doorR.position.set(21, -9, 0);
   maw.add(doorL, doorR);
 
   g.userData = { doorL, doorR, maw, core, strobe,
                  // Where the beam comes out of, in the ship's own space.
-                 belly: new THREE.Vector3(0, -120, -60) };
+                 belly: new THREE.Vector3(0, -105, -60) };
   return g;
 }
 
@@ -655,10 +768,15 @@ export function createArrival() {
       fog: false, depthWrite: false }));
   scene.add(sky);
 
-  const groundTex = earthTexture();
-  groundTex.repeat.set(70, 70);
+  const groundTex = cityTexture();
+  // One tile every six hundred and fifty units, which puts a city block at
+  // about forty across — near enough a block.
+  const GROUND_TILE = 46;
+  groundTex.repeat.set(GROUND_TILE, GROUND_TILE);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(30000, 30000),
-    new THREE.MeshLambertMaterial({ map: groundTex }));
+    // Knocked down, because full sun on a city of grey roofs comes back
+    // white and the whole thing reads as snow.
+    new THREE.MeshLambertMaterial({ map: groundTex, color: 0xa39b90 }));
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -340;
   scene.add(ground);
@@ -668,8 +786,11 @@ export function createArrival() {
   const puff = puffTexture();
   const clouds = [];
   for (let i = 0; i < 34; i++) {
+    // Dirty rather than white: this is the smoke of the place spread out
+    // into a layer, not weather.
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puff,
-      transparent: true, opacity: 0.26 + Math.random() * 0.26, depthWrite: false }));
+      color: 0xb9ad9e, transparent: true,
+      opacity: 0.24 + Math.random() * 0.26, depthWrite: false }));
     const w = 260 + Math.random() * 520;
     s.scale.set(w, w * (0.26 + Math.random() * 0.2), 1);
     s.position.set((Math.random() * 2 - 1) * 1700,
@@ -677,6 +798,17 @@ export function createArrival() {
                    -1900 + Math.random() * 2700);
     scene.add(s);
     clouds.push(s);
+  }
+
+  // Fifteen of them, scattered under the flight path. They are what you
+  // are flying over, and nobody has said a word about it.
+  const fires = [];
+  for (let i = 0; i < 15; i++) {
+    const f = buildFire(puff);
+    f.position.set((Math.random() * 2 - 1) * 2400, -338,
+                   -2700 + Math.random() * 3600);
+    scene.add(f);
+    fires.push(f);
   }
 
   const heli = buildHeli();
@@ -811,13 +943,30 @@ export function createArrival() {
 
     // --- The world going past ---
     const speed = grabbed ? 0 : 1;
-    groundTex.offset.y -= dt * 0.013 * speed;
+    // The ground scrolls at the same speed as everything else, which it
+    // did not before: the offset is in TEXTURE TILES, not units, so the
+    // old number moved the city along at five units a second while the
+    // cloud went past at a hundred and fifty. And it moved it the wrong
+    // way — the ground has to run aft while the nose points forward.
+    groundTex.offset.y += dt * (WORLD_SPEED / (30000 / GROUND_TILE)) * speed;
     for (const c of clouds) {
-      c.position.z += dt * 150 * speed;
+      c.position.z += dt * WORLD_SPEED * speed;
       if (c.position.z > 900) {
         c.position.z -= 2900;
         c.position.x = (Math.random() * 2 - 1) * 1700;
       }
+    }
+    for (const f of fires) {
+      f.position.z += dt * WORLD_SPEED * speed;
+      if (f.position.z > 1200) {
+        f.position.z -= 4100;
+        f.position.x = (Math.random() * 2 - 1) * 2400;
+      }
+      // Fire is never steady. Two sine waves and a little noise is enough.
+      const u = f.userData;
+      u.glow.material.opacity = 0.55 + Math.sin(t * 6.3 + u.flick) * 0.13
+                                     + Math.sin(t * 17 + u.flick) * 0.07
+                                     + Math.random() * 0.06;
     }
 
     // --- The ship's approach ---
@@ -835,8 +984,8 @@ export function createArrival() {
     const open = ease(at(BEAT.wrong, BEAT.ray - 0.4, t));
     // Only as far as the hull is wide: slid further they come out of the
     // sides of the ship like a pair of ears.
-    ship.userData.doorL.position.x = -27 - open * 40;
-    ship.userData.doorR.position.x = 27 + open * 40;
+    ship.userData.doorL.position.x = -21 - open * 22;
+    ship.userData.doorR.position.x = 21 + open * 22;
     ship.userData.core.material.opacity = 0.25 + open * 0.75;
     ship.updateMatrixWorld(true);
     belly.copy(ship.userData.belly).applyMatrix4(ship.matrixWorld);

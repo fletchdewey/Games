@@ -19,7 +19,7 @@
 
 import * as THREE from 'three';
 import { poseTied, poseStand, poseAim, poseDead, freeSoldier, SOLDIER }
-  from './soldier.js?v=5fcdd0f84e';
+  from './soldier.js?v=05965c41a9';
 
 export const FX = {
   freeRange: 2.0,          // how close you have to get to cut him loose

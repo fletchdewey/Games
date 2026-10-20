@@ -19,7 +19,7 @@
 // worked out. The brain is next door in twins_ai.js.
 
 import * as THREE from 'three';
-import { PALETTE } from '../shared/materials.js?v=5fcdd0f84e';
+import { PALETTE } from '../shared/materials.js?v=05965c41a9';
 
 const COL = {
   blue: 0x2a2a3a,
