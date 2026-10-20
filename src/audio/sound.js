@@ -1070,8 +1070,9 @@ export const SOUNDS = {
   'radio-squelch': {
     label: 'RADIO SQUELCH', group: 'Moments',
     params: {
-      vol:  P(0.3, 0, 1, 0.01, 'Volume'),
-      tone: P(1700, 400, 4000, 50, 'Tone'),
+      vol:   P(0.3, 0, 1, 0.01, 'Volume'),
+      tone:  P(1700, 400, 4000, 50, 'Tone'),
+      alien: P(0.3, 0, 1, 0.02, 'Not quite right'),
     },
     make(p, t, out) {
       hiss(out, t, { dur: 0.09, type: 'bandpass', freq: vary(p.tone, 0.12),
@@ -1080,15 +1081,37 @@ export const SOUNDS = {
                             q: 2.2, vol: p.vol * 0.55, decay: 2.6 });
       beep(out, t + 0.02, { from: 920, to: 610, dur: 0.07,
                             vol: p.vol * 0.3, type: 'square' });
+      // And whatever opened the channel, falling away underneath it. Two
+      // hundredths of a second after the squelch, so it arrives inside it
+      // rather than after it.
+      if (p.alien > 0.001) {
+        beep(out, t + 0.02, { from: 1500, to: 330, dur: 0.14,
+                              vol: p.vol * p.alien * 0.5, type: 'triangle' });
+      }
     },
   },
   'radio-hiss': {
+    // The channel itself, under whoever is talking — and the one place in
+    // this game where a sound is meant to be noticed without being
+    // noticed. Whatever is on the other end of this transmission is not a
+    // person, and you are supposed to find that out about ninety seconds
+    // later, so none of this can be loud enough to think about: a carrier
+    // that breathes instead of sitting still, two tones a few beats apart
+    // humming under her voice, a shimmer up where nothing human lives,
+    // and something clicking to itself in the static.
+    //
+    // Turn `alien` to 0 and it is an ordinary radio again.
     label: 'RADIO CARRIER', group: 'Moments', loop: true,
     params: {
-      vol:  P(0.09, 0, 0.4, 0.005, 'Volume'),
-      tone: P(1500, 300, 4000, 50, 'Tone'),
+      vol:   P(0.09, 0, 0.4, 0.005, 'Volume'),
+      tone:  P(1500, 300, 4000, 50, 'Tone'),
+      alien: P(0.5, 0, 1.5, 0.02, 'Not quite right'),
+      chirp: P(0.7, 0, 3, 0.05, 'Clicks a second'),
     },
     make(p, t, out) {
+      const live = [];                 // everything that has to be stopped
+
+      // --- The carrier ---
       const n = noise(2, 0);
       n.loop = true;
       const bp = filter('bandpass', p.tone, 0.9);
@@ -1097,11 +1120,106 @@ export const SOUNDS = {
       g.gain.linearRampToValueAtTime(p.vol, t + 0.15);
       n.connect(bp); bp.connect(g); g.connect(out);
       n.start(t);
+      live.push(n);
+
+      // It breathes. A carrier wave does not, which is the point: it is
+      // slow enough that it reads as the room rather than as a sound.
+      const breath = ctx.createOscillator();
+      breath.type = 'sine';
+      breath.frequency.value = 0.37;
+      const breathDepth = ctx.createGain();
+      breathDepth.gain.value = p.vol * 0.3 * Math.min(1, p.alien);
+      breath.connect(breathDepth); breathDepth.connect(g.gain);
+      breath.start(t);
+      live.push(breath);
+
+      if (p.alien <= 0.001) {
+        return { stop: (at) => {
+          g.gain.cancelScheduledValues(at);
+          g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), at);
+          g.gain.exponentialRampToValueAtTime(0.0001, at + 0.12);
+          for (const node of live) { try { node.stop(at + 0.16); } catch (e) {} }
+        } };
+      }
+
+      // --- Everything that should not be on a human channel ---
+      const weird = ctx.createGain();
+      weird.gain.setValueAtTime(0.0001, t);
+      weird.gain.linearRampToValueAtTime(p.vol * p.alien, t + 0.5);
+      weird.connect(out);
+
+      // Two low tones a couple of beats apart, so they wander in and out
+      // of each other. A radio hums on one note or none.
+      const tones = [];
+      for (const [mul, lvl] of [[1, 1.0], [1.0042, 0.85]]) {
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = p.tone * 0.2 * mul;
+        const og = ctx.createGain();
+        og.gain.value = lvl;
+        o.connect(og); og.connect(weird);
+        o.start(t);
+        live.push(o);
+        tones.push(o);
+      }
+      // And one of them never quite settles, so the beat between them
+      // speeds up and slows down instead of ticking.
+      const drift = ctx.createOscillator();
+      drift.type = 'sine';
+      drift.frequency.value = 0.21;
+      const driftDepth = ctx.createGain();
+      driftDepth.gain.value = 1.6;
+      drift.connect(driftDepth);
+      driftDepth.connect(tones[1].frequency);
+      drift.start(t);
+      live.push(drift);
+
+      // A shimmer up where no voice goes, chopped seven times a second.
+      const high = ctx.createOscillator();
+      high.type = 'sine';
+      high.frequency.value = p.tone * 2.1;
+      const hg = ctx.createGain();
+      hg.gain.value = 0.0;
+      const chop = ctx.createOscillator();
+      chop.type = 'sine';
+      chop.frequency.value = 7.3;
+      const chopDepth = ctx.createGain();
+      chopDepth.gain.value = 0.45;
+      chop.connect(chopDepth); chopDepth.connect(hg.gain);
+      high.connect(hg); hg.connect(weird);
+      high.start(t); chop.start(t);
+      live.push(high, chop);
+
+      // Something clicking to itself in the static. Scheduled ahead for
+      // longer than any transmission lasts and cut off with the rest.
+      const count = Math.round(p.chirp * 12);
+      for (let i = 0; i < count; i++) {
+        const when = t + 0.5 + Math.random() * 11;
+        const o = ctx.createOscillator();
+        o.type = 'square';
+        const f0 = 2300 + Math.random() * 1700;
+        o.frequency.setValueAtTime(f0, when);
+        o.frequency.exponentialRampToValueAtTime(
+          f0 * (0.45 + Math.random() * 0.3), when + 0.07);
+        const cf = filter('bandpass', f0, 7);
+        const cg = ctx.createGain();
+        cg.gain.setValueAtTime(0.0001, when);
+        cg.gain.linearRampToValueAtTime(0.8, when + 0.008);
+        cg.gain.exponentialRampToValueAtTime(0.0001, when + 0.085);
+        o.connect(cf); cf.connect(cg); cg.connect(weird);
+        o.start(when); o.stop(when + 0.1);
+        live.push(o);
+      }
+
       return { stop: (at) => {
-        g.gain.cancelScheduledValues(at);
-        g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), at);
-        g.gain.exponentialRampToValueAtTime(0.0001, at + 0.12);
-        n.stop(at + 0.16);
+        for (const node of [g, weird]) {
+          node.gain.cancelScheduledValues(at);
+          node.gain.setValueAtTime(Math.max(0.0001, node.gain.value), at);
+          node.gain.exponentialRampToValueAtTime(0.0001, at + 0.12);
+        }
+        // An oscillator told to stop before it was told to start never
+        // sounds at all, which is what silences the clicks still queued.
+        for (const node of live) { try { node.stop(at + 0.16); } catch (e) {} }
       } };
     },
   },
