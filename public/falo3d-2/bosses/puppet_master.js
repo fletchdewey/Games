@@ -16,7 +16,7 @@
 // can tell whether a bullet struck the body or the pilot.
 
 import * as THREE from 'three';
-import { PALETTE } from '../shared/materials.js?v=05965c41a9';
+import { PALETTE } from '../shared/materials.js?v=560d6f9142';
 
 export function createPuppetMaster() {
   const g = new THREE.Group();

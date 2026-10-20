@@ -21,9 +21,9 @@
 // while the Brute charges in. That's the strategy.
 
 import * as THREE from 'three';
-import { buildBrute as buildBruteModel } from './workshop_models.js?v=05965c41a9';
-import { createBehaviorSpec } from '../shared/behavior.js?v=05965c41a9';
-import { BRUTE_ATTACK } from '../shared/brute_attack.js?v=05965c41a9';
+import { buildBrute as buildBruteModel } from './workshop_models.js?v=560d6f9142';
+import { createBehaviorSpec } from '../shared/behavior.js?v=560d6f9142';
+import { BRUTE_ATTACK } from '../shared/brute_attack.js?v=560d6f9142';
 
 
 // ─── 1. GEOMETRY ────────────────────────────────────────────────

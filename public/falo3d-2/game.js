@@ -18,58 +18,60 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=05965c41a9';
+import { PALETTE, getMaterial } from './shared/materials.js?v=560d6f9142';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=05965c41a9';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=05965c41a9';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=560d6f9142';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=560d6f9142';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=05965c41a9';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=05965c41a9';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=560d6f9142';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=560d6f9142';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=05965c41a9';
-import { createArrival } from './cutscene/arrival.js?v=05965c41a9';
+import { createDescent } from './cutscene/descent.js?v=560d6f9142';
+import { createArrival } from './cutscene/arrival.js?v=560d6f9142';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=05965c41a9';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=05965c41a9';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=560d6f9142';
+import { masterVolume } from './audio/sound.js?v=560d6f9142';
+import { say, hush, castList } from './audio/speech.js?v=560d6f9142';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=560d6f9142';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=05965c41a9';
+import { createController, updateController } from './player/controller.js?v=560d6f9142';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=05965c41a9';
+  from './player/classes.js?v=560d6f9142';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=05965c41a9';
+import { buildSoldier } from './npc/soldier.js?v=560d6f9142';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=05965c41a9';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=560d6f9142';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=05965c41a9';
-import { createSwarm } from './bosses/swarm.js?v=05965c41a9';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=05965c41a9';
-import { createTwins } from './bosses/twins.js?v=05965c41a9';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=05965c41a9';
-import { createBurrower } from './bosses/burrower.js?v=05965c41a9';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=560d6f9142';
+import { createSwarm } from './bosses/swarm.js?v=560d6f9142';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=560d6f9142';
+import { createTwins } from './bosses/twins.js?v=560d6f9142';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=560d6f9142';
+import { createBurrower } from './bosses/burrower.js?v=560d6f9142';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=05965c41a9';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=560d6f9142';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=05965c41a9';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=560d6f9142';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
-import { cleanName, savedName, saveName } from './player/name.js?v=05965c41a9';
-import { startPresence } from './shared/presence.js?v=05965c41a9';
+import { cleanName, savedName, saveName } from './player/name.js?v=560d6f9142';
+import { startPresence } from './shared/presence.js?v=560d6f9142';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=05965c41a9';
+  from './map/grid_map.js?v=560d6f9142';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -79,7 +81,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=05965c41a9';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=560d6f9142';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -1275,6 +1277,9 @@ function endDescent() {
 // lying on its side. Which is the point: the first thing you ever see of
 // the level is from the floor of it.
 let intro = null;
+const cutLineEl = document.getElementById('cut-line');
+const cutWhoEl = cutLineEl && cutLineEl.querySelector('.who');
+const cutSaidEl = cutLineEl && cutLineEl.querySelector('.said');
 let waking = -1;              // seconds since you came round, -1 when not
 let wakeYaw = 0;              // the way the game would have had you facing
 const WAKE_BLINK = 2.1;       // eyes, twice, before anything else
@@ -1297,17 +1302,59 @@ function startIntro() {
 
 /** Whatever the cutscene asks for, in the game's own voice. */
 function introCue(c) {
-  if (c === 'rotor-on') startLoop('rotor', { gain: 0.9 });
-  else if (c === 'ray-on') {
+  if (c.line) {
+    // The words. The browser's own speech synthesiser says them — see
+    // audio/speech.js — and the subtitle under them is drawn every frame
+    // from the cutscene's own clock, so a machine with no voices still
+    // gets the scene and a slow voice never drags the subtitles about.
+    say(c.line.role, c.line.speak || c.line.text, masterVolume());
+    return;
+  }
+  const id = c.sound;
+  if (id === 'rotor-on') startLoop('rotor', { gain: ROTOR_GAIN });
+  else if (id === 'radio-on') {
+    playSound('radio-squelch', { gain: 0.8 });
+    startLoop('radio-hiss', { gain: 0.9 });
+  } else if (id === 'radio-off') {
+    stopLoop('radio-hiss');
+    playSound('radio-squelch', { gain: 0.6 });
+  } else if (id === 'ray-on') {
     playSound('watcher-charge', { gain: 0.75 });
     startLoop('tractor', { gain: 0.95 });
-  } else if (c === 'grab') {
+  } else if (id === 'grab') {
     stopLoop('rotor');
     playSound('pod-launch', { gain: 0.6 });
-  } else if (c === 'swallow') {
+  } else if (id === 'swallow') {
     playSound('space-door', { gain: 1 });
-  } else if (c === 'quiet') {
+  } else if (id === 'quiet') {
     stopLoop('tractor');
+  }
+}
+
+// How loud the helicopter is with nobody talking, and with somebody. A
+// rotor at full belt and a sentence at the same time is a rotor; every
+// film with a helicopter in it ducks the one under the other.
+const ROTOR_GAIN = 0.9;
+const ROTOR_DUCK = 0.4;
+
+/** Put the subtitle up, or take it down. */
+function showLine(l) {
+  if (!cutLineEl) return;
+  if (!l) {
+    if (cutLineEl.style.display !== 'none') cutLineEl.style.display = 'none';
+    return;
+  }
+  // Your own line is the one place the game says your name out loud.
+  // Shouted in capitals like the other two, so your name sits in the
+  // scene rather than looking like a different kind of thing.
+  const who = l.role === 'you'
+    ? (playerName ? playerName.toUpperCase() : 'YOU') : l.who;
+  cutLineEl.style.display = 'block';
+  cutLineEl.style.opacity = String(l.alpha);
+  if (cutWhoEl && cutWhoEl.textContent !== who) cutWhoEl.textContent = who;
+  if (cutSaidEl && cutSaidEl.textContent !== l.text) cutSaidEl.textContent = l.text;
+  if (cutLineEl.classList.contains('radio') !== (l.role === 'radio')) {
+    cutLineEl.classList.toggle('radio', l.role === 'radio');
   }
 }
 
@@ -1318,8 +1365,11 @@ function endIntro(skipped) {
   if (!intro) return;
   intro.dispose();
   intro = null;
+  hush();                     // mid-sentence, if that is where you skipped
+  showLine(null);
   stopLoop('rotor');
   stopLoop('tractor');
+  stopLoop('radio-hiss');
   waking = skipped ? WAKE_BLINK - 0.25 : 0;
   playSound('hurt-ah', { gain: 0.45 });
 }
@@ -2718,6 +2768,10 @@ function gameLoop(now) {
     const over = intro.update(Math.min(dt, 0.05));
     const due = intro.cues();
     if (due) for (const c of due) introCue(c);
+    const talk = intro.line();
+    showLine(talk);
+    // Duck the aircraft under whoever is speaking.
+    setLoopGain('rotor', talk ? ROTOR_DUCK : ROTOR_GAIN);
     if (cutFadeEl) cutFadeEl.style.opacity = String(intro.blackness());
     renderer.render(intro.scene, intro.camera);
     // Skipping ends it through this same path, so whether a key did it is
@@ -3217,6 +3271,8 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
       waking = skipped ? WAKE_BLINK - 0.25 : 0;
       return true;
     },
+    /** Which voice each speaker ended up with on this machine. */
+    cast() { return castList(); },
     /** Watch the opening again without reloading the page. */
     replayIntro() { if (!intro) { waking = -1; startIntro(); } return true; },
     get introAt() { return intro ? intro.at : -1; },

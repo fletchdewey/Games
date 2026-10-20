@@ -1062,6 +1062,49 @@ export const SOUNDS = {
       } };
     },
   },
+  // The handset in the cockpit. Two pieces: the squelch that opens and
+  // closes a transmission, and the carrier underneath it while somebody is
+  // talking. The browser's speech cannot be put through a filter — it does
+  // not come out anywhere this mixer can reach it — so the radio is sold
+  // by what is around the voice rather than by what is done to it.
+  'radio-squelch': {
+    label: 'RADIO SQUELCH', group: 'Moments',
+    params: {
+      vol:  P(0.3, 0, 1, 0.01, 'Volume'),
+      tone: P(1700, 400, 4000, 50, 'Tone'),
+    },
+    make(p, t, out) {
+      hiss(out, t, { dur: 0.09, type: 'bandpass', freq: vary(p.tone, 0.12),
+                     q: 1.4, vol: p.vol, decay: 1.6 });
+      hiss(out, t + 0.07, { dur: 0.24, type: 'bandpass', freq: p.tone * 0.7,
+                            q: 2.2, vol: p.vol * 0.55, decay: 2.6 });
+      beep(out, t + 0.02, { from: 920, to: 610, dur: 0.07,
+                            vol: p.vol * 0.3, type: 'square' });
+    },
+  },
+  'radio-hiss': {
+    label: 'RADIO CARRIER', group: 'Moments', loop: true,
+    params: {
+      vol:  P(0.09, 0, 0.4, 0.005, 'Volume'),
+      tone: P(1500, 300, 4000, 50, 'Tone'),
+    },
+    make(p, t, out) {
+      const n = noise(2, 0);
+      n.loop = true;
+      const bp = filter('bandpass', p.tone, 0.9);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(p.vol, t + 0.15);
+      n.connect(bp); bp.connect(g); g.connect(out);
+      n.start(t);
+      return { stop: (at) => {
+        g.gain.cancelScheduledValues(at);
+        g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), at);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 0.12);
+        n.stop(at + 0.16);
+      } };
+    },
+  },
   'tractor': {
     // The beam. Three detuned sawtooths climbing together through a filter
     // that opens as they go, with air being dragged up over the top — it

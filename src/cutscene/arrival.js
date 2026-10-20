@@ -41,16 +41,44 @@ import { buildSoldier } from '../npc/soldier.js';
 const BEAT = {
   cabin:  1.0,   // black lifts; you are in the back of the aircraft
   spot:   7.5,   // out of the open door, something on the horizon
-  wide:  13.0,   // cut outside — how big it actually is
-  wrong: 18.5,   // its belly opens, and the light out of it is wrong
-  ray:   21.0,   // the beam
-  pull:  22.6,   // taken, far too fast
-  tumble:24.1,   // back inside, everything sideways
-  white: 26.2,   // over the lip
-  dark:  27.4,
-  over:  29.0,
+  wide:  18.6,   // cut outside — how big it actually is
+  wrong: 24.0,   // its belly opens, and the light out of it is wrong
+  ray:   26.6,   // the beam
+  pull:  28.2,   // taken, far too fast
+  tumble:29.7,   // back inside, everything sideways
+  white: 31.8,   // over the lip
+  dark:  33.0,
+  over:  34.6,
 };
 
+// ─── WHAT THEY SAY ──────────────────────────────────────────
+// Five lines, and the clock above is cut around them rather than the
+// other way round — the ship's belly opens while you are still saying you
+// do not want to be stuck out here.
+//
+// `dur` is not a guess. Each line was spoken by the voice it is going to
+// be spoken by, at the pitch and rate that voice is given, and timed: the
+// subtitle stays up for exactly as long as the words take, and the next
+// man does not start talking over the end of the last one.
+//
+// `speak` exists for the one line where what is written and what is said
+// have to differ — a speech synthesiser reads "?!" as a pause and a
+// shrug, and the subtitle wants the "?!".
+const SCRIPT = [
+  { at: 1.8,  dur: 2.5, role: 's1', who: 'SOLDIER', crew: 0,
+    text: "I thought I was a goner back there." },
+  { at: 5.1,  dur: 4.0, role: 's2', who: 'SOLDIER', crew: 2,
+    text: "Yeah, we were lucky that this helicopter was still working." },
+  { at: 9.9,  dur: 5.4, role: 'radio', who: 'RADIO', radio: true,
+    text: "Hello? Hello?! This is an emergency. Get towards the military ship immediately.",
+    speak: "Hello? Hello! This is an emergency. Get towards the military ship immediately." },
+  { at: 15.8, dur: 4.8, role: 's3', who: 'SOLDIER', crew: 1,
+    text: "We better get going. I mean, we wouldn't want to be stuck out here." },
+  // The last one is yours, which is why it has no name on it here: the
+  // game puts the name you typed in on the front of it.
+  { at: 21.3, dur: 4.2, role: 'you', who: null,
+    text: "Let's get going. I don't want to be stuck out here." },
+];
 const SKY_TOP  = 0x2e6ca8;
 const SKY_HAZE = 0xa89e92;      // the horizon, and the fog, and the smoke in it
 // How fast the world goes past, in units a second. The ground, the cloud
@@ -867,13 +895,22 @@ export function createArrival() {
   const LOOK = [
     // It starts aft and low — at the man beside you and the floor — so
     // that the first thing out of the door is not the ship. Opening on the
-    // doorway gives the whole thing away in the first second.
+    // doorway gives the whole thing away in the first second. After that
+    // it goes wherever the talking is, and ends up out of the door.
     { at: 0.0,  yaw: 2.10, pitch: -0.24 },
-    { at: 1.8,  yaw: 1.95, pitch: -0.14 },
-    { at: 3.4,  yaw: 0.34, pitch:  0.02 },   // forward, at the pilot
-    { at: 5.4,  yaw: 0.34, pitch:  0.02 },
-    { at: 7.9,  yaw: 1.45, pitch: -0.05 },   // and out of the door
-    { at: 13.0, yaw: 1.50, pitch: -0.02 },
+    { at: 1.5,  yaw: 0.80, pitch: -0.02 },   // the man opposite you
+    { at: 4.8,  yaw: 0.80, pitch: -0.02 },
+    { at: 5.0,  yaw: -0.10, pitch: 0.00 },   // the man beside you
+    { at: 9.0,  yaw: -0.10, pitch: 0.00 },
+    { at: 9.5,  yaw: 0.34, pitch:  0.02 },   // forward, at the radio
+    { at: 11.9, yaw: 0.34, pitch:  0.02 },
+    { at: 12.7, yaw: 1.45, pitch: -0.05 },   // and out of the door
+    { at: 15.3, yaw: 1.45, pitch: -0.05 },
+    { at: 15.6, yaw: 2.05, pitch:  0.00 },   // the man aft of the door
+    { at: 18.4, yaw: 2.05, pitch:  0.00 },
+    // Only reached again when the camera comes back inside for the last
+    // seconds, by which time the door is where all the light is.
+    { at: 29.2, yaw: 1.35, pitch:  0.02 },
   ];
   function lookNow(time) {
     let i = 0;
@@ -900,14 +937,23 @@ export function createArrival() {
   let fade = 1;
   let held = false;
   let rotorPower = 1;
+  // Everything the game has to DO at a given second, in order: sounds to
+  // start and lines to say. A cue is an object rather than a name because
+  // a line carries its words with it.
   const pending = [];
   const CUES = [
-    [0.02, 'rotor-on'],
-    [BEAT.ray - 0.35, 'ray-on'],
-    [BEAT.pull, 'grab'],
-    [BEAT.white, 'swallow'],
-    [BEAT.dark + 0.3, 'quiet'],
+    { at: 0.02, sound: 'rotor-on' },
+    { at: BEAT.ray - 0.35, sound: 'ray-on' },
+    { at: BEAT.pull, sound: 'grab' },
+    { at: BEAT.white, sound: 'swallow' },
+    { at: BEAT.dark + 0.3, sound: 'quiet' },
   ];
+  for (const L of SCRIPT) {
+    if (L.radio) CUES.push({ at: L.at - 0.4, sound: 'radio-on' });
+    CUES.push({ at: L.at, line: L });
+    if (L.radio) CUES.push({ at: L.at + L.dur + 0.1, sound: 'radio-off' });
+  }
+  CUES.sort((a, b) => a.at - b.at);
   let cueIdx = 0;
 
   const at = (a, b, time) => Math.min(1, Math.max(0, (time - a) / (b - a)));
@@ -917,8 +963,8 @@ export function createArrival() {
     if (done) return true;
     if (held) dt = 0;
     t += dt;
-    while (cueIdx < CUES.length && t >= CUES[cueIdx][0]) {
-      pending.push(CUES[cueIdx++][1]);
+    while (cueIdx < CUES.length && t >= CUES[cueIdx].at) {
+      pending.push(CUES[cueIdx++]);
     }
 
     const d = heli.userData;
@@ -1040,6 +1086,7 @@ export function createArrival() {
 
     // --- The men ---
     const alarmed = smoothstep(BEAT.spot + 1.2, BEAT.wide, t);
+    const saying = speaking();
     for (let i = 0; i < 4; i++) {
       const s = d.crew[i];
       if (t >= BEAT.tumble) { poseTossed(s, t + i); continue; }
@@ -1048,6 +1095,15 @@ export function createArrival() {
       const faces = i >= 2;
       poseSeated(s, t + i * 0.7, alarmed * (faces ? 0.22 : 0.1),
                  alarmed * (faces ? -0.1 : 1.0));
+      // And whoever is talking moves while he does it. There is no jaw on
+      // this model — it is a box — so it is the head that does the work,
+      // which is enough at the size he is on screen.
+      if (saying && saying.crew === i) {
+        const k = Math.min(1, (t - saying.at) * 3);
+        s.userData.headPivot.rotation.x += Math.sin(t * 9.5) * 0.05 * k;
+        s.userData.headPivot.rotation.y += Math.sin(t * 5.3) * 0.06 * k;
+        s.userData.hips.rotation.x += Math.sin(t * 4.1) * 0.02 * k;
+      }
     }
     const pilot = d.pilot;
     if (t >= BEAT.tumble) {
@@ -1109,6 +1165,29 @@ export function createArrival() {
     return done;
   }
 
+  /** The line being spoken this instant, or null between them. */
+  function speaking() {
+    for (const L of SCRIPT) {
+      if (t >= L.at && t < L.at + L.dur + 0.45) return L;
+    }
+    return null;
+  }
+
+  /**
+   * The subtitle as it stands this frame: who is talking, what they are
+   * saying, and how far up it is faded. It is on screen whatever the
+   * machine's speech does or doesn't manage, so the scene survives a
+   * browser with no voices in it at all.
+   */
+  function line() {
+    const L = speaking();
+    if (!L) return null;
+    const since = t - L.at;
+    const left = L.at + L.dur + 0.45 - t;
+    return { who: L.who, text: L.text, role: L.role,
+             alpha: Math.min(1, since / 0.18, left / 0.35) };
+  }
+
   /** Sound cues that came due since the last frame, handed over once. */
   function cues() {
     if (!pending.length) return null;
@@ -1138,7 +1217,7 @@ export function createArrival() {
     });
   }
 
-  return { scene, camera, update, skip, blackness, cues, seek, dispose,
+  return { scene, camera, update, skip, blackness, cues, line, seek, dispose,
            get at() { return t; },
            get skipped() { return cut; },
            get finished() { return done; } };

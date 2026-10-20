@@ -352,6 +352,38 @@
     #descent-text { font-size: 12px; letter-spacing: 1px; }
   }
 
+  /* What anybody says out loud, in the opening. The voices themselves
+     come from the browser's own speech synthesiser, which not every
+     machine has — the subtitle is the version of the scene everybody
+     gets, so it is driven by the cutscene's clock rather than by whether
+     a voice turned up. */
+  #cut-line {
+    display: none;
+    position: fixed; bottom: 11%; left: 50%; transform: translateX(-50%);
+    width: min(92vw, 880px); z-index: 29;
+    font-family: 'Courier New', monospace;
+    font-size: 17px; line-height: 1.5; text-align: center;
+    pointer-events: none;
+    text-shadow: 0 0 10px rgba(0,0,0,0.95), 0 2px 3px rgba(0,0,0,0.9);
+    transition: opacity 0.1s linear;
+  }
+  #cut-line .pill {
+    display: inline-block; max-width: 100%;
+    padding: 5px 18px; border-radius: 5px;
+    background: rgba(6,4,10,0.58); color: #e9eff1;
+  }
+  #cut-line .who {
+    color: #7fd4a0; letter-spacing: 2px; margin-right: 10px;
+  }
+  #cut-line .who:empty { display: none; }
+  #cut-line .who:not(:empty)::after { content: ':'; }
+  /* The one voice in the scene that is not in the aircraft. */
+  #cut-line.radio .who { color: #ffbe55; }
+  #cut-line.radio .pill { color: #ffe3b4; background: rgba(14,8,4,0.6); }
+  @media (max-width: 620px) {
+    #cut-line { font-size: 13px; bottom: 13%; }
+  }
+
   /* Black over everything: the first and last seconds of a cutscene,
      and your eyes going in and out while you come round on the floor. */
   #cut-fade {
@@ -470,6 +502,7 @@
   <div id="use-prompt">E &mdash; LAUNCH</div>
 
   <div id="descent-text"><div class="one"></div><div class="two"></div></div>
+  <div id="cut-line"><span class="pill"><span class="who"></span><span class="said"></span></span></div>
   <div id="cut-fade"></div>
 
   <div id="perk-hud"></div>
