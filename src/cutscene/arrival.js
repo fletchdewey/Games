@@ -72,9 +72,13 @@ const SCRIPT = [
     text: "I thought I was a goner back there." },
   { at: 4.45, dur: 3.25, role: 's2', who: 'SOLDIER', crew: 2,
     text: "Yeah, we were lucky that this helicopter was still working." },
-  { at: 8.90, dur: 5.20, role: 'radio', who: 'RADIO', radio: true,
+  { at: 8.90, dur: 5.05, role: 'radio', who: 'RADIO', radio: true,
     text: "Hello? Hello?! This is an emergency. Get towards the military ship immediately.",
-    speak: "Hello? Hello! This is an emergency. Get towards the military ship immediately." },
+    // Handed over in pieces on purpose — see `drift` in audio/speech.js.
+    // Every word is clear and not one of them is stressed like a person
+    // would stress it.
+    speak: ["Hello?", "Hello!", "This is an emergency.",
+            "Get towards the military ship immediately."] },
   { at: 14.90, dur: 4.35, role: 's3', who: 'SOLDIER', crew: 1,
     text: "We better get going. I mean, we wouldn't want to be stuck out here." },
   // The last one is yours, which is why it has no name on it here: the

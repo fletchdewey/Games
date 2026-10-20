@@ -77,8 +77,18 @@ const TONE = {
   // pushed to the bottom of the range; one of the deep ones above does
   // not need it and goes to pieces if you try.
   you:   { pitch: 0.5, rate: 1.08, deepPitch: 0.72 },
-  // Thinner and faster still, because she is shouting into a handset.
-  radio: { pitch: 1.14, rate: 1.12, gain: 0.95 },
+  // Thinner and faster than a person in the cabin, because she is
+  // shouting into a handset — and `drift`, which is the part that is not
+  // about radios at all.
+  //
+  // A line given to this role is handed over in pieces, and each piece
+  // comes out at a slightly different pitch and speed. People do that
+  // too, but they do it for a reason: they lean on the word that matters.
+  // These numbers lean on nothing. The effect is a voice that has the
+  // shape of speech without the sense of it — every word clear, the
+  // stress in the wrong places, and nothing you could point at.
+  radio: { pitch: 1.2, rate: 1.12, gain: 0.95,
+           drift: [[0.13, 0.07], [-0.06, -0.04], [0.19, 0.11], [0.02, -0.06]] },
   s1:    { pitch: 0.96, rate: 1.18 },
   s2:    { pitch: 0.94, rate: 1.14 },
   s3:    { pitch: 1.04, rate: 1.18 },
@@ -163,21 +173,37 @@ export function canSpeak() {
 export function say(role, text, gain = 1) {
   const s = synth();
   if (!s || !text) return null;
+  // A line can arrive as one string or as a list of pieces. The pieces
+  // queue back to back — a browser speaks one utterance at a time — so
+  // what you hear is one delivery, in sections, each with its own pitch.
+  const parts = Array.isArray(text) ? text.filter(Boolean) : [text];
+  if (!parts.length) return null;
   try {
     // Chrome can leave the synthesiser paused after a tab change, and a
     // paused one accepts utterances and never speaks them.
     if (s.paused) s.resume();
-    const u = new SpeechSynthesisUtterance(text);
     const v = voices()[role];
-    if (v) { u.voice = v; u.lang = v.lang; }
     const tone = TONE[role] || {};
-    u.pitch = tone.pitch != null ? tone.pitch : 1;
-    if (tone.deepPitch != null && v && DEEP.test(v.name)) u.pitch = tone.deepPitch;
-    u.rate = tone.rate != null ? tone.rate : 1;
+    const basePitch = (tone.deepPitch != null && v && DEEP.test(v.name))
+      ? tone.deepPitch
+      : (tone.pitch != null ? tone.pitch : 1);
+    const baseRate = tone.rate != null ? tone.rate : 1;
     const level = gain * (tone.gain != null ? tone.gain : 1);
-    u.volume = Math.max(0, Math.min(1, level));
-    s.speak(u);
-    return u;
+    let last = null;
+    parts.forEach((chunk, i) => {
+      const u = new SpeechSynthesisUtterance(chunk);
+      if (v) { u.voice = v; u.lang = v.lang; }
+      const d = tone.drift ? tone.drift[i % tone.drift.length] : null;
+      // The browser refuses a pitch outside 0 to 2 and a rate outside 0.1
+      // to 10 — by throwing the whole utterance away rather than by
+      // clamping it, so the clamping happens here.
+      u.pitch = Math.max(0.1, Math.min(2, basePitch + (d ? d[0] : 0)));
+      u.rate = Math.max(0.3, Math.min(3, baseRate + (d ? d[1] : 0)));
+      u.volume = Math.max(0, Math.min(1, level));
+      s.speak(u);
+      last = u;
+    });
+    return last;
   } catch (e) {
     if (!warned) { warned = true; console.warn('speech', e); }
     return null;
