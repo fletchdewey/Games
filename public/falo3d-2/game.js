@@ -18,60 +18,60 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=b6f95d5579';
+import { PALETTE, getMaterial } from './shared/materials.js?v=a527ec0e62';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=b6f95d5579';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=b6f95d5579';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=a527ec0e62';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=a527ec0e62';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=b6f95d5579';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=b6f95d5579';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=a527ec0e62';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=a527ec0e62';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=b6f95d5579';
-import { createArrival } from './cutscene/arrival.js?v=b6f95d5579';
+import { createDescent } from './cutscene/descent.js?v=a527ec0e62';
+import { createArrival } from './cutscene/arrival.js?v=a527ec0e62';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=b6f95d5579';
-import { masterVolume } from './audio/sound.js?v=b6f95d5579';
-import { say, hush, castList } from './audio/speech.js?v=b6f95d5579';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=b6f95d5579';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=a527ec0e62';
+import { masterVolume } from './audio/sound.js?v=a527ec0e62';
+import { say, hush, castList } from './audio/speech.js?v=a527ec0e62';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=a527ec0e62';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=b6f95d5579';
+import { createController, updateController } from './player/controller.js?v=a527ec0e62';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=b6f95d5579';
+  from './player/classes.js?v=a527ec0e62';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=b6f95d5579';
+import { buildSoldier } from './npc/soldier.js?v=a527ec0e62';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=b6f95d5579';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=a527ec0e62';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=b6f95d5579';
-import { createSwarm } from './bosses/swarm.js?v=b6f95d5579';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=b6f95d5579';
-import { createTwins } from './bosses/twins.js?v=b6f95d5579';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=b6f95d5579';
-import { createBurrower } from './bosses/burrower.js?v=b6f95d5579';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=a527ec0e62';
+import { createSwarm } from './bosses/swarm.js?v=a527ec0e62';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=a527ec0e62';
+import { createTwins } from './bosses/twins.js?v=a527ec0e62';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=a527ec0e62';
+import { createBurrower } from './bosses/burrower.js?v=a527ec0e62';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=b6f95d5579';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=a527ec0e62';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=b6f95d5579';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=a527ec0e62';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
-import { cleanName, savedName, saveName } from './player/name.js?v=b6f95d5579';
-import { startPresence } from './shared/presence.js?v=b6f95d5579';
+import { cleanName, savedName, saveName } from './player/name.js?v=a527ec0e62';
+import { startPresence } from './shared/presence.js?v=a527ec0e62';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=b6f95d5579';
+  from './map/grid_map.js?v=a527ec0e62';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -81,7 +81,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=b6f95d5579';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=a527ec0e62';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -502,9 +502,27 @@ const BOSS_KINDS = [
     hit: (model, part, point, amount) =>
       damagePuppetMaster(model, amount, part, point),
     dead: (d) => d.isDead,
+    // Body and pilot keep separate health, so a blast that reaches both
+    // is worth something to both.
+    blastParts: true,
     // The pilot can eject out of the boss group, so it is raycast separately
     // or it stops being shootable the moment it bails.
     targets: (model) => [model.userData.pilotGroup],
+    // What a rocket is allowed to go off against. The wreck is struck off
+    // the list the moment the body dies: it cannot take a blast any more,
+    // and while it was still solid every rocket burst on the corpse the
+    // pilot had just climbed out of — which left the RPG with no way of
+    // finishing this fight at all.
+    solid(model) {
+      const d = model.userData;
+      const out = [];
+      if (d.bodyHp > 0) out.push({ at: model.position, r: 2.2 });
+      if (d.pilotGroup) {
+        out.push({ at: d.pilotGroup.getWorldPosition(new THREE.Vector3()),
+                   r: 1.2 });          // it is a small thing
+      }
+      return out;
+    },
     flash: (model) => [[model, 'body'], [model.userData.pilotGroup, 'pilot']],
     hud(d, defeated) {
       const bodyPct = Math.max(0, d.bodyHp / d.bodyHpMax) * 100;
@@ -551,6 +569,9 @@ const BOSS_KINDS = [
     // Its meshes are tagged with which twin they belong to, so the hit goes
     // to the one actually shot.
     hit: (model, part, point, amount) => damageTwin(model, part, amount),
+    // And they are two separate creatures with two separate healths, so a
+    // blast caught between them hurts both.
+    blastParts: true,
     dead: (d) => d.defeated,
     hud(d, defeated) {
       if (defeated) return { label: 'THE TWINS — BOTH DOWN', pct: 0 };
@@ -1616,24 +1637,99 @@ function explode(at, radius, damage) {
   }
   updateHUD();
 
-  // The boss, if any of it was standing in it. Its modules want to be told
-  // WHICH part was hit, so the blast finds the nearest piece of it that is
-  // shootable and reports that — the same route a bullet takes.
+  // The boss, if any of it was standing in it.
+  //
+  // Its modules want to be told WHICH part was hit, so the blast finds the
+  // nearest shootable piece of EVERY part it reaches and reports them one
+  // at a time. Every part, rather than only the nearest of the lot,
+  // because of the Puppet Master: once its body is dead the pilot runs
+  // about on its own, and a blast that found the wreck first reported a
+  // hit on a part with no health left — which that boss throws away. The
+  // RPG therefore could not finish that fight at all. A blast is also the
+  // one thing that genuinely does hit two parts of something at once.
   if (boss && boss.active && !boss.defeated) {
-    let part = null, best = radius;
-    boss.model.traverse((o) => {
-      if (!o.isMesh || !o.visible || !o.userData.hitPart) return;
-      const where = o.getWorldPosition(new THREE.Vector3());
-      const d = where.distanceTo(at);
-      if (d < best && clearShot(at, where)) { best = d; part = o; }
-    });
-    if (part) {
-      const share = damage * (1 - best / radius);
-      boss.kind.hit(boss.model, part.userData.hitPart, at.clone(),
-                    boss.kind.bullet * share * (playerClass.damageMul || 1)
+    const nearest = new Map();          // hitPart -> how far off it was
+    const where = new THREE.Vector3();
+    const look = (root) => {
+      if (!root) return;
+      root.traverse((o) => {
+        if (!o.isMesh || !o.visible || !o.userData.hitPart) return;
+        o.getWorldPosition(where);
+        const d = where.distanceTo(at);
+        if (d >= radius) return;
+        const best = nearest.get(o.userData.hitPart);
+        if (best != null && best <= d) return;
+        if (!clearShot(at, where)) return;
+        nearest.set(o.userData.hitPart, d);
+      });
+    };
+    look(boss.model);
+    // Some bosses keep part of themselves outside their own group — the
+    // Puppet Master's pilot ejects into the scene. The same list the
+    // hitscan path has always used.
+    for (const extra of (boss.kind.targets ? boss.kind.targets(boss.model) : [])) {
+      look(extra);
+    }
+    // `damage` already carries the class multiplier: it was applied a
+    // second time here, which quietly made every blast a Commander let off
+    // worth four times what the class card says.
+    const give = (part, d) =>
+      boss.kind.hit(boss.model, part, at.clone(),
+                    boss.kind.bullet * damage * (1 - d / radius)
                       / difficulty.enemyHp);
+    if (boss.kind.blastParts) {
+      // Parts with their own health: each takes its own share. Only the
+      // two bosses that are really two things say so.
+      for (const [part, d] of nearest) give(part, d);
+    } else {
+      // One pool of health wearing several labels — a Burrower's head,
+      // eyes and body are all the same Burrower. Reporting each of them
+      // would charge the blast three times for one explosion.
+      let part = null, best = Infinity;
+      for (const [p, d] of nearest) if (d < best) { best = d; part = p; }
+      if (part) give(part, best);
     }
   }
+}
+
+/**
+ * Is any shootable piece of the boss right here?
+ *
+ * A rocket asks this to know it has arrived. Asking the boss's own
+ * position is not enough — that is the middle of its feet, and the Puppet
+ * Master's pilot ends the fight ten metres away from them.
+ */
+function bossIsAt(p) {
+  if (!boss || !boss.active || boss.defeated) return false;
+  // A kind can say which of its pieces are solid enough to set a rocket
+  // off, and how big each one is. Only one does, and only because part of
+  // it stops counting halfway through the fight.
+  if (boss.kind.solid) {
+    for (const s of boss.kind.solid(boss.model)) {
+      if (s && s.at && s.at.distanceTo(p) < s.r) return true;
+    }
+    return false;
+  }
+  // Otherwise: anything of it you could have shot. This used to ask the
+  // boss's GROUP where it was, which is no good for the two of them that
+  // leave the group at the origin and lay themselves out inside it — a
+  // rocket aimed at either Twin flew straight through and went off on the
+  // far wall, if it went off at all.
+  const where = new THREE.Vector3();
+  let near = false;
+  const look = (root) => {
+    if (!root || near) return;
+    root.traverse((o) => {
+      if (near || !o.isMesh || !o.visible || !o.userData.hitPart) return;
+      o.getWorldPosition(where);
+      if (where.distanceTo(p) < 1.1) near = true;
+    });
+  };
+  look(boss.model);
+  for (const extra of (boss.kind.targets ? boss.kind.targets(boss.model) : [])) {
+    look(extra);
+  }
+  return near;
 }
 
 /** A rocket, leaving the tube. */
@@ -1710,10 +1806,7 @@ function updateOrdnance(dt, live) {
           if (flat < 1.0 && high > -0.6 && high < 2.4) { hit = p.clone(); break; }
         }
       }
-      if (!hit && boss && boss.active && !boss.defeated &&
-          boss.model.position.distanceTo(p) < 2.2) {
-        hit = p.clone();
-      }
+      if (!hit && bossIsAt(p)) hit = p.clone();
 
       if (hit) {
         // The thing it actually struck takes the direct hit as well as its
@@ -3271,6 +3364,16 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
       waking = skipped ? WAKE_BLINK - 0.25 : 0;
       return true;
     },
+    /** Put any weapon in your hands, whether or not it is unlocked — for
+     *  checking that every one of them still shoots. */
+    arm(id) {
+      if (!WEAPONS[id]) return Object.keys(WEAPONS);
+      swapGun(id);
+      shotCooldown = 0;
+      return id;
+    },
+    /** Pull the trigger once from the console, along the current aim. */
+    fire() { ctrl.shootRequested = true; return true; },
     /** Which voice each speaker ended up with on this machine. */
     cast() { return castList(); },
     /** Watch the opening again without reloading the page. */

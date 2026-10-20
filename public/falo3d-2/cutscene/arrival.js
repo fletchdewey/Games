@@ -33,7 +33,7 @@
 // Press any key to skip it.
 
 import * as THREE from 'three';
-import { buildSoldier } from '../npc/soldier.js?v=b6f95d5579';
+import { buildSoldier } from '../npc/soldier.js?v=a527ec0e62';
 
 // ─── THE CLOCK ──────────────────────────────────────────────
 // Every beat of the thing, in seconds. Changing the pace of the cutscene

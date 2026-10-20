@@ -502,9 +502,27 @@ const BOSS_KINDS = [
     hit: (model, part, point, amount) =>
       damagePuppetMaster(model, amount, part, point),
     dead: (d) => d.isDead,
+    // Body and pilot keep separate health, so a blast that reaches both
+    // is worth something to both.
+    blastParts: true,
     // The pilot can eject out of the boss group, so it is raycast separately
     // or it stops being shootable the moment it bails.
     targets: (model) => [model.userData.pilotGroup],
+    // What a rocket is allowed to go off against. The wreck is struck off
+    // the list the moment the body dies: it cannot take a blast any more,
+    // and while it was still solid every rocket burst on the corpse the
+    // pilot had just climbed out of — which left the RPG with no way of
+    // finishing this fight at all.
+    solid(model) {
+      const d = model.userData;
+      const out = [];
+      if (d.bodyHp > 0) out.push({ at: model.position, r: 2.2 });
+      if (d.pilotGroup) {
+        out.push({ at: d.pilotGroup.getWorldPosition(new THREE.Vector3()),
+                   r: 1.2 });          // it is a small thing
+      }
+      return out;
+    },
     flash: (model) => [[model, 'body'], [model.userData.pilotGroup, 'pilot']],
     hud(d, defeated) {
       const bodyPct = Math.max(0, d.bodyHp / d.bodyHpMax) * 100;
@@ -551,6 +569,9 @@ const BOSS_KINDS = [
     // Its meshes are tagged with which twin they belong to, so the hit goes
     // to the one actually shot.
     hit: (model, part, point, amount) => damageTwin(model, part, amount),
+    // And they are two separate creatures with two separate healths, so a
+    // blast caught between them hurts both.
+    blastParts: true,
     dead: (d) => d.defeated,
     hud(d, defeated) {
       if (defeated) return { label: 'THE TWINS — BOTH DOWN', pct: 0 };
@@ -1616,24 +1637,99 @@ function explode(at, radius, damage) {
   }
   updateHUD();
 
-  // The boss, if any of it was standing in it. Its modules want to be told
-  // WHICH part was hit, so the blast finds the nearest piece of it that is
-  // shootable and reports that — the same route a bullet takes.
+  // The boss, if any of it was standing in it.
+  //
+  // Its modules want to be told WHICH part was hit, so the blast finds the
+  // nearest shootable piece of EVERY part it reaches and reports them one
+  // at a time. Every part, rather than only the nearest of the lot,
+  // because of the Puppet Master: once its body is dead the pilot runs
+  // about on its own, and a blast that found the wreck first reported a
+  // hit on a part with no health left — which that boss throws away. The
+  // RPG therefore could not finish that fight at all. A blast is also the
+  // one thing that genuinely does hit two parts of something at once.
   if (boss && boss.active && !boss.defeated) {
-    let part = null, best = radius;
-    boss.model.traverse((o) => {
-      if (!o.isMesh || !o.visible || !o.userData.hitPart) return;
-      const where = o.getWorldPosition(new THREE.Vector3());
-      const d = where.distanceTo(at);
-      if (d < best && clearShot(at, where)) { best = d; part = o; }
-    });
-    if (part) {
-      const share = damage * (1 - best / radius);
-      boss.kind.hit(boss.model, part.userData.hitPart, at.clone(),
-                    boss.kind.bullet * share * (playerClass.damageMul || 1)
+    const nearest = new Map();          // hitPart -> how far off it was
+    const where = new THREE.Vector3();
+    const look = (root) => {
+      if (!root) return;
+      root.traverse((o) => {
+        if (!o.isMesh || !o.visible || !o.userData.hitPart) return;
+        o.getWorldPosition(where);
+        const d = where.distanceTo(at);
+        if (d >= radius) return;
+        const best = nearest.get(o.userData.hitPart);
+        if (best != null && best <= d) return;
+        if (!clearShot(at, where)) return;
+        nearest.set(o.userData.hitPart, d);
+      });
+    };
+    look(boss.model);
+    // Some bosses keep part of themselves outside their own group — the
+    // Puppet Master's pilot ejects into the scene. The same list the
+    // hitscan path has always used.
+    for (const extra of (boss.kind.targets ? boss.kind.targets(boss.model) : [])) {
+      look(extra);
+    }
+    // `damage` already carries the class multiplier: it was applied a
+    // second time here, which quietly made every blast a Commander let off
+    // worth four times what the class card says.
+    const give = (part, d) =>
+      boss.kind.hit(boss.model, part, at.clone(),
+                    boss.kind.bullet * damage * (1 - d / radius)
                       / difficulty.enemyHp);
+    if (boss.kind.blastParts) {
+      // Parts with their own health: each takes its own share. Only the
+      // two bosses that are really two things say so.
+      for (const [part, d] of nearest) give(part, d);
+    } else {
+      // One pool of health wearing several labels — a Burrower's head,
+      // eyes and body are all the same Burrower. Reporting each of them
+      // would charge the blast three times for one explosion.
+      let part = null, best = Infinity;
+      for (const [p, d] of nearest) if (d < best) { best = d; part = p; }
+      if (part) give(part, best);
     }
   }
+}
+
+/**
+ * Is any shootable piece of the boss right here?
+ *
+ * A rocket asks this to know it has arrived. Asking the boss's own
+ * position is not enough — that is the middle of its feet, and the Puppet
+ * Master's pilot ends the fight ten metres away from them.
+ */
+function bossIsAt(p) {
+  if (!boss || !boss.active || boss.defeated) return false;
+  // A kind can say which of its pieces are solid enough to set a rocket
+  // off, and how big each one is. Only one does, and only because part of
+  // it stops counting halfway through the fight.
+  if (boss.kind.solid) {
+    for (const s of boss.kind.solid(boss.model)) {
+      if (s && s.at && s.at.distanceTo(p) < s.r) return true;
+    }
+    return false;
+  }
+  // Otherwise: anything of it you could have shot. This used to ask the
+  // boss's GROUP where it was, which is no good for the two of them that
+  // leave the group at the origin and lay themselves out inside it — a
+  // rocket aimed at either Twin flew straight through and went off on the
+  // far wall, if it went off at all.
+  const where = new THREE.Vector3();
+  let near = false;
+  const look = (root) => {
+    if (!root || near) return;
+    root.traverse((o) => {
+      if (near || !o.isMesh || !o.visible || !o.userData.hitPart) return;
+      o.getWorldPosition(where);
+      if (where.distanceTo(p) < 1.1) near = true;
+    });
+  };
+  look(boss.model);
+  for (const extra of (boss.kind.targets ? boss.kind.targets(boss.model) : [])) {
+    look(extra);
+  }
+  return near;
 }
 
 /** A rocket, leaving the tube. */
@@ -1710,10 +1806,7 @@ function updateOrdnance(dt, live) {
           if (flat < 1.0 && high > -0.6 && high < 2.4) { hit = p.clone(); break; }
         }
       }
-      if (!hit && boss && boss.active && !boss.defeated &&
-          boss.model.position.distanceTo(p) < 2.2) {
-        hit = p.clone();
-      }
+      if (!hit && bossIsAt(p)) hit = p.clone();
 
       if (hit) {
         // The thing it actually struck takes the direct hit as well as its
@@ -3271,6 +3364,16 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
       waking = skipped ? WAKE_BLINK - 0.25 : 0;
       return true;
     },
+    /** Put any weapon in your hands, whether or not it is unlocked — for
+     *  checking that every one of them still shoots. */
+    arm(id) {
+      if (!WEAPONS[id]) return Object.keys(WEAPONS);
+      swapGun(id);
+      shotCooldown = 0;
+      return id;
+    },
+    /** Pull the trigger once from the console, along the current aim. */
+    fire() { ctrl.shootRequested = true; return true; },
     /** Which voice each speaker ended up with on this machine. */
     cast() { return castList(); },
     /** Watch the opening again without reloading the page. */
