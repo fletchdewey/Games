@@ -489,14 +489,14 @@
             class="n"></span></span><span class="card-badge badge-3d2">3D FPS</span></div>
         </div>
         <div class="card-desc">
-          Space station crawler. Fight through 15 rooms against 4 alien species. Clear all outposts to unlock the control room. Reach the helicopter to escape.
+          Space station crawler. You come round on the floor of a hangar with no idea how you got there. Clear four alien outposts to open the Control Room, beat whatever is waiting in it, and reach the escape pod — and somewhere on board there is a room that is not on the map.
         </div>
         <div class="card-tags">
           <span class="tag">Three.js</span>
-          <span class="tag">ES Modules</span>
-          <span class="tag">4 Alien Types</span>
-          <span class="tag">Boss Fights</span>
-          <span class="tag">15 Rooms</span>
+          <span class="tag">Web Audio</span>
+          <span class="tag">8 Classes</span>
+          <span class="tag">4 Bosses</span>
+          <span class="tag">Spoken Cutscenes</span>
         </div>
       </div>
     </a>
@@ -617,6 +617,390 @@
   ctx.fillStyle = 'rgba(200,170,50,0.4)';
   ctx.font = '10px monospace';
   ctx.fillText('AMMO: 24', c.width - 80, c.height - 25);
+})();
+
+// === FALO 2D THUMBNAIL ===
+(function() {
+  const c = document.getElementById('thumb-2d');
+  const ctx = c.getContext('2d');
+  c.width = 640; c.height = 360;
+
+  // Sky
+  const grad = ctx.createLinearGradient(0, 0, 0, c.height);
+  grad.addColorStop(0, '#4a7a9b');
+  grad.addColorStop(1, '#6b9dbd');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, c.width, c.height);
+
+  // Mountains
+  ctx.fillStyle = '#5a7a5a';
+  for (let i = 0; i < 6; i++) {
+    const mx = i * 120;
+    ctx.beginPath();
+    ctx.moveTo(mx, c.height - 80);
+    ctx.lineTo(mx + 60, c.height - 80 - 40 - Math.random()*30);
+    ctx.lineTo(mx + 120, c.height - 80);
+    ctx.fill();
+  }
+
+  // Ground
+  ctx.fillStyle = '#5a8c3c';
+  ctx.fillRect(0, c.height - 80, c.width, 6);
+  ctx.fillStyle = '#6ea04a';
+  ctx.fillRect(0, c.height - 77, c.width, 3);
+  ctx.fillStyle = '#8b6b4a';
+  ctx.fillRect(0, c.height - 74, c.width, 74);
+
+  // Platforms
+  ctx.fillStyle = '#7a7a7a';
+  [[150, c.height-140, 80], [320, c.height-160, 60], [480, c.height-130, 90]].forEach(([px,py,pw]) => {
+    ctx.fillRect(px, py, pw, 12);
+    ctx.fillStyle = '#9a9a9a';
+    ctx.fillRect(px+2, py, pw-4, 4);
+    ctx.fillStyle = '#7a7a7a';
+  });
+
+  // Master Chief (pixel-ish)
+  const cx = 200, cy = c.height - 105;
+  // Body
+  ctx.fillStyle = '#5b7a2e';
+  ctx.fillRect(cx-8, cy-20, 16, 16);
+  // Head
+  ctx.fillStyle = '#7a9b3e';
+  ctx.fillRect(cx-6, cy-30, 12, 10);
+  // Visor
+  ctx.fillStyle = '#d4a520';
+  ctx.fillRect(cx-4, cy-28, 8, 4);
+  // Legs
+  ctx.fillRect(cx-6, cy-4, 5, 10);
+  ctx.fillRect(cx+1, cy-4, 5, 10);
+
+  // Aliens
+  [[380, c.height-100], [450, c.height-170], [550, c.height-100]].forEach(([ax,ay]) => {
+    ctx.fillStyle = '#8844aa';
+    ctx.fillRect(ax-6, ay-16, 12, 12);
+    ctx.fillStyle = '#aa66cc';
+    ctx.fillRect(ax-5, ay-24, 10, 8);
+    ctx.fillStyle = '#ff3333';
+    ctx.fillRect(ax-3, ay-22, 2, 2);
+    ctx.fillRect(ax+1, ay-22, 2, 2);
+  });
+
+  // Bullets
+  ctx.fillStyle = '#ffdd33';
+  [[240, cy-18], [260, cy-20], [280, cy-16]].forEach(([bx,by]) => {
+    ctx.fillRect(bx, by, 6, 3);
+  });
+
+  // Alien bullets
+  ctx.fillStyle = '#ff3333';
+  [[360, c.height-110], [340, c.height-100]].forEach(([bx,by]) => {
+    ctx.fillRect(bx, by, 4, 4);
+  });
+
+  // HUD mockup
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(10, 10, 110, 16);
+  ctx.fillStyle = '#44cc44';
+  ctx.fillRect(11, 11, 80, 14);
+  ctx.fillStyle = '#ccaa22';
+  ctx.font = '10px monospace';
+  ctx.fillText('AMMO: 30', 10, 42);
+})();
+
+// === FALO 3D-2 SCREEN ===
+// Not a picture of the game — a little bit of the game, running. The card
+// draws a corridor in perspective and walks you down it: the floor seams
+// and the ceiling lights come at you, a Crawler scuttles, a Floater bobs
+// and takes a round, and a Watcher charges up at the far end and fires
+// down the hall. Everything is drawn with the same four colours the game
+// uses for those three, so the card and the thing it opens agree.
+(function() {
+  const c = document.getElementById('thumb-3d2');
+  if (!c) return;
+  const g = c.getContext('2d');
+  const W = 640, H = 360;
+  c.width = W; c.height = H;
+
+  // The corridor, in the camera's own terms: x across, y up off the floor,
+  // z away down the hall. The eye is a metre up, which is why everything
+  // below that line falls away and everything above it closes in.
+  const VP = { x: W / 2, y: H * 0.49 };
+  const EYE = 1.05, HALF = 2.25, TALL = 2.9, FOCAL = 230;
+  const proj = (x, y, z) => {
+    const s = FOCAL / Math.max(0.35, z);
+    return { x: VP.x + x * s, y: VP.y - (y - EYE) * s, s };
+  };
+
+  const GREEN = '68,255,136', PINK = '255,68,204';
+  const CYAN = '68,204,255', AMBER = '255,170,34';
+
+  // Every few seconds something happens: a shot of yours, and a beam of
+  // its. Both are scheduled rather than random, so the card always looks
+  // the same amount of busy.
+  const SHOT = 2.6, BEAM = 7.4;
+
+  function glow(x, y, r, rgb, a) {
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(' + rgb + ',' + a + ')');
+    gr.addColorStop(1, 'rgba(' + rgb + ',0)');
+    g.fillStyle = gr;
+    g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+
+  function frame(t) {
+    // --- The hall itself ---
+    const sky = g.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#0b0912');
+    sky.addColorStop(0.5, '#141220');
+    sky.addColorStop(1, '#0a0810');
+    g.fillStyle = sky;
+    g.fillRect(0, 0, W, H);
+
+    // The hall is built as surfaces, a bay at a time, far end first. It
+    // used to be lines on black, which is a wireframe of a corridor
+    // rather than a corridor.
+    const walk = (t * 1.6) % 1.4;
+    const quad = (p1, p2, p3, p4, fill) => {
+      g.fillStyle = fill;
+      g.beginPath();
+      g.moveTo(p1.x, p1.y); g.lineTo(p2.x, p2.y);
+      g.lineTo(p3.x, p3.y); g.lineTo(p4.x, p4.y);
+      g.closePath(); g.fill();
+    };
+    for (let i = 14; i >= 0; i--) {
+      const zf = i * 1.4 + 2.0 - walk;        // far edge of this bay
+      const zn = zf - 1.4;                    // near edge
+      if (zn < 0.5) continue;
+      // Haze: everything loses itself into the dark down the hall, which
+      // is what gives the thing depth on a card this small.
+      const lit = Math.max(0.09, 1 - zn / 22);
+      const band = i % 2 ? 1 : 0.86;          // plating, bay by bay
+      const v = (n) => Math.round(n * lit * band);
+
+      const flF = proj(-HALF, 0, zf), frF = proj(HALF, 0, zf);
+      const flN = proj(-HALF, 0, zn), frN = proj(HALF, 0, zn);
+      const clF = proj(-HALF, TALL, zf), crF = proj(HALF, TALL, zf);
+      const clN = proj(-HALF, TALL, zn), crN = proj(HALF, TALL, zn);
+
+      quad(flF, frF, frN, flN, 'rgb(' + v(60) + ',' + v(63) + ',' + v(80) + ')');
+      quad(clF, crF, crN, clN, 'rgb(' + v(28) + ',' + v(30) + ',' + v(42) + ')');
+      quad(flF, clF, clN, flN, 'rgb(' + v(86) + ',' + v(89) + ',' + v(112) + ')');
+      quad(frF, crF, crN, frN, 'rgb(' + v(70) + ',' + v(73) + ',' + v(94) + ')');
+
+      // The seam between this bay and the next, and the rail along it.
+      g.strokeStyle = 'rgba(150,160,200,' + (lit * 0.3) + ')';
+      g.lineWidth = 1;
+      g.beginPath(); g.moveTo(flN.x, flN.y); g.lineTo(clN.x, clN.y); g.stroke();
+      g.beginPath(); g.moveTo(frN.x, frN.y); g.lineTo(crN.x, crN.y); g.stroke();
+      g.beginPath(); g.moveTo(flN.x, flN.y); g.lineTo(frN.x, frN.y); g.stroke();
+      const railL = proj(-HALF, 1.45, zn), railR = proj(HALF, 1.45, zn);
+      g.fillStyle = 'rgba(150,120,210,' + (lit * 0.22) + ')';
+      g.fillRect(railL.x - 1, railL.y - 1, 3, 2);
+      g.fillRect(railR.x - 2, railR.y - 1, 3, 2);
+
+      // Strip light every other bay, with the pool it throws on the deck.
+      if (i % 2 === 0) {
+        const a = proj(-0.8, TALL - 0.05, zn), b = proj(0.8, TALL - 0.05, zn);
+        const w = Math.max(1.5, b.x - a.x);
+        g.fillStyle = 'rgba(214,232,255,' + (0.14 + lit * 0.72) + ')';
+        g.fillRect(a.x, a.y - 1, w, Math.max(1.5, 3.4 * lit + 1));
+        glow((a.x + b.x) / 2, a.y, 26 + 54 * lit, '170,205,255', 0.05 + lit * 0.17);
+        const pool = proj(0, 0, zn);
+        const pr = Math.max(4, 90 * lit);
+        const pg = g.createRadialGradient(pool.x, pool.y, 0, pool.x, pool.y, pr);
+        pg.addColorStop(0, 'rgba(190,215,255,' + (lit * 0.17) + ')');
+        pg.addColorStop(1, 'rgba(190,215,255,0)');
+        g.fillStyle = pg;
+        g.beginPath();
+        g.ellipse(pool.x, pool.y, pr, pr * 0.34, 0, 0, 6.3);
+        g.fill();
+      }
+    }
+
+    // --- The door at the end, and the light over it ---
+    const dl = proj(-1.25, 0, 21), dr = proj(1.25, 2.4, 21);
+    g.fillStyle = '#0d1018';
+    g.fillRect(dl.x, dr.y, dr.x - dl.x, dl.y - dr.y);
+    g.strokeStyle = 'rgba(120,140,180,0.35)';
+    g.lineWidth = 1;
+    g.strokeRect(dl.x, dr.y, dr.x - dl.x, dl.y - dr.y);
+    const lampOn = (t % 2) < 1.2;
+    if (lampOn) glow(VP.x, dr.y - 3, 16, '255,40,60', 0.5);
+
+    // --- The three of them ---
+    // A Crawler, low and quick, working across the deck.
+    const crz = 7.4, crx = Math.sin(t * 0.9) * 1.3;
+    const cr = proj(crx, 0, crz), crTop = proj(crx, 0.8, crz);
+    const crW = cr.s * 1.05, crH = cr.y - crTop.y;
+    glow(cr.x, (cr.y + crTop.y) / 2, crW, GREEN, 0.1);
+    for (let i = 0; i < 4; i++) {            // legs, working
+      const sp = Math.sin(t * 7 + i * 1.7) * 0.18;
+      const hip = proj(crx + (i < 2 ? -0.2 : 0.2), 0.55, crz);
+      const foot = proj(crx + (i < 2 ? -0.6 : 0.6) + sp, 0, crz + (i % 2 ? 0.3 : -0.3));
+      g.strokeStyle = '#1b2a22';
+      g.lineWidth = Math.max(1.5, cr.s * 0.07);
+      g.beginPath(); g.moveTo(hip.x, hip.y); g.lineTo(foot.x, foot.y); g.stroke();
+    }
+    g.fillStyle = '#16211b';
+    g.beginPath();
+    g.ellipse(cr.x, (cr.y + crTop.y) / 2, crW * 0.5, crH * 0.5, 0, 0, 6.3);
+    g.fill();
+    g.strokeStyle = 'rgba(' + GREEN + ',0.28)';   // a rim of its own light
+    g.lineWidth = 1.2;
+    g.stroke();
+    for (const dx of [-0.14, 0.14]) {
+      const e = proj(crx + dx, 0.62, crz);
+      glow(e.x, e.y, 11, GREEN, 0.6);
+      g.fillStyle = 'rgba(' + GREEN + ',0.95)';
+      g.fillRect(e.x - 1.6, e.y - 1.6, 3.2, 3.2);
+    }
+
+    // A Floater, hanging in the middle of the hall, which is what you are
+    // about to shoot.
+    const flz = 5.2, fly = 1.5 + Math.sin(t * 1.3) * 0.22;
+    const hitAt = SHOT * 0.5;
+    const sinceHit = (t % SHOT) - hitAt;
+    const hurt = sinceHit > 0 && sinceHit < 0.16;
+    const fl2 = proj(0.95, fly, flz);
+    const r = fl2.s * 0.3;
+    glow(fl2.x, fl2.y, r * 3.4, PINK, hurt ? 0.55 : 0.3);
+    g.fillStyle = hurt ? 'rgba(255,220,240,0.95)' : '#2a1020';
+    g.beginPath(); g.ellipse(fl2.x, fl2.y, r, r * 0.8, 0, 0, 6.3); g.fill();
+    g.fillStyle = 'rgba(' + PINK + ',0.9)';
+    g.beginPath(); g.ellipse(fl2.x, fl2.y, r * 0.34, r * 0.3, 0, 0, 6.3); g.fill();
+    for (let i = 0; i < 5; i++) {                 // the legs under it
+      const a = (i / 5) * Math.PI + 0.4;
+      const tip = proj(0.95 + Math.cos(a) * 0.5, fly - 0.75 - Math.sin(t * 2 + i) * 0.1, flz);
+      g.strokeStyle = 'rgba(180,80,150,0.5)';
+      g.lineWidth = 1.4;
+      g.beginPath(); g.moveTo(fl2.x, fl2.y + r * 0.6); g.lineTo(tip.x, tip.y); g.stroke();
+    }
+
+    // A Watcher at the far end, charging. Every seven seconds it lets go.
+    const waz = 13, wax = -1.4;
+    const phase = t % BEAM;
+    const charge = Math.min(1, Math.max(0, (phase - (BEAM - 2.2)) / 2.2));
+    const firing = phase > BEAM - 0.22;
+    const wa = proj(wax, 0, waz), waTop = proj(wax, 2.1, waz);
+    g.strokeStyle = '#0e1620';
+    g.lineWidth = Math.max(2, wa.s * 0.22);
+    g.beginPath(); g.moveTo(wa.x, wa.y); g.lineTo(waTop.x, waTop.y); g.stroke();
+    const eye = proj(wax, 1.95, waz);
+    glow(eye.x, eye.y, 10 + charge * 26, CYAN, 0.25 + charge * 0.6);
+    g.fillStyle = 'rgba(' + CYAN + ',' + (0.6 + charge * 0.4) + ')';
+    g.beginPath(); g.arc(eye.x, eye.y, 2 + charge * 2.5, 0, 6.3); g.fill();
+    if (firing) {
+      const end = proj(wax + 2.6, 1.1, 2.4);
+      g.strokeStyle = 'rgba(200,245,255,0.9)';
+      g.lineWidth = 3;
+      g.beginPath(); g.moveTo(eye.x, eye.y); g.lineTo(end.x, end.y); g.stroke();
+      g.strokeStyle = 'rgba(' + CYAN + ',0.5)';
+      g.lineWidth = 9;
+      g.beginPath(); g.moveTo(eye.x, eye.y); g.lineTo(end.x, end.y); g.stroke();
+      g.fillStyle = 'rgba(200,245,255,0.16)';     // the whole hall lights up
+      g.fillRect(0, 0, W, H);
+    }
+
+    // --- Your end of it ---
+    // The rifle, the flash, and the round on its way.
+    const since = t % SHOT;
+    const flash = since < 0.07;
+    // Held low and angled across the corner, the way the game holds it.
+    g.save();
+    g.translate(W - 178, H - 40);
+    g.rotate(-0.42);
+    g.scale(0.82, 0.82);          // all of it in frame, muzzle included
+    g.fillStyle = '#23262f';                       // receiver
+    g.fillRect(-28, -14, 120, 26);
+    g.fillStyle = '#2d313c';                       // top rail, catching light
+    g.fillRect(-20, -17, 104, 5);
+    g.fillStyle = '#1a1d24';                       // barrel
+    g.fillRect(84, -8, 62, 10);
+    g.fillRect(132, -11, 16, 16);                  // flash hider
+    g.fillStyle = '#262a33';                       // magazine
+    g.beginPath();
+    g.moveTo(16, 12); g.lineTo(44, 12); g.lineTo(50, 54); g.lineTo(24, 54);
+    g.closePath(); g.fill();
+    g.fillStyle = '#1e212a';                       // stock, running off frame
+    g.beginPath();
+    g.moveTo(-28, -10); g.lineTo(-96, 14); g.lineTo(-96, 40); g.lineTo(-28, 12);
+    g.closePath(); g.fill();
+    g.fillStyle = 'rgba(150,170,210,0.1)';         // edge highlight
+    g.fillRect(-20, -17, 104, 1.5);
+    g.restore();
+    const MUZZLE = { x: W - 66, y: H - 92 };   // where the barrel ends
+    if (flash) {
+      glow(MUZZLE.x, MUZZLE.y, 60, '255,210,120', 0.8);
+      g.fillStyle = 'rgba(255,238,195,0.92)';
+      g.beginPath(); g.arc(MUZZLE.x, MUZZLE.y, 8, 0, 6.3); g.fill();
+    }
+    if (since < hitAt && since > 0.02) {           // the tracer, in flight
+      const k = since / hitAt;
+      const sx = MUZZLE.x, sy = MUZZLE.y;
+      const ex = sx + (fl2.x - sx) * k, ey = sy + (fl2.y - sy) * k;
+      g.strokeStyle = 'rgba(255,220,120,0.85)';
+      g.lineWidth = 1.6;
+      g.beginPath();
+      g.moveTo(ex - (ex - sx) * 0.12, ey - (ey - sy) * 0.12);
+      g.lineTo(ex, ey); g.stroke();
+    }
+
+    // --- What the player is actually looking at ---
+    g.strokeStyle = 'rgba(255,255,255,0.55)';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(VP.x - 9, VP.y); g.lineTo(VP.x - 3, VP.y);
+    g.moveTo(VP.x + 3, VP.y); g.lineTo(VP.x + 9, VP.y);
+    g.moveTo(VP.x, VP.y - 9); g.lineTo(VP.x, VP.y - 3);
+    g.moveTo(VP.x, VP.y + 3); g.lineTo(VP.x, VP.y + 9);
+    g.stroke();
+
+    g.font = '11px "Courier New", monospace';
+    g.fillStyle = 'rgba(255,170,34,0.75)';
+    g.fillText('LOADING BAY', W / 2 - 38, 24);
+    g.fillStyle = 'rgba(255,170,34,0.55)';
+    g.fillText('KILLS: 12', W - 86, 24);
+    g.fillText('OUTPOSTS CLEARED 2/4', W - 170, 42);
+    g.fillStyle = 'rgba(' + GREEN + ',0.75)';
+    g.fillText('FLETCHER', 18, 24);
+    // Health, with a hit taken out of it a moment after the beam lands.
+    const hurtNow = phase > BEAM - 0.22 || phase < 0.5;
+    g.fillStyle = 'rgba(255,255,255,0.1)';
+    g.fillRect(W / 2 - 70, H - 26, 140, 7);
+    g.fillStyle = 'rgba(' + GREEN + ',0.8)';
+    g.fillRect(W / 2 - 70, H - 26, 140 * (hurtNow ? 0.52 : 0.74), 7);
+    if (hurtNow) {
+      g.fillStyle = 'rgba(255,40,60,0.1)';
+      g.fillRect(0, 0, W, H);
+    }
+
+    // --- The glass it is all behind ---
+    g.fillStyle = 'rgba(0,0,0,0.12)';
+    for (let y = 0; y < H; y += 3) g.fillRect(0, y, W, 1);
+    const vig = g.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(0,0,0,0.5)');
+    g.fillStyle = vig;
+    g.fillRect(0, 0, W, H);
+  }
+
+  // Thirty a second is plenty for this, and it stops altogether when the
+  // card is off screen or the tab is in the background — a library page
+  // should not be the reason a laptop fan comes on.
+  let last = 0, running = true;
+  function loop(ms) {
+    requestAnimationFrame(loop);
+    if (!running || document.hidden) return;
+    if (ms - last < 33) return;
+    last = ms;
+    frame(ms / 1000);
+  }
+  requestAnimationFrame(loop);
+  if (window.IntersectionObserver) {
+    new IntersectionObserver((es) => { running = es[0].isIntersecting; },
+                             { threshold: 0.05 }).observe(c);
+  }
 })();
 
 // === FALO 2D THUMBNAIL ===
