@@ -384,6 +384,19 @@
     #cut-line { font-size: 13px; bottom: 13%; }
   }
 
+  /* The way out of the opening, named on screen because it is one key
+     rather than any key — see the keydown handler for why. */
+  #cut-skip {
+    display: none;
+    position: fixed; right: 16px; bottom: 14px; z-index: 29;
+    font-family: 'Courier New', monospace;
+    font-size: 11px; letter-spacing: 2px; color: #93a6ad;
+    background: rgba(6,4,10,0.45); padding: 4px 10px; border-radius: 4px;
+    pointer-events: none;
+    animation: skiphint 1.4s ease-out 1;
+  }
+  @keyframes skiphint { from { opacity: 0; } to { opacity: 1; } }
+
   /* Black over everything: the first and last seconds of a cutscene,
      and your eyes going in and out while you come round on the floor. */
   #cut-fade {
@@ -502,6 +515,7 @@
   <div id="use-prompt">E &mdash; LAUNCH</div>
 
   <div id="descent-text"><div class="one"></div><div class="two"></div></div>
+  <div id="cut-skip">E &mdash; SKIP</div>
   <div id="cut-line"><span class="pill"><span class="who"></span><span class="said"></span></span></div>
   <div id="cut-fade"></div>
 

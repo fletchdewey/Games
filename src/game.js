@@ -1299,6 +1299,7 @@ function endDescent() {
 // the level is from the floor of it.
 let intro = null;
 const cutLineEl = document.getElementById('cut-line');
+const skipHintEl = document.getElementById('cut-skip');
 const cutWhoEl = cutLineEl && cutLineEl.querySelector('.who');
 const cutSaidEl = cutLineEl && cutLineEl.querySelector('.said');
 let waking = -1;              // seconds since you came round, -1 when not
@@ -1313,6 +1314,7 @@ const BLINK = [[0, 1], [0.35, 0.22], [0.8, 0.92], [1.35, 0.08],
 
 function startIntro() {
   intro = createArrival();
+  if (skipHintEl) skipHintEl.style.display = 'block';
   wakeYaw = ctrl.yaw;         // before the cutscene lets the mouse wander
   document.body.classList.add('in-cutscene');
   if (cutFadeEl) {
@@ -1386,6 +1388,7 @@ function endIntro(skipped) {
   if (!intro) return;
   intro.dispose();
   intro = null;
+  if (skipHintEl) skipHintEl.style.display = 'none';
   hush();                     // mid-sentence, if that is where you skipped
   showLine(null);
   stopLoop('rotor');
@@ -2364,9 +2367,18 @@ escapeQuitBtn.addEventListener('click', quitToTitle);
 
 // Your hand is on the keyboard already, so take it from there too.
 document.addEventListener('keydown', (e) => {
-  // Skipping a cutscene. Any key at all, because by the third time you have
-  // seen one you want the game, not the view.
-  if (intro) { intro.skip(); return; }
+  // Skipping the opening: E, and only E, with the key named on screen
+  // while it runs. Any key at all is right for the ride down — that one
+  // comes after a run you have just finished, and whatever you press you
+  // meant to press. The opening is different: your hands are already on
+  // WASD waiting to play, and leaning on a key you are about to need is
+  // not a decision to skip the film.
+  if (intro) {
+    if (e.code === 'KeyE') intro.skip();
+    return;
+  }
+  // The ride down. Any key at all, because by the third time you have
+  // seen it you want the tally, not the view.
   if (descent) { descent.skip(); return; }
 
   // The soundboard, which works whether or not you are playing — you need to

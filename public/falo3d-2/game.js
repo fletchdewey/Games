@@ -18,60 +18,60 @@
 import * as THREE from 'three';
 
 // === Shared modules ===
-import { PALETTE, getMaterial } from './shared/materials.js?v=2a06bd2eb6';
+import { PALETTE, getMaterial } from './shared/materials.js?v=0c8e1ae1b2';
 
 // === Alien modules ===
-import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=2a06bd2eb6';
-import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=2a06bd2eb6';
+import { buildCrawler, animateCrawler, createCrawlerAI, updateCrawlerAI, hitCrawler, killCrawler } from './aliens/crawler.js?v=0c8e1ae1b2';
+import { buildFloater, animateFloater, createFloaterAI, updateFloaterAI, hitFloater, killFloater } from './aliens/floater.js?v=0c8e1ae1b2';
 import { buildWatcher, animateWatcher, createWatcherAI, updateWatcherAI, hitWatcher, killWatcher, restWatcher,
-         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=2a06bd2eb6';
-import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=2a06bd2eb6';
+         EYE_HEIGHT as WATCHER_EYE_Y, CHEST_DROP as WATCHER_AIM_DROP } from './aliens/watcher.js?v=0c8e1ae1b2';
+import { buildBrute, animateBrute, createBruteAI, updateBruteAI, hitBrute, killBrute } from './aliens/brute.js?v=0c8e1ae1b2';
 
 // === The ending ===
-import { createDescent } from './cutscene/descent.js?v=2a06bd2eb6';
-import { createArrival } from './cutscene/arrival.js?v=2a06bd2eb6';
+import { createDescent } from './cutscene/descent.js?v=0c8e1ae1b2';
+import { createArrival } from './cutscene/arrival.js?v=0c8e1ae1b2';
 
 // === Sound ===
 import { startAudio, playSound, startLoop, stopLoop, stopAllLoops,
-         setLoopGain, loadSavedSound } from './audio/sound.js?v=2a06bd2eb6';
-import { masterVolume } from './audio/sound.js?v=2a06bd2eb6';
-import { say, hush, castList } from './audio/speech.js?v=2a06bd2eb6';
-import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=2a06bd2eb6';
+         setLoopGain, loadSavedSound } from './audio/sound.js?v=0c8e1ae1b2';
+import { masterVolume } from './audio/sound.js?v=0c8e1ae1b2';
+import { say, hush, castList } from './audio/speech.js?v=0c8e1ae1b2';
+import { toggleSoundboard, closeSoundboard, soundboardOpen } from './audio/mixer.js?v=0c8e1ae1b2';
 
 // === Player ===
-import { createController, updateController } from './player/controller.js?v=2a06bd2eb6';
+import { createController, updateController } from './player/controller.js?v=0c8e1ae1b2';
 import { CLASSES, WEAPONS, classById, winsSoFar, recordWin,
          commanderUnlocked, unlockState, classLocked, lockReason,
          unlockedWeapons, allowedCommanderWeapon, recordBeaten, recordSecret,
          DIFFICULTIES, difficultyById, savedDifficulty, saveDifficulty }
-  from './player/classes.js?v=2a06bd2eb6';
+  from './player/classes.js?v=0c8e1ae1b2';
 
 // === The one on your side ===
-import { buildSoldier } from './npc/soldier.js?v=2a06bd2eb6';
+import { buildSoldier } from './npc/soldier.js?v=0c8e1ae1b2';
 import { initSoldier, updateSoldier, releaseSoldier, hurtSoldier,
          soldierIsFree, soldierIsDown, soldierHealth, soldierCanBeBitten,
-         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=2a06bd2eb6';
+         FX as SOLDIER_FX } from './npc/soldier_ai.js?v=0c8e1ae1b2';
 
 // === Boss ===
-import { createPuppetMaster } from './bosses/puppet_master.js?v=2a06bd2eb6';
-import { createSwarm } from './bosses/swarm.js?v=2a06bd2eb6';
-import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=2a06bd2eb6';
-import { createTwins } from './bosses/twins.js?v=2a06bd2eb6';
-import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=2a06bd2eb6';
-import { createBurrower } from './bosses/burrower.js?v=2a06bd2eb6';
+import { createPuppetMaster } from './bosses/puppet_master.js?v=0c8e1ae1b2';
+import { createSwarm } from './bosses/swarm.js?v=0c8e1ae1b2';
+import { initSwarm, updateSwarm, damageSwarm } from './bosses/swarm_ai.js?v=0c8e1ae1b2';
+import { createTwins } from './bosses/twins.js?v=0c8e1ae1b2';
+import { initTwins, updateTwins, damageTwin } from './bosses/twins_ai.js?v=0c8e1ae1b2';
+import { createBurrower } from './bosses/burrower.js?v=0c8e1ae1b2';
 import { initBurrower, updateBurrower, damageBurrower,
-         setBurrowerArena } from './bosses/burrower_ai.js?v=2a06bd2eb6';
+         setBurrowerArena } from './bosses/burrower_ai.js?v=0c8e1ae1b2';
 import { initPuppetMaster, updatePuppetMaster, damagePuppetMaster,
-         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=2a06bd2eb6';
+         stepPuppetMasterFx, setPuppetArena } from './bosses/puppet_master_ai.js?v=0c8e1ae1b2';
 
 // === Map ===
 // The level now comes from the grid you paint in the Map Editor, baked into
 // grid_data.js by build.sh. layout.js / builder.js are the old hand-written
 // rooms and are no longer used by v2.
-import { cleanName, savedName, saveName } from './player/name.js?v=2a06bd2eb6';
-import { startPresence } from './shared/presence.js?v=2a06bd2eb6';
+import { cleanName, savedName, saveName } from './player/name.js?v=0c8e1ae1b2';
+import { startPresence } from './shared/presence.js?v=0c8e1ae1b2';
 import { buildGridMap, roomIdAt, placeNameAt, roomSpawn, randomCellIn, isFloorAt, ROOMS }
-  from './map/grid_map.js?v=2a06bd2eb6';
+  from './map/grid_map.js?v=0c8e1ae1b2';
 import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildFloorTentacles, buildLaserScars,
          buildWatcherDebris, buildOutpostWreckage,
@@ -81,7 +81,7 @@ import { buildHangarProps, buildCeilingWebs, buildFloorWebs,
          buildLockedDoor, setLockedDoorOpen, updateLockedDoor, buildSecretRoom,
          buildSpaceDoor, setSpaceDoorOpen, updateSpaceDoor, hangPictures,
          addAftermath,
-         buildStudyScreen, buildControlRoom } from './map/props.js?v=2a06bd2eb6';
+         buildStudyScreen, buildControlRoom } from './map/props.js?v=0c8e1ae1b2';
 
 // ─── ALIEN REGISTRY ─────────────────────────────────────────
 // Maps alien type names to their module functions so we can
@@ -1299,6 +1299,7 @@ function endDescent() {
 // the level is from the floor of it.
 let intro = null;
 const cutLineEl = document.getElementById('cut-line');
+const skipHintEl = document.getElementById('cut-skip');
 const cutWhoEl = cutLineEl && cutLineEl.querySelector('.who');
 const cutSaidEl = cutLineEl && cutLineEl.querySelector('.said');
 let waking = -1;              // seconds since you came round, -1 when not
@@ -1313,6 +1314,7 @@ const BLINK = [[0, 1], [0.35, 0.22], [0.8, 0.92], [1.35, 0.08],
 
 function startIntro() {
   intro = createArrival();
+  if (skipHintEl) skipHintEl.style.display = 'block';
   wakeYaw = ctrl.yaw;         // before the cutscene lets the mouse wander
   document.body.classList.add('in-cutscene');
   if (cutFadeEl) {
@@ -1386,6 +1388,7 @@ function endIntro(skipped) {
   if (!intro) return;
   intro.dispose();
   intro = null;
+  if (skipHintEl) skipHintEl.style.display = 'none';
   hush();                     // mid-sentence, if that is where you skipped
   showLine(null);
   stopLoop('rotor');
@@ -2364,9 +2367,18 @@ escapeQuitBtn.addEventListener('click', quitToTitle);
 
 // Your hand is on the keyboard already, so take it from there too.
 document.addEventListener('keydown', (e) => {
-  // Skipping a cutscene. Any key at all, because by the third time you have
-  // seen one you want the game, not the view.
-  if (intro) { intro.skip(); return; }
+  // Skipping the opening: E, and only E, with the key named on screen
+  // while it runs. Any key at all is right for the ride down — that one
+  // comes after a run you have just finished, and whatever you press you
+  // meant to press. The opening is different: your hands are already on
+  // WASD waiting to play, and leaning on a key you are about to need is
+  // not a decision to skip the film.
+  if (intro) {
+    if (e.code === 'KeyE') intro.skip();
+    return;
+  }
+  // The ride down. Any key at all, because by the third time you have
+  // seen it you want the tally, not the view.
   if (descent) { descent.skip(); return; }
 
   // The soundboard, which works whether or not you are playing — you need to
